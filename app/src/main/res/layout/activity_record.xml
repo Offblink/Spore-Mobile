@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/spore_bg"
     android:orientation="vertical">
 
     <LinearLayout
@@ -20,6 +22,7 @@
             android:layout_height="wrap_content"
             android:padding="4dp"
             android:text="‹"
+            android:textColor="@color/spore_ink"
             android:textSize="26sp" />
 
         <TextView
@@ -28,16 +31,41 @@
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:text="@string/record_title"
+            android:textColor="@color/spore_ink"
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <TextView
+        <LinearLayout
             android:id="@+id/record_filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="@string/record_filter_fav"
-            android:textSize="14sp" />
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/record_scope_all"
+                android:textColor="@color/spore_muted"
+                android:textSize="13sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/record_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                app:thumbTint="@color/spore_switch_thumb_tint"
+                app:trackTint="@color/spore_switch_track_tint" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="@string/record_scope_fav"
+                android:textColor="@color/spore_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
@@ -47,6 +75,7 @@
         android:layout_marginTop="48dp"
         android:gravity="center"
         android:text="@string/record_empty"
+        android:textColor="@color/spore_muted3"
         android:textSize="14sp"
         android:visibility="gone" />
 

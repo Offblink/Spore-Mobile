@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.widget.Button;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,7 +24,8 @@ import androidx.core.content.ContextCompat;
  */
 public class MainActivity extends AppCompatActivity {
 
-    private Button btnBall;
+    private TextView btnBall;
+    private View homeDot;
     private TextView tvStatus;
     private ActivityResultLauncher<Intent> overlayLauncher;
     private ActivityResultLauncher<String> notifLauncher;
@@ -36,12 +37,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         btnBall = findViewById(R.id.btn_ball);
+        homeDot = findViewById(R.id.home_dot);
         tvStatus = findViewById(R.id.tv_status);
 
         overlayLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(), result -> {
                     if (Settings.canDrawOverlays(this)) {
-                        CaptureService.start(this);
+                        startBallWithConsent();
                     }
                     refreshStatus();
                 });
@@ -72,10 +74,14 @@ public class MainActivity extends AppCompatActivity {
 
         btnBall.setOnClickListener(v -> toggleBall());
 
-        findViewById(R.id.btn_settings).setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
-        findViewById(R.id.btn_record).setOnClickListener(v ->
-                startActivity(new Intent(this, RecordActivity.class)));
+        findViewById(R.id.btn_settings).setOnClickListener(v -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+            overridePendingTransition(R.anim.spore_fade_in, R.anim.spore_fade_out);
+        });
+        findViewById(R.id.btn_record).setOnClickListener(v -> {
+            startActivity(new Intent(this, RecordActivity.class));
+            overridePendingTransition(R.anim.spore_fade_in, R.anim.spore_fade_out);
+        });
     }
 
     @Override
@@ -90,14 +96,20 @@ public class MainActivity extends AppCompatActivity {
         } else if (!Settings.canDrawOverlays(this)) {
             requestOverlayPermission();
         } else {
-            // 先起服务（FGS 就绪，Android 14+ 要求先 startForeground 才能拿投影），
-            // 紧接着在应用内过首授——截屏时永远零弹窗、零前台抢占（用户实测拍板）
-            CaptureService.start(this);
-            MediaProjectionManager mpm =
-                    (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-            consentLauncher.launch(mpm.createScreenCaptureIntent());
+            startBallWithConsent();
         }
         refreshStatus();
+    }
+
+    /**
+     * 开球 = 起服务（FGS 就绪，Android 14+ 要求先 startForeground 才能拿投影）
+     * + **应用内**过首授——截屏时永远零弹窗、零前台抢占（用户实测拍板）。
+     */
+    private void startBallWithConsent() {
+        CaptureService.start(this);
+        MediaProjectionManager mpm =
+                (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        consentLauncher.launch(mpm.createScreenCaptureIntent());
     }
 
     /**
@@ -121,6 +133,16 @@ public class MainActivity extends AppCompatActivity {
         boolean overlay = Settings.canDrawOverlays(this);
         boolean running = CaptureService.isRunning();
         btnBall.setText(running ? R.string.stop_ball : R.string.start_ball);
+        if (running) {
+            // 运行态 = 次级描边（主行动已生效），空闲态 = 粉色主按钮
+            btnBall.setBackgroundResource(R.drawable.spore_btn_soft);
+            btnBall.setTextColor(ContextCompat.getColor(this, R.color.spore_pink_deep));
+            homeDot.setBackgroundResource(R.drawable.spore_status_dot);
+        } else {
+            btnBall.setBackgroundResource(R.drawable.spore_btn_primary);
+            btnBall.setTextColor(ContextCompat.getColor(this, R.color.spore_surface));
+            homeDot.setBackgroundResource(R.drawable.spore_status_dot_off);
+        }
         tvStatus.setText(!overlay ? R.string.status_no_overlay
                 : running ? R.string.status_running : R.string.status_idle);
     }

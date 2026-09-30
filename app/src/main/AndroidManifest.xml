@@ -38,12 +38,9 @@
             android:name=".SettingsActivity"
             android:exported="false" />
 
-        <!-- 搜题记录（会话列表 + 收藏筛选）与单条详情；授权页已删——首授收进 MainActivity 开球开关 -->
+        <!-- 搜题记录（会话列表 + 收藏筛选 + 改名/删除；点行开面板接着对话） -->
         <activity
             android:name=".RecordActivity"
-            android:exported="false" />
-        <activity
-            android:name=".DetailActivity"
             android:exported="false" />
 
         <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型 -->

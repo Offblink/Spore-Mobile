@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 记录列表入场：行渐入（layoutAnimation 包一层 spore_row_enter） -->
+<layoutAnimation xmlns:android="http://schemas.android.com/apk/res/android"
+    android:animation="@anim/spore_row_enter"
+    android:animationOrder="normal"
+    android:delay="12%" />

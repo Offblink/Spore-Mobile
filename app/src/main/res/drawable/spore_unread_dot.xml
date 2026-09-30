@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 顶栏未读点（MV3 #sessions .dot：#ff3b5c + 粉光晕） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/spore_danger" />
+</shape>

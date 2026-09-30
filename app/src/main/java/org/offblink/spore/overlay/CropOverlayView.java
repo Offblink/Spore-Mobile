@@ -4,23 +4,18 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Toast;
 
 import org.offblink.spore.R;
 
 /**
- * 冻结帧框选层（桌面 overlay.js 的移动版）：
- * 深色遮罩 + 居中冻结帧 + 拖拽矩形；右上 ✕ 关闭。
- * 判定沿用桌面契约：MIN_W/MIN_H = 60/40（移动端换成 dp），框太小 toast 不放行。
- *
- * §9.3 建议框（2026-09-30 拍板）：ML Kit 出的单框经 {@link #setSuggestion} 预填为琥珀虚线框，
- * 点「搜」确认 / 拖角（4 圆角柄）微调 / 框内拖动整体平移；块外另起手势 = 重新手拖，
- * 松手即截取（桌面原样）。检测不到建议 → 全程退化为手动拖框。
+ * 冻结帧框选层 —— MV3 桌面 overlay.js 的逐字复刻：
+ * 55% 暗幕 + 2dp #EC4899 选框（10% 粉填充）、框上 W×H 粉色尺寸牌、
+ * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、底部粉色「搜」pill、右上 ✕。
+ * 判定沿用桌面契约：宽高**都**小于下限才拒，有其一过线就放行。
  */
 public class CropOverlayView extends View {
 
@@ -35,18 +30,19 @@ public class CropOverlayView extends View {
     private final Bitmap frame;
     private final Listener listener;
     private final float minW, minH;
+    private final int minWdp, minHdp;
+    private final float density;
 
     private final Paint dimPaint = new Paint();
     private final Paint framePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Paint borderShadow = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint selFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint sugBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint handleFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint handleStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint btnBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint btnTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint btnPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint btnTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint closeBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint closePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -54,17 +50,15 @@ public class CropOverlayView extends View {
     private final RectF dst = new RectF();
     private final RectF sel = new RectF();
     private final RectF closeRect = new RectF();
-    /** 「搜」确认按钮（画在底部中央）与其放大热区 */
     private final RectF searchRect = new RectF();
     private final RectF searchHitRect = new RectF();
+    private final RectF hintRect = new RectF();
     private float scale = 1f;
-    private final float handleR;
 
     private boolean hasSel;
     private boolean dragging;
     private boolean resizing;
     private boolean moving;
-    private boolean suggested;
     private boolean closeHit;
     private boolean searchHit;
     private int activeCorner;
@@ -74,49 +68,56 @@ public class CropOverlayView extends View {
     /** 建议框先于布局到达时暂存（帧坐标），onSizeChanged 后回放 */
     private int[] pendingSuggestion;
 
+    /** 顶部提示 pill 的默认文案与告警态复位（桌面 warn() 同款 1.8s） */
+    private final Runnable warnReset = new Runnable() {
+        @Override
+        public void run() {
+            hintText = getContext().getString(R.string.crop_hint);
+            hintBgPaint.setColor(0xDB0C0C12);
+            invalidate();
+        }
+    };
+    private String hintText;
+
     public CropOverlayView(Context context, Bitmap frame, Listener listener) {
         super(context);
         this.frame = frame;
         this.listener = listener;
-        float density = context.getResources().getDisplayMetrics().density;
+        density = context.getResources().getDisplayMetrics().density;
         minW = Math.round(60 * density);
         minH = Math.round(40 * density);
-        handleR = 11 * density;
+        minWdp = Math.round(minW / density);
+        minHdp = Math.round(minH / density);
+        hintText = context.getString(R.string.crop_hint);
 
-        dimPaint.setColor(0xA6000000);
+        dimPaint.setColor(0x8C000000); // 桌面 box-shadow 环 = 55% 黑
         dimPaint.setStyle(Paint.Style.FILL);
 
-        borderShadow.setColor(Color.BLACK);
-        borderShadow.setStyle(Paint.Style.STROKE);
-        borderShadow.setStrokeWidth(6 * density);
+        selFillPaint.setColor(0x1AEC4899); // rgba(236,72,153,.10)
+        selFillPaint.setStyle(Paint.Style.FILL);
 
-        borderPaint.setColor(Color.WHITE);
+        borderPaint.setColor(0xFFEC4899); // border:2px solid #ec4899
         borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(3 * density);
+        borderPaint.setStrokeWidth(2 * density);
 
-        // 建议框 = 琥珀虚线，和「可调后确认」的手拖框区分开
-        sugBorderPaint.setColor(0xFFFFC107);
-        sugBorderPaint.setStyle(Paint.Style.STROKE);
-        sugBorderPaint.setStrokeWidth(3 * density);
-        sugBorderPaint.setPathEffect(new DashPathEffect(new float[]{12 * density, 8 * density}, 0f));
+        labelBgPaint.setColor(0xFFEC4899); // 尺寸牌：粉底 6px 圆角
+        labelBgPaint.setStyle(Paint.Style.FILL);
+        labelPaint.setColor(Color.WHITE);
+        labelPaint.setTextAlign(Paint.Align.CENTER);
+        labelPaint.setTextSize(12 * density);
 
-        handleFillPaint.setColor(Color.WHITE);
-        handleStrokePaint.setColor(0xFF111827);
-        handleStrokePaint.setStyle(Paint.Style.STROKE);
-        handleStrokePaint.setStrokeWidth(2 * density);
+        hintBgPaint.setColor(0xDB0C0C12); // rgba(12,13,18,.86)
+        hintPaint.setColor(0xFFF5F6FC);
+        hintPaint.setTextAlign(Paint.Align.CENTER);
+        hintPaint.setTextSize(13 * density);
 
-        btnBgPaint.setColor(0xF0FF8F00);
+        btnPaint.setColor(0xFFEC4899); // 搜 pill = 品牌粉
         btnTextPaint.setColor(Color.WHITE);
         btnTextPaint.setTextAlign(Paint.Align.CENTER);
-        btnTextPaint.setTextSize(17 * density);
+        btnTextPaint.setTextSize(15 * density);
         btnTextPaint.setFakeBoldText(true);
 
-        hintBgPaint.setColor(0xCC1F2937);
-        hintPaint.setColor(Color.WHITE);
-        hintPaint.setTextAlign(Paint.Align.CENTER);
-        hintPaint.setTextSize(15 * density);
-
-        closeBgPaint.setColor(0xCC1F2937);
+        closeBgPaint.setColor(0xDB0C0C12);
         closePaint.setColor(Color.WHITE);
         closePaint.setStyle(Paint.Style.STROKE);
         closePaint.setStrokeWidth(2.5f * density);
@@ -133,7 +134,6 @@ public class CropOverlayView extends View {
         float offY = (h - bh * scale) / 2f;
         dst.set(offX, offY, offX + bw * scale, offY + bh * scale);
 
-        float density = getResources().getDisplayMetrics().density;
         float r = 22 * density;
         float cx = w - r - 12 * density;
         float cy = r + 12 * density;
@@ -160,43 +160,50 @@ public class CropOverlayView extends View {
         canvas.drawRect(0, 0, w, h, dimPaint);
         canvas.drawBitmap(frame, null, dst, framePaint);
 
+        // 顶部提示 pill（常显；warn 态改红底，1.8s 复位）
+        float hw = hintPaint.measureText(hintText);
+        float hpad = 16 * density;
+        float hleft = (w - hw) / 2 - hpad;
+        float htop = 18 * density;
+        hintRect.set(hleft, htop, hleft + hw + 2 * hpad, htop + 13 * density + 2 * 7 * density);
+        canvas.drawRoundRect(hintRect, hintRect.height() / 2, hintRect.height() / 2, hintBgPaint);
+        canvas.drawText(hintText, w / 2f, hintRect.centerY() - (hintPaint.descent() + hintPaint.ascent()) / 2f, hintPaint);
+
         if (hasSel) {
-            canvas.drawRect(sel, borderShadow);
-            if (suggested) {
-                canvas.drawRect(sel, sugBorderPaint);
-            } else {
-                canvas.drawRect(sel, borderPaint);
-            }
+            canvas.drawRect(sel, selFillPaint);
+            canvas.drawRect(sel, borderPaint);
+
+            // W×H 尺寸牌（框上方，桌面 label 同款）
+            String size = Math.round(sel.width() / scale) + " × " + Math.round(sel.height() / scale);
+            float lw = labelPaint.measureText(size);
+            float lpadH = 7 * density;
+            float chipW = lw + 2 * lpadH;
+            float chipH = 12 * density + 2 * 3 * density;
+            float lx = Math.max(4 * density, Math.min(sel.left, w - chipW - 4 * density));
+            float ly = Math.max(4 * density, sel.top - chipH - 4 * density);
+            canvas.drawRoundRect(lx, ly, lx + chipW, ly + chipH, 6 * density, 6 * density, labelBgPaint);
+            canvas.drawText(size, lx + chipW / 2, ly + chipH / 2 - (labelPaint.descent() + labelPaint.ascent()) / 2f, labelPaint);
+
             if (!dragging) {
                 drawHandle(canvas, sel.left, sel.top);
                 drawHandle(canvas, sel.right, sel.top);
                 drawHandle(canvas, sel.right, sel.bottom);
                 drawHandle(canvas, sel.left, sel.bottom);
             }
-        } else if (!dragging) {
-            // 无选择且未在拖动 → 居中提示
-            String hint = getContext().getString(R.string.crop_hint);
-            float tw = hintPaint.measureText(hint);
-            float cx = w / 2f;
-            float cy = h / 2f;
-            float pad = 16 * getResources().getDisplayMetrics().density;
-            float th = hintPaint.getTextSize();
-            canvas.drawRoundRect(cx - tw / 2 - pad, cy - th - pad,
-                    cx + tw / 2 + pad, cy + pad, pad, pad, hintBgPaint);
-            canvas.drawText(hint, cx, cy - pad / 2, hintPaint);
         }
 
-        // 「搜」确认（有框且不在新手势中才显示）
+        // 「搜」确认 pill（有框且不在新手势中）
         if (hasSel && !dragging) {
-            canvas.drawRoundRect(searchRect,
-                    searchRect.height() / 2f, searchRect.height() / 2f, btnBgPaint);
+            float radius = searchRect.height() / 2f;
+            btnPaint.setColor(searchHit ? 0xFFDB2777 : 0xFFEC4899);
+            canvas.drawRoundRect(searchRect, radius, radius, btnPaint);
             String confirm = getContext().getString(R.string.crop_confirm);
             float baseline = searchRect.centerY()
                     - (btnTextPaint.descent() + btnTextPaint.ascent()) / 2f;
             canvas.drawText(confirm, searchRect.centerX(), baseline, btnTextPaint);
         }
 
-        // 右上关闭
+        // 右上 ✕
         float cr = closeRect.width() / 2f;
         float ccx = closeRect.centerX();
         float ccy = closeRect.centerY();
@@ -207,8 +214,16 @@ public class CropOverlayView extends View {
     }
 
     private void drawHandle(Canvas canvas, float x, float y) {
-        canvas.drawCircle(x, y, handleR, handleFillPaint);
-        canvas.drawCircle(x, y, handleR, handleStrokePaint);
+        canvas.drawCircle(x, y, 11 * density, borderPaint);
+    }
+
+    /** 桌面 warn()：顶部 pill 转红 1.8s 后复位（替代 toast，出错不打断） */
+    private void warn(String text) {
+        removeCallbacks(warnReset);
+        hintText = text;
+        hintBgPaint.setColor(0xF29E1C2C); // rgba(158,28,44,.95)
+        invalidate();
+        postDelayed(warnReset, 1800);
     }
 
     /**
@@ -231,7 +246,6 @@ public class CropOverlayView extends View {
                 dst.left + right * scale, dst.top + bottom * scale);
         clampSel();
         hasSel = sel.width() > 4 && sel.height() > 4;
-        suggested = hasSel;
         invalidate();
     }
 
@@ -258,20 +272,17 @@ public class CropOverlayView extends View {
                         resizeStartX = x;
                         resizeStartY = y;
                         resizeBase.set(sel);
-                        suggested = false;
                         return true;
                     }
                     if (sel.contains(x, y)) {
                         moving = true;
                         lastX = x;
                         lastY = y;
-                        suggested = false;
                         return true;
                     }
                 }
                 dragging = true;
                 hasSel = false;
-                suggested = false;
                 startX = x;
                 startY = y;
                 sel.set(x, y, x, y);
@@ -335,8 +346,9 @@ public class CropOverlayView extends View {
 
             case MotionEvent.ACTION_UP:
                 if (searchHit) {
+                    boolean in = searchHitRect.contains(x, y);
                     searchHit = false;
-                    if (searchHitRect.contains(x, y)) {
+                    if (in) {
                         confirmSelection();
                     } else {
                         invalidate();
@@ -358,19 +370,24 @@ public class CropOverlayView extends View {
                 }
                 if (dragging) {
                     dragging = false;
-                    if (hasSel) {
-                        // 桌面契约（design.md）：宽高**都**小于下限才拒，有其一过线就放行
-                        if (sel.width() < minW && sel.height() < minH) {
-                            hasSel = false;
-                            Toast.makeText(getContext(), R.string.crop_too_small,
-                                    Toast.LENGTH_SHORT).show();
-                            invalidate();
-                            return true;
-                        }
-                        confirmSelection();
+                    if (!hasSel) {
+                        // 点了一下没拖：桌面同款提示，重新拖
+                        warn(getContext().getString(R.string.crop_warn_hold, minWdp, minHdp));
+                        invalidate();
                         return true;
                     }
-                    invalidate();
+                    // 桌面契约：宽高都小于下限才拒（有其一过线放行）
+                    if (sel.width() < minW && sel.height() < minH) {
+                        int pw = Math.round(sel.width() / scale);
+                        int ph = Math.round(sel.height() / scale);
+                        hasSel = false;
+                        warn(getContext().getString(R.string.crop_warn_small,
+                                pw, ph, minWdp, minHdp));
+                        invalidate();
+                        return true;
+                    }
+                    confirmSelection();
+                    return true;
                 }
                 return true;
 
@@ -381,7 +398,6 @@ public class CropOverlayView extends View {
                 closeHit = false;
                 searchHit = false;
                 hasSel = false;
-                suggested = false;
                 invalidate();
                 return true;
 
@@ -390,11 +406,12 @@ public class CropOverlayView extends View {
         }
     }
 
-    /** 按钮确认：太小只拦不清（用户拖大再来）；与手拖松手路径的「清框重来」刻意不同。
-     *  判定同手拖路径（桌面契约）：都小于下限才拒 */
+    /** 按钮确认：太小只拦不清（用户拖大再来）；判定同手拖路径 */
     private void confirmSelection() {
         if (sel.width() < minW && sel.height() < minH) {
-            Toast.makeText(getContext(), R.string.crop_too_small, Toast.LENGTH_SHORT).show();
+            int pw = Math.round(sel.width() / scale);
+            int ph = Math.round(sel.height() / scale);
+            warn(getContext().getString(R.string.crop_warn_small, pw, ph, minWdp, minHdp));
             return;
         }
         Bitmap crop = cropSelection();
@@ -405,16 +422,17 @@ public class CropOverlayView extends View {
 
     /** 命中角柄（26dp 半径）→ 0=左上 1=右上 2=右下 3=左下，否则 -1 */
     private int cornerAt(float x, float y) {
-        if (dist(x, y, sel.left, sel.top) <= handleR + 8 * getResources().getDisplayMetrics().density) {
+        float hit = 11 * density + 8 * density;
+        if (dist(x, y, sel.left, sel.top) <= hit) {
             return 0;
         }
-        if (dist(x, y, sel.right, sel.top) <= handleR + 8 * getResources().getDisplayMetrics().density) {
+        if (dist(x, y, sel.right, sel.top) <= hit) {
             return 1;
         }
-        if (dist(x, y, sel.right, sel.bottom) <= handleR + 8 * getResources().getDisplayMetrics().density) {
+        if (dist(x, y, sel.right, sel.bottom) <= hit) {
             return 2;
         }
-        if (dist(x, y, sel.left, sel.bottom) <= handleR + 8 * getResources().getDisplayMetrics().density) {
+        if (dist(x, y, sel.left, sel.bottom) <= hit) {
             return 3;
         }
         return -1;

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ===== Spore MV3 design tokens (extracted verbatim from desktop MV3) ===== -->
+
+    <!-- Brand pink -->
+    <color name="spore_pink">#EC4899</color>
+    <color name="spore_pink_dark">#DB2777</color>
+    <color name="spore_pink_deep">#C2185B</color>
+    <color name="spore_pink_tint">#FFF0F7</color>
+    <color name="spore_pink_tint2">#FFE3EF</color>
+
+    <!-- Danger red -->
+    <color name="spore_danger">#FF3B5C</color>
+    <color name="spore_danger_dark">#EF1F45</color>
+    <color name="spore_danger_text">#C81E45</color>
+    <color name="spore_danger_tint">#FFF1F4</color>
+
+    <!-- Ink / gray ramp -->
+    <color name="spore_ink">#14172A</color>
+    <color name="spore_ink2">#1A1D2E</color>
+    <color name="spore_muted">#5A5F78</color>
+    <color name="spore_muted2">#7B81A0</color>
+    <color name="spore_muted3">#A3A8C2</color>
+    <color name="spore_muted4">#B3B8CD</color>
+    <color name="spore_placeholder">#A8ADC6</color>
+
+    <!-- Lines -->
+    <color name="spore_line">#E6E8F2</color>
+    <color name="spore_line2">#EEF0F8</color>
+    <color name="spore_line3">#E2E5F0</color>
+    <color name="spore_line4">#D6D9E8</color>
+
+    <!-- Surfaces -->
+    <color name="spore_surface">#FFFFFF</color>
+    <color name="spore_bg">#F4F6FD</color>
+    <color name="spore_bg2">#F8F9FD</color>
+    <color name="spore_chip">#F1F3FB</color>
+    <color name="spore_chip_text">#4A4F6B</color>
+
+    <!-- Favorites row -->
+    <color name="spore_fav_row">#FFF9EA</color>
+    <color name="spore_fav_row_hover">#FFF3D8</color>
+
+    <!-- MV3 content colors (session rows, chips, verification, bubbles) -->
+    <color name="spore_label">#9AA0BB</color>
+    <color name="spore_think">#8A90AB</color>
+    <color name="spore_userchip">#F2F4FB</color>
+    <color name="spore_tool">#F6F7FC</color>
+    <color name="spore_ok_bg">#E7F8EF</color>
+    <color name="spore_ok_text">#0F9D58</color>
+    <color name="spore_fix_text">#D02747</color>
+    <color name="spore_vnote">#3D4260</color>
+    <color name="spore_row_title">#2B2F4A</color>
+    <color name="spore_row_action">#C3C7DB</color>
+    <color name="spore_row_hover">#F5F7FD</color>
+
+    <!-- Interaction helpers used by drawables -->
+    <color name="spore_ink_92">#EB14172A</color>       <!-- spore_ink @ 92% (screenshot pill) -->
+    <color name="spore_ripple_press">#33FFFFFF</color> <!-- white 20% ripple -->
+    <color name="spore_ghost_press">#E8EBF7</color>     <!-- ghost button pressed -->
+</resources>

@@ -1,11 +1,17 @@
 package org.offblink.spore.panel;
 
+import android.graphics.drawable.GradientDrawable;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.offblink.spore.R;
@@ -97,7 +103,30 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         if (text.isEmpty() && m.hasImage) {
             text = h.itemView.getContext().getString(R.string.row_capture);
         }
+        styleUserBubble(h.preview);
         h.preview.setText(text);
+    }
+
+    /**
+     * MV3 用户文本气泡：userchip 底、10/10/10/3 圆角（左下收成小尾巴）、chip_text 14.5sp。
+     * 布局默认的 17.5sp spore_ink 是回答/闲聊正文样式，用户行按类型覆写（VH 按 viewType 分池，
+     * 不会串到回答行）。
+     */
+    private void styleUserBubble(TextView v) {
+        float d = v.getResources().getDisplayMetrics().density;
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadii(new float[]{
+                10 * d, 10 * d, // 左上
+                10 * d, 10 * d, // 右上
+                10 * d, 10 * d, // 右下
+                3 * d, 3 * d}); // 左下（尾巴）
+        bg.setColor(ContextCompat.getColor(v.getContext(), R.color.spore_userchip));
+        v.setBackground(bg);
+        int padH = Math.round(10 * d);
+        int padV = Math.round(6 * d);
+        v.setPadding(padH, padV, padH, padV);
+        v.setTextColor(ContextCompat.getColor(v.getContext(), R.color.spore_chip_text));
+        v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f);
     }
 
     private void bindChat(VH h, Session.Msg m) {
@@ -116,6 +145,10 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         } else {
             h.thinkToggle.setVisibility(View.VISIBLE);
             h.thinkToggle.setText(m.thinkOpen ? R.string.panel_think_on : R.string.panel_think_off);
+            // MV3 思考头 = 节标签：spore_label + 宽字距
+            h.thinkToggle.setTextColor(
+                    ContextCompat.getColor(h.thinkToggle.getContext(), R.color.spore_label));
+            h.thinkToggle.setLetterSpacing(0.1f); // MV3 .think-h letter-spacing:.1em
             h.think.setVisibility(m.thinkOpen ? View.VISIBLE : View.GONE);
             h.think.setText(m.think);
             h.thinkToggle.setOnClickListener(v -> host.onToggleThink(m));
@@ -159,6 +192,7 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
             } else {
                 h.verifyBtn.setVisibility(View.GONE);
             }
+            paintVerifyBadge(h.badge, m);
         }
 
         // 检索小票
@@ -166,15 +200,66 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
             h.tools.setVisibility(View.GONE);
         } else {
             h.tools.setVisibility(View.VISIBLE);
-            StringBuilder sb = new StringBuilder();
-            for (String chip : m.tools) {
-                if (sb.length() > 0) {
+            SpannableStringBuilder sb = new SpannableStringBuilder();
+            int pink = ContextCompat.getColor(h.tools.getContext(), R.color.spore_pink);
+            for (int i = 0; i < m.tools.size(); i++) {
+                if (i > 0) {
                     sb.append('\n');
                 }
-                sb.append("· ").append(chip);
+                int start = sb.length();
+                sb.append('⌕').append(' ');
+                sb.setSpan(new ForegroundColorSpan(pink), start, sb.length(),
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                sb.append(m.tools.get(i));
             }
-            h.tools.setText(sb.toString());
+            float d = h.tools.getResources().getDisplayMetrics().density;
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(ContextCompat.getColor(h.tools.getContext(), R.color.spore_tool));
+            bg.setCornerRadius(Math.round(7 * d));
+            h.tools.setBackground(bg);
+            int padH = Math.round(8 * d);
+            int padV = Math.round(3 * d);
+            h.tools.setPadding(padH, padV, padH, padV);
+            h.tools.setText(sb, TextView.BufferType.SPANNABLE);
         }
+    }
+
+    /**
+     * MV3 核实 chip 配色（只换颜色映射，判定条件与文案原样）：
+     * 通过（OK）= ok 底/字，纠错（FIX）= danger_tint 底 / fix 字，跳过 = chip 底 muted2 字，
+     * 其余（已核实/待核实/进行中）回落到布局里的 seglite 默认。
+     * 每个分支都重设背景与字色——badge 视图会被回收复用，防止串色。
+     */
+    private void paintVerifyBadge(TextView badge, Session.Msg m) {
+        float d = badge.getResources().getDisplayMetrics().density;
+        int bg;
+        int fg;
+        if (m.verifyRan && "OK".equals(m.verifyVerdict)) {
+            bg = ContextCompat.getColor(badge.getContext(), R.color.spore_ok_bg);
+            fg = ContextCompat.getColor(badge.getContext(), R.color.spore_ok_text);
+        } else if (m.verifyRan && "FIX".equals(m.verifyVerdict)) {
+            bg = ContextCompat.getColor(badge.getContext(), R.color.spore_danger_tint);
+            fg = ContextCompat.getColor(badge.getContext(), R.color.spore_fix_text);
+        } else if (m.verifySkipped) {
+            bg = ContextCompat.getColor(badge.getContext(), R.color.spore_chip);
+            fg = ContextCompat.getColor(badge.getContext(), R.color.spore_muted2);
+        } else {
+            badge.setBackground(
+                    ContextCompat.getDrawable(badge.getContext(), R.drawable.spore_seglite));
+            int padH = Math.round(8 * d);
+            int padV = Math.round(2 * d);
+            badge.setPadding(padH, padV, padH, padV);
+            badge.setTextColor(ContextCompat.getColor(badge.getContext(), R.color.spore_chip_text));
+            return;
+        }
+        GradientDrawable pill = new GradientDrawable();
+        pill.setColor(bg);
+        pill.setCornerRadius(999 * d);
+        badge.setBackground(pill);
+        int padH = Math.round(8 * d);
+        int padV = Math.round(2 * d);
+        badge.setPadding(padH, padV, padH, padV);
+        badge.setTextColor(fg);
     }
 
     static final class VH extends RecyclerView.ViewHolder {

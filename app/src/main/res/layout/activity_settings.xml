@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/spore_bg"
     android:fillViewport="true">
 
     <LinearLayout
@@ -10,7 +12,7 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- 顶栏：← 返回（点了 finish）+ 页面标题 -->
+        <!-- 顶栏：‹ 返回（点了 finish）+ 页面标题 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,15 +25,17 @@
                 android:layout_height="wrap_content"
                 android:contentDescription="@string/settings_back_cd"
                 android:padding="8dp"
-                android:text="@string/settings_back"
-                android:textSize="22sp" />
+                android:text="‹"
+                android:textColor="@color/spore_ink"
+                android:textSize="26sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="@string/settings_title"
-                android:textSize="28sp"
+                android:textColor="@color/spore_ink"
+                android:textSize="18sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -41,14 +45,21 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:text="@string/settings_endpoint"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_endpoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:inputType="textUri"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- 模型 -->
         <TextView
@@ -56,14 +67,21 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/settings_model"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_model"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:inputType="text"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- API Key（密码形态，仅存本机） -->
         <TextView
@@ -71,15 +89,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/settings_api_key"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_api_key"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:hint="@string/settings_api_key_hint"
             android:inputType="textPassword"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- 检索代理（留空=只走 bing） -->
         <TextView
@@ -87,15 +112,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/settings_proxy"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_proxy"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:hint="@string/settings_proxy_hint"
             android:inputType="text"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- 最大工具轮数（数字） -->
         <TextView
@@ -103,15 +135,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/settings_max_tool_rounds"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_max_tool_rounds"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:hint="@string/settings_max_tool_rounds_hint"
             android:inputType="number"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- 历史记录条数（数字） -->
         <TextView
@@ -119,15 +158,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/settings_history_limit"
-            android:textSize="14sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp" />
 
         <EditText
             android:id="@+id/et_history_limit"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/spore_input_field"
             android:hint="@string/settings_history_limit_hint"
             android:inputType="number"
-            android:singleLine="true" />
+            android:minHeight="46dp"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/spore_ink"
+            android:textColorHint="@color/spore_placeholder"
+            android:textSize="15sp" />
 
         <!-- 两阶段开关 -->
         <androidx.appcompat.widget.SwitchCompat
@@ -136,7 +182,10 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:text="@string/settings_fast_no_think"
-            android:textSize="15sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp"
+            app:thumbTint="@color/spore_switch_thumb_tint"
+            app:trackTint="@color/spore_switch_track_tint" />
 
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/sw_auto_verify"
@@ -144,16 +193,23 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="@string/settings_auto_verify"
-            android:textSize="15sp" />
+            android:textColor="@color/spore_muted"
+            android:textSize="13.5sp"
+            app:thumbTint="@color/spore_switch_thumb_tint"
+            app:trackTint="@color/spore_switch_track_tint" />
 
         <!-- 保存 -->
         <Button
             android:id="@+id/btn_save"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginTop="32dp"
             android:layout_marginBottom="8dp"
-            android:text="@string/settings_save" />
+            android:background="@drawable/spore_btn_primary"
+            android:gravity="center"
+            android:text="@string/settings_save"
+            android:textColor="@color/spore_surface"
+            app:backgroundTint="@null" />
 
     </LinearLayout>
 </ScrollView>

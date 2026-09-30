@@ -15,26 +15,41 @@
     <string name="notif_text">点悬浮球即可截屏搜题</string>
 
     <!-- 截屏框选 -->
-    <string name="crop_hint">拖动框选题目区域</string>
+    <string name="crop_hint">拖拽框选题目区域</string>
     <string name="crop_confirm">搜</string>
-    <string name="crop_too_small">框太小，再框大一点</string>
-    <string name="crop_saved">已截取：%1$s</string>
+    <string name="crop_warn_small">框太小 %1$d×%2$d，至少 %3$d×%4$d · 重新拖</string>
+    <string name="crop_warn_hold">请按住拖拽框选（至少 %1$d×%2$d）</string>
     <string name="capture_cancelled">已取消截屏</string>
     <string name="projection_missing">截屏授权已失效——打开 Spore，关一下球开关再开即可重新授权</string>
     <string name="consent_denied">未授权截屏，点球开关可重新授权</string>
     <string name="record_title">搜题记录</string>
     <string name="record_empty">还没有搜题记录</string>
-    <string name="record_filter_fav">只看★</string>
-    <string name="record_filter_all">全部</string>
+    <string name="record_scope_all">全部</string>
+    <string name="record_scope_fav">收藏</string>
+    <string name="session_list">会话列表</string>
+    <string name="session_empty">还没有会话\n点悬浮球框选提问</string>
+    <string name="rename_title">重命名</string>
+    <string name="rename_hint">会话名称</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="delete_title">删除会话</string>
+    <string name="delete_body">确定删除「%1$s」吗？\n截图、回答与思考记录会一并删除，不可恢复。</string>
+    <string name="delete_yes">删除</string>
+    <string name="busy_wait">正在回答，稍等片刻再操作</string>
     <string name="capture_timeout">截屏超时，请重试</string>
     <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
     <string name="capture_failed">截屏失败：%1$s</string>
 
     <!-- 作答面板 -->
     <string name="panel_hint">追问…</string>
-    <string name="panel_send">发送</string>
-    <string name="panel_stop">停止</string>
-    <string name="panel_min">收起</string>
+    <string name="panel_send">↑</string>
+    <string name="panel_send_desc">发送</string>
+    <string name="panel_stop">■</string>
+    <string name="panel_stop_desc">停止</string>
+    <string name="panel_min">—</string>
+    <string name="panel_min_desc">收起</string>
+    <string name="panel_sessions">💬</string>
+    <string name="panel_fav">★</string>
     <string name="panel_think_on">思考 ▾</string>
     <string name="panel_think_off">思考 ▸</string>
     <string name="panel_status_done">完成</string>

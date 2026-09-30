@@ -1,7 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Spore" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
+    <!-- MV3 桌面只有浅色一套 → 锁 Light，杜绝系统深色把粉系咬坏（Page Theme Lock） -->
+    <style name="Base.Theme.Spore" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/spore_pink</item>
+        <item name="colorOnPrimary">@color/spore_surface</item>
+        <item name="colorSecondary">@color/spore_pink</item>
+        <item name="android:statusBarColor">@color/spore_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/spore_surface</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
     </style>
 
     <style name="Theme.Spore" parent="Base.Theme.Spore" />

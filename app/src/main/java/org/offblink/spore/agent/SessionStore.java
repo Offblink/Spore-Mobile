@@ -81,6 +81,15 @@ public final class SessionStore {
         return loadFile(new File(dir(ctx), id + ".json"));
     }
 
+    /** 删除一个会话（记录页/会话列表的删除动作）；文件不存在视为已删 */
+    public static void delete(Context ctx, String id) {
+        if (id == null || id.isEmpty()) {
+            return;
+        }
+        //noinspection ResultOfMethodCallIgnored
+        new File(dir(ctx), id + ".json").delete();
+    }
+
     private static Session loadFile(File f) {
         try (FileInputStream in = new FileInputStream(f)) {
             byte[] buf = new byte[(int) f.length()];

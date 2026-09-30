@@ -93,6 +93,59 @@ public final class AgentEngine {
         SessionStore.save(app, session);
     }
 
+    /** 记录/会话列表点入：换入已存会话继续对话（桌面点列表行的语义） */
+    public boolean loadSession(String id) {
+        if (busy) {
+            return false;
+        }
+        Session loaded = SessionStore.load(app, id);
+        if (loaded == null) {
+            return false;
+        }
+        if (loaded.id.equals(session.id)) {
+            return true;
+        }
+        if (!session.messages.isEmpty()) {
+            persist();
+        }
+        session = loaded;
+        emit("session-new", "title", session.title);
+        return true;
+    }
+
+    /** 重命名（当前或已存会话）；busy 时不打断在途回合 */
+    public boolean renameSession(String id, String name) {
+        if (busy && id.equals(session.id)) {
+            return false;
+        }
+        if (id.equals(session.id)) {
+            session.title = name;
+            persist();
+            emit("title", "title", name);
+            return true;
+        }
+        Session s = SessionStore.load(app, id);
+        if (s == null) {
+            return false;
+        }
+        s.title = name;
+        SessionStore.save(app, s);
+        return true;
+    }
+
+    /** 删除会话；删的是当前会话则换成全新空会话 */
+    public boolean deleteSession(String id) {
+        if (busy && id.equals(session.id)) {
+            return false;
+        }
+        SessionStore.delete(app, id);
+        if (id.equals(session.id)) {
+            session = new Session();
+            emit("session-new", "title", session.title);
+        }
+        return true;
+    }
+
     /** 追问（纯文本，最快分支） */
     public void sendFollowup(String text) {
         String t = text == null ? "" : text.trim();

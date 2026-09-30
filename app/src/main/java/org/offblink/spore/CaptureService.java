@@ -38,6 +38,8 @@ import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 
 import org.offblink.spore.agent.AgentEngine;
+import org.offblink.spore.agent.Session;
+import org.offblink.spore.agent.SessionStore;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
 import org.offblink.spore.overlay.Suggestor;
@@ -75,9 +77,53 @@ public class CaptureService extends Service {
     private static final long FRAME_TIMEOUT_MS = 3000;
 
     private static volatile boolean running = false;
+    /** 服务单例句柄：记录页「点进去接着对话」从静态入口喊面板 */
+    private static volatile CaptureService self;
+    /** 服务冷启动时补开的会话（记录页在服务未运行时点了行） */
+    private static volatile String pendingSessionId;
 
     public static boolean isRunning() {
         return running;
+    }
+
+    /** 记录页/会话列表：打开面板并换入该会话；服务没跑就先拉起、就绪后补开 */
+    public static void openSession(Context c, String sessionId) {
+        if (!running) {
+            pendingSessionId = sessionId;
+            start(c);
+            return;
+        }
+        CaptureService s = self;
+        if (s != null) {
+            s.main.post(() -> s.panel.openSession(sessionId));
+        }
+    }
+
+    /**
+     * 重命名/删除必须经服务侧：引擎内存里可能正持有该会话，直接改文件会被下一次
+     * persist() 用内存态盖回去。服务不在 → 没有内存态，直接文件操作。
+     */
+    public static boolean renameSession(Context c, String id, String name) {
+        CaptureService s = self;
+        if (s != null) {
+            return s.engine.renameSession(id, name);
+        }
+        Session sess = SessionStore.load(c, id);
+        if (sess == null) {
+            return false;
+        }
+        sess.title = name;
+        SessionStore.save(c, sess);
+        return true;
+    }
+
+    public static boolean deleteSession(Context c, String id) {
+        CaptureService s = self;
+        if (s != null) {
+            return s.engine.deleteSession(id);
+        }
+        SessionStore.delete(c, id);
+        return true;
     }
 
     public static void start(Context c) {
@@ -131,9 +177,16 @@ public class CaptureService extends Service {
         engine = new AgentEngine(this);
         panel = new AnswerPanel(this, wm, engine);
         engine.setListener(panel);
+        self = this;
 
         if (Settings.canDrawOverlays(this)) {
             addBall();
+            String pend = pendingSessionId;
+            pendingSessionId = null;
+            if (pend != null) {
+                final String sid = pend;
+                main.post(() -> panel.openSession(sid));
+            }
         } else {
             toastRes(R.string.status_no_overlay);
             stopSelf();
@@ -170,6 +223,7 @@ public class CaptureService extends Service {
         }
         bgThread.quitSafely();
         running = false;
+        self = null;
         super.onDestroy();
     }
 
@@ -217,7 +271,9 @@ public class CaptureService extends Service {
 
     private void addBall() {
         Point sz = displaySize();
-        int bw = dp(56);
+        int glow = dp(BallView.GLOW_DP);
+        int bw = dp(BallView.HANDLE_W_DP + 2 * BallView.GLOW_DP);
+        int bh = dp(BallView.HANDLE_H_DP + 2 * BallView.GLOW_DP);
         ballParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -225,8 +281,8 @@ public class CaptureService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
         ballParams.gravity = Gravity.TOP | Gravity.LEFT;
-        ballParams.x = sz.x - bw / 2;              // 右缘半挂
-        ballParams.y = Math.max(0, sz.y / 2 - bw / 2);
+        ballParams.x = sz.x - bw + glow;           // 平边贴右缘（光晕不入界）
+        ballParams.y = Math.max(0, sz.y / 2 - bh / 2);
 
         ball = new BallView(this, ballListener);
         wm.addView(ball, ballParams);
@@ -268,13 +324,17 @@ public class CaptureService extends Service {
 
         @Override
         public void onGestureEnd() {
-            // 松手吸边：半挂到较近的一侧，纵向夹回屏幕内
+            // 松手吸边：贴到较近的一侧（平边贴屏），纵向夹回屏幕内
             Point sz = displaySize();
-            int bw = ball.getWidth() > 0 ? ball.getWidth() : dp(56);
-            int bh = ball.getHeight() > 0 ? ball.getHeight() : dp(56);
+            int glow = dp(BallView.GLOW_DP);
+            int bw = ball.getWidth() > 0 ? ball.getWidth()
+                    : dp(BallView.HANDLE_W_DP + 2 * BallView.GLOW_DP);
+            int bh = ball.getHeight() > 0 ? ball.getHeight()
+                    : dp(BallView.HANDLE_H_DP + 2 * BallView.GLOW_DP);
             boolean left = (ballParams.x + bw / 2) < sz.x / 2;
-            ballParams.x = left ? -bw / 2 : sz.x - bw / 2;
+            ballParams.x = left ? -glow : sz.x - bw + glow;
             ballParams.y = Math.max(0, Math.min(ballParams.y, sz.y - bh));
+            ball.setSide(left);
             updateBall();
         }
     };
@@ -496,8 +556,7 @@ public class CaptureService extends Service {
                 main.post(() -> {
                     removeCropView();
                     if (saved != null) {
-                        toast(getString(R.string.crop_saved, saved.getName()));
-                        // 接力：面板弹出 → 两阶段作答开跑
+                        // 无感（用户拍板）：截完不弹「已保存」，面板直接接力
                         panel.openWithCapture(saved);
                     } else {
                         toast(getString(R.string.capture_failed, "write failed"));

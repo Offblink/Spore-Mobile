@@ -31,9 +31,16 @@ import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
+
 import org.offblink.spore.agent.AgentEngine;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
+import org.offblink.spore.overlay.Suggestor;
 import org.offblink.spore.panel.AnswerPanel;
 
 import java.io.File;
@@ -41,13 +48,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 /**
  * 悬浮球 + 截屏采集的前台服务（handoff §9）。
  *
- * 链路：点球 → CaptureConsentActivity 拿系统授权 → 本服务 MediaProjection → VirtualDisplay →
+ * 链路：点球 → （仅首次）CaptureConsentActivity 拿系统授权，此后投影常驻持有 →
+ * 每次点球服务侧直接取帧（不启动 Activity、不弹确认，目标应用不离前台）→
  * ImageReader 取首帧 → 黑帧检测（FLAG_SECURE 判据）→ 冻结帧框选（CropOverlayView）→ 裁剪落盘。
  * 裁剪参数沿用桌面端：MAX_CROP_LONG=1600、JPEG 0.82、MIN_W/MIN_H=60/40dp。
  */
@@ -63,6 +73,8 @@ public class CaptureService extends Service {
     private static final String CHANNEL_ID = "spore_fgs";
     private static final int NOTIF_ID = 1;
     private static final long FRAME_TIMEOUT_MS = 3000;
+    /** 首授后等前台回到原应用再取帧的时长（授权页 finish → 原任务恢复，实测需几百 ms） */
+    private static final long POST_CONSENT_SETTLE_MS = 800;
 
     private static volatile boolean running = false;
 
@@ -95,6 +107,14 @@ public class CaptureService extends Service {
 
     private CropOverlayView cropView;
     private WindowManager.LayoutParams cropParams;
+
+    /**
+     * 一次授权、全程持有（2026-09-30 用户实测定的设计）：授权弹窗只在首次出现；
+     * 之后每次点球 = 服务侧直接取帧，**不启动任何 Activity、不弹系统确认**，
+     * 目标应用全程留在前台（每次授权都会把它挤回桌面、截到桌面——用户实测的根因）。
+     * 被系统/用户收回（onStop）→ 置空，下次点球走重新授权。
+     */
+    private volatile MediaProjection proj;
 
     @Override
     public void onCreate() {
@@ -145,6 +165,11 @@ public class CaptureService extends Service {
         removeViewQuietly(ball);
         ball = null;
         ballAttached = false;
+        MediaProjection p = proj;
+        proj = null;
+        if (p != null) {
+            p.stop();
+        }
         bgThread.quitSafely();
         running = false;
         super.onDestroy();
@@ -213,6 +238,12 @@ public class CaptureService extends Service {
     private final BallView.Listener ballListener = new BallView.Listener() {
         @Override
         public void onTap() {
+            if (proj != null) {
+                // 已授权：零 Activity 启动、目标应用不离开前台（handoff §9.3/9.7 修正）
+                final Point sz = displaySize();
+                bg.post(() -> captureFrame(sz.x, sz.y));
+                return;
+            }
             try {
                 Intent i = new Intent(CaptureService.this, CaptureConsentActivity.class);
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -273,22 +304,51 @@ public class CaptureService extends Service {
             stopSelf();
             return;
         }
+        try {
+            // Android 14+：createVirtualDisplay 前必须注册回调，否则 SecurityException
+            proj = mpm.getMediaProjection(resultCode, data);
+            proj.registerCallback(new MediaProjection.Callback() {
+                @Override
+                public void onStop() {
+                    // 用户/系统收回授权（下拉停止投屏等）→ 下次点球重新走授权页
+                    proj = null;
+                    toastRes(R.string.projection_revoked);
+                }
+            }, main);
+        } catch (Exception e) {
+            toast(getString(R.string.capture_failed, String.valueOf(e)));
+            return;
+        }
         final Point sz = displaySize();
-        bg.post(() -> captureFrame(resultCode, data, sz.x, sz.y));
+        // 首授刚结束：授权页 finish 后前台要几百 ms 才回到原应用，等一拍再取帧，
+        // 否则会截到过场/桌面（用户实测）。后续点球不再走这条路（proj 已持有）。
+        bg.post(() -> {
+            try {
+                Thread.sleep(POST_CONSENT_SETTLE_MS);
+            } catch (InterruptedException ignored) {
+                return;
+            }
+            captureFrame(sz.x, sz.y);
+        });
     }
 
-    private void captureFrame(int resultCode, Intent data, int w, int h) {
-        MediaProjection proj = null;
+    /**
+     * 从**持有中的**投影取一帧：每次点球临时建 VirtualDisplay + ImageReader，读完即释放
+     * （不 stop 投影，授权保持存活）。不常驻 VD 是刻意的：缓冲占满后生产者会停更，
+     * 下次读到的是陈旧帧——临时建取帧才能保证是「此刻」的屏幕。
+     */
+    private void captureFrame(int w, int h) {
         ImageReader reader = null;
         VirtualDisplay vd = null;
         try {
-            proj = mpm.getMediaProjection(resultCode, data);
-            // Android 14+：createVirtualDisplay 前必须注册回调，否则 SecurityException
-            proj.registerCallback(new MediaProjection.Callback() { }, main);
+            MediaProjection p = proj;
+            if (p == null) {
+                return; // 授权中途被收回 → 下次点球重新授权
+            }
 
             int dpi = getResources().getDisplayMetrics().densityDpi;
             reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
-            vd = proj.createVirtualDisplay("spore-cap", w, h, dpi,
+            vd = p.createVirtualDisplay("spore-cap", w, h, dpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     reader.getSurface(), null, null);
 
@@ -310,12 +370,10 @@ public class CaptureService extends Service {
             if (vd != null) {
                 vd.release();
             }
-            if (proj != null) {
-                proj.stop();
-            }
             if (reader != null) {
                 reader.close();
             }
+            // 不再 proj.stop()：授权持久持有，投影生命周期归服务与 onStop 回调管
         }
     }
 
@@ -402,6 +460,56 @@ public class CaptureService extends Service {
         cropParams.gravity = Gravity.TOP | Gravity.LEFT;
         cropView = new CropOverlayView(this, frame, cropListener);
         wm.addView(cropView, cropParams);
+        suggestFromFrame(frame);
+    }
+
+    /**
+     * §9.3 建议框：bundled 中文识别（无 GMS 也可用）→ Suggestor 聚类出单框 → 预填进框选层。
+     * 任何失败（模型初始化 / 识别 / 无文本）都静默退化为手动拖框，不打扰用户。
+     */
+    private void suggestFromFrame(Bitmap frame) {
+        bg.post(() -> {
+            TextRecognizer recognizer = null;
+            try {
+                recognizer = TextRecognition.getClient(
+                        new ChineseTextRecognizerOptions.Builder().build());
+            } catch (Throwable t) {
+                return; // 识别器起不来（设备不支持等）→ 手动框兜底
+            }
+            final TextRecognizer rec = recognizer;
+            final int frameW = frame.getWidth();
+            final int frameH = frame.getHeight();
+            try {
+                rec.process(InputImage.fromBitmap(frame, 0))
+                        .addOnSuccessListener(text -> {
+                            List<Suggestor.Line> lines = new ArrayList<>();
+                            for (Text.TextBlock block : text.getTextBlocks()) {
+                                for (Text.Line line : block.getLines()) {
+                                    Rect box = line.getBoundingBox();
+                                    if (box != null && !line.getText().isEmpty()) {
+                                        lines.add(new Suggestor.Line(box.left, box.top,
+                                                box.right, box.bottom, line.getText()));
+                                    }
+                                }
+                            }
+                            final int[] suggestion = Suggestor.suggest(lines, frameW, frameH);
+                            if (suggestion != null) {
+                                main.post(() -> {
+                                    if (cropView != null) {
+                                        cropView.setSuggestion(suggestion[0], suggestion[1],
+                                                suggestion[2], suggestion[3]);
+                                    }
+                                });
+                            }
+                        })
+                        .addOnFailureListener(e -> {
+                            // 识别失败 → 手动框（设计内兜底）
+                        })
+                        .addOnCompleteListener(t -> rec.close());
+            } catch (Throwable t) {
+                rec.close(); // 输入非法等 → 手动框兜底
+            }
+        });
     }
 
     private final CropOverlayView.Listener cropListener = new CropOverlayView.Listener() {

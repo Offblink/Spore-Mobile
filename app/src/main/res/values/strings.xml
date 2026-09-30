@@ -16,9 +16,11 @@
 
     <!-- 截屏框选 -->
     <string name="crop_hint">拖动框选题目区域</string>
+    <string name="crop_confirm">搜</string>
     <string name="crop_too_small">框太小，再框大一点</string>
     <string name="crop_saved">已截取：%1$s</string>
     <string name="capture_cancelled">已取消截屏</string>
+    <string name="projection_revoked">截屏授权已失效，点球重新授权一次</string>
     <string name="capture_timeout">截屏超时，请重试</string>
     <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
     <string name="capture_failed">截屏失败：%1$s</string>

@@ -27,6 +27,10 @@ public final class SporeSettings {
 
     public static SporeSettings load(Context c) {
         SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!p.contains("apiKey")) {
+            // 首启播种：构建期从 secrets.properties（gitignore）注入；之后用户改空不回填
+            p.edit().putString("apiKey", BuildConfig.SPORE_API_KEY).apply();
+        }
         SporeSettings s = new SporeSettings();
         s.endpoint = p.getString("endpoint", s.endpoint);
         s.model = p.getString("model", s.model);

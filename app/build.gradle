@@ -2,6 +2,16 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+// 本机密钥注入：app/secrets.properties（gitignore）→ BuildConfig.SPORE_API_KEY。
+// 红线同桌面（handoff §7）：真实 key 绝不进 git；文件不存在时构建照常、key 为空。
+def secretsFile = new File(rootProject.projectDir, 'secrets.properties')
+def sporeApiKey = ''
+if (secretsFile.exists()) {
+    def props = new Properties()
+    secretsFile.withInputStream { props.load(it) }
+    sporeApiKey = props.getProperty('sporeApiKey', '')
+}
+
 android {
     namespace 'org.offblink.spore'
     compileSdk {
@@ -16,6 +26,13 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField 'String', 'SPORE_API_KEY',
+                "\"${sporeApiKey.replace('\\', '\\\\').replace('"', '\\\"')}\""
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {
@@ -37,6 +54,7 @@ dependencies {
     implementation libs.okhttp
     implementation libs.markwon
     implementation libs.recyclerview
+    implementation libs.mlkit.chinese
 
     testImplementation libs.junit
     androidTestImplementation libs.espresso.core

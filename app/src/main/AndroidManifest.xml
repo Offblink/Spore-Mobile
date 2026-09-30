@@ -8,9 +8,10 @@
     <!-- 悬浮球/浮层 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- 前台服务 + 截屏类型（Android 14+ 硬要求） -->
+    <!-- 前台服务 + 截屏类型（Android 14+ 硬要求）；specialUse = 14+ 拿投影前的过渡类型 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Android 13+ 通知权限（前台服务通知） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -43,11 +44,16 @@
             android:name=".RecordActivity"
             android:exported="false" />
 
-        <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型 -->
+        <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型，
+             specialUse 供「授权前」的启动过渡（见 CaptureService.startAsForeground） -->
         <service
             android:name=".CaptureService"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:foregroundServiceType="mediaProjection|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="spore_ball_overlay_and_screen_capture_consent_flow" />
+        </service>
 
     </application>
 

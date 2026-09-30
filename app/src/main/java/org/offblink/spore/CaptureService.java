@@ -247,7 +247,12 @@ public class CaptureService extends Service {
 
     private void startAsForeground() {
         Notification n = buildNotification();
-        if (Build.VERSION.SDK_INT >= 29) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            // Android 14+ 硬规则（AVD 实测 SecurityException）：mediaProjection 类型的 FGS
+            // 在持有投影授权前 startForeground 会崩 → 先以 specialUse 起前台，
+            // 拿到授权后（handleProject）再切到 mediaProjection 类型
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
             startForeground(NOTIF_ID, n);
@@ -353,6 +358,13 @@ public class CaptureService extends Service {
             return; // MainActivity 已 toast 未授权
         }
         try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                // 14+ 顺序铁律（AVD 两头实测）：授权框返回后必须**先**把 FGS 切成
+                // mediaProjection 类型（此刻对话框授权已登记，能过校验），
+                // **再** getMediaProjection（它反过来要求 MP 类型 FGS 在跑）
+                startForeground(NOTIF_ID, buildNotification(),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+            }
             // Android 14+：createVirtualDisplay 前必须注册回调，否则 SecurityException
             proj = mpm.getMediaProjection(resultCode, data);
             proj.registerCallback(new MediaProjection.Callback() {
@@ -360,6 +372,11 @@ public class CaptureService extends Service {
                 public void onStop() {
                     // 用户/系统收回授权（下拉停止投屏等）→ 点球提示回 Spore 重授
                     proj = null;
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        // 14+ 规则：mediaProjection 类型却无投影 → 系统会杀服务 → 切回 specialUse
+                        startForeground(NOTIF_ID, buildNotification(),
+                                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                    }
                     toastRes(R.string.projection_missing);
                 }
             }, main);

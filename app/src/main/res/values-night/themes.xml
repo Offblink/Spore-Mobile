@@ -1,0 +1,8 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Spore" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your dark theme here. -->
+    </style>
+
+    <style name="Theme.Spore" parent="Base.Theme.Spore" />
+</resources>

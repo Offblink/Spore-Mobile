@@ -45,6 +45,11 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- 设置页（端点/key/模型/检索代理/两阶段开关） -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
         <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型 -->
         <service
             android:name=".CaptureService"

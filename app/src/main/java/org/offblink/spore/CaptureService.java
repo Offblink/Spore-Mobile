@@ -31,8 +31,10 @@ import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 
+import org.offblink.spore.agent.AgentEngine;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
+import org.offblink.spore.panel.AnswerPanel;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -82,6 +84,10 @@ public class CaptureService extends Service {
     private Handler bg;
     private Handler main;
 
+    /** 两阶段作答引擎与浮动作答面板（截图落盘后接力，handoff §9.2） */
+    private AgentEngine engine;
+    private AnswerPanel panel;
+
     private BallView ball;
     private WindowManager.LayoutParams ballParams;
     private boolean ballAttached;
@@ -104,6 +110,10 @@ public class CaptureService extends Service {
         createChannel();
         startAsForeground();
 
+        engine = new AgentEngine(this);
+        panel = new AnswerPanel(this, wm, engine);
+        engine.setListener(panel);
+
         if (Settings.canDrawOverlays(this)) {
             addBall();
         } else {
@@ -124,6 +134,12 @@ public class CaptureService extends Service {
 
     @Override
     public void onDestroy() {
+        if (panel != null) {
+            panel.close();
+        }
+        if (engine != null) {
+            engine.shutdown();
+        }
         removeViewQuietly(cropView);
         cropView = null;
         removeViewQuietly(ball);
@@ -205,6 +221,12 @@ public class CaptureService extends Service {
                 // 后台启动限制（Android 10+）会拦这里 → 回退方案见 handoff §9.7②
                 toast(getString(R.string.capture_failed, String.valueOf(e)));
             }
+        }
+
+        @Override
+        public void onLongPress() {
+            // 球长按 = 面板开/收（点按仍是「直接截屏」，§9.1 不破）
+            panel.toggle();
         }
 
         @Override
@@ -391,6 +413,8 @@ public class CaptureService extends Service {
                     removeCropView();
                     if (saved != null) {
                         toast(getString(R.string.crop_saved, saved.getName()));
+                        // 接力：面板弹出 → 两阶段作答开跑
+                        panel.openWithCapture(saved);
                     } else {
                         toast(getString(R.string.capture_failed, "write failed"));
                     }

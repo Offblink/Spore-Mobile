@@ -18,6 +18,9 @@ public class BallView extends View {
         /** 未拖动的点按（未超过 touchSlop 且时长正常）→ 截屏 */
         void onTap();
 
+        /** 长按 → 面板开/收切换（收起后唯一的唤回入口，handoff §9） */
+        void onLongPress();
+
         /** 拖动开始：服务缓存当前窗口参数作基点 */
         void onGestureStart();
 
@@ -37,6 +40,17 @@ public class BallView extends View {
     private float downRawX, downRawY;
     private long downTime;
     private boolean dragging;
+    private boolean longFired;
+    /** 长按判定与 tap 互斥：postDelayed 到 longPressTimeout，抬起即取消 */
+    private final Runnable longPressRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!dragging) {
+                longFired = true;
+                listener.onLongPress();
+            }
+        }
+    };
 
     public BallView(Context context, Listener listener) {
         super(context);
@@ -77,13 +91,16 @@ public class BallView extends View {
                 downRawY = event.getRawY();
                 downTime = System.currentTimeMillis();
                 dragging = false;
+                longFired = false;
+                postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout());
                 return true;
 
             case MotionEvent.ACTION_MOVE: {
                 int dx = (int) (event.getRawX() - downRawX);
                 int dy = (int) (event.getRawY() - downRawY);
-                if (!dragging && Math.hypot(dx, dy) > touchSlop) {
+                if (!dragging && !longFired && Math.hypot(dx, dy) > touchSlop) {
                     dragging = true;
+                    removeCallbacks(longPressRunnable);
                     listener.onGestureStart();
                 }
                 if (dragging) {
@@ -93,14 +110,18 @@ public class BallView extends View {
             }
 
             case MotionEvent.ACTION_UP:
+                removeCallbacks(longPressRunnable);
                 if (dragging) {
                     listener.onGestureEnd();
+                } else if (longFired) {
+                    longFired = false;
                 } else if (System.currentTimeMillis() - downTime < 400) {
                     listener.onTap();
                 }
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
+                removeCallbacks(longPressRunnable);
                 if (dragging) {
                     listener.onGestureEnd();
                 }

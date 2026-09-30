@@ -22,4 +22,26 @@
     <string name="capture_timeout">截屏超时，请重试</string>
     <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
     <string name="capture_failed">截屏失败：%1$s</string>
+
+    <!-- 作答面板 -->
+    <string name="panel_hint">追问…</string>
+    <string name="panel_send">发送</string>
+    <string name="panel_stop">停止</string>
+    <string name="panel_min">收起</string>
+    <string name="panel_think_on">思考 ▾</string>
+    <string name="panel_think_off">思考 ▸</string>
+    <string name="panel_status_done">完成</string>
+    <string name="panel_status_aborted">已停止</string>
+    <string name="row_capture">题目截图</string>
+    <string name="verify_now">核实一下</string>
+    <string name="badge_fix">核实：FIX（答案已修正）</string>
+    <string name="badge_ok">核实：OK</string>
+    <string name="badge_ran">已核实</string>
+    <string name="badge_skipped">跳过核实（初答自评确定）</string>
+    <string name="badge_pending">待核实</string>
+    <string name="badge_searching">检索中…</string>
+    <string name="badge_verifying">核实中…</string>
+
+    <!-- 主页 -->
+    <string name="btn_settings">设置</string>
 </resources>

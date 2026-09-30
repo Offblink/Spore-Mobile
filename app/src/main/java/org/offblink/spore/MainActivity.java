@@ -53,6 +53,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         btnBall.setOnClickListener(v -> toggleBall());
+
+        findViewById(R.id.btn_settings).setOnClickListener(v ->
+                startActivity(new Intent(this, SettingsActivity.class)));
     }
 
     @Override

@@ -34,6 +34,9 @@ android {
 dependencies {
     implementation libs.appcompat
     implementation libs.material
+    implementation libs.okhttp
+    implementation libs.markwon
+    implementation libs.recyclerview
 
     testImplementation libs.junit
     androidTestImplementation libs.espresso.core

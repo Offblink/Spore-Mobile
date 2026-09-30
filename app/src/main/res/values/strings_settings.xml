@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SettingsActivity（所有可见文案带 settings_ 前缀，集中在此文件） -->
+    <string name="settings_title">设置</string>
+    <string name="settings_back">←</string>
+    <string name="settings_back_cd">返回</string>
+
+    <string name="settings_endpoint">接口地址</string>
+    <string name="settings_model">模型</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_api_key_hint">仅存本机，不会进日志</string>
+    <string name="settings_proxy">检索代理</string>
+    <string name="settings_proxy_hint">留空=只走 bing</string>
+    <string name="settings_max_tool_rounds">最大工具轮数</string>
+    <string name="settings_max_tool_rounds_hint">默认 5</string>
+    <string name="settings_history_limit">历史记录条数</string>
+    <string name="settings_history_limit_hint">默认 10</string>
+
+    <string name="settings_fast_no_think">初答直接作答不写推理</string>
+    <string name="settings_auto_verify">答完自动联网核实</string>
+
+    <string name="settings_save">保存</string>
+    <string name="settings_saved">已保存</string>
+</resources>

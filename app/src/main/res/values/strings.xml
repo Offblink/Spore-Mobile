@@ -1,3 +1,25 @@
 <resources>
     <string name="app_name">Spore</string>
+
+    <!-- MainActivity -->
+    <string name="start_ball">显示悬浮球</string>
+    <string name="stop_ball">隐藏悬浮球</string>
+    <string name="status_running">悬浮球运行中 · 点球即截屏</string>
+    <string name="status_idle">悬浮球已停止</string>
+    <string name="status_no_overlay">请先授予「显示在其他应用上层」权限（设置 → 应用 → 权限 → 悬浮窗）</string>
+    <string name="overlay_open_manual">系统未打开授权页，请到应用权限页手动开启「悬浮窗」</string>
+
+    <!-- CaptureService 通知 -->
+    <string name="notif_channel">悬浮球服务</string>
+    <string name="notif_title">Spore 悬浮球运行中</string>
+    <string name="notif_text">点悬浮球即可截屏搜题</string>
+
+    <!-- 截屏框选 -->
+    <string name="crop_hint">拖动框选题目区域</string>
+    <string name="crop_too_small">框太小，再框大一点</string>
+    <string name="crop_saved">已截取：%1$s</string>
+    <string name="capture_cancelled">已取消截屏</string>
+    <string name="capture_timeout">截屏超时，请重试</string>
+    <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
+    <string name="capture_failed">截屏失败：%1$s</string>
 </resources>

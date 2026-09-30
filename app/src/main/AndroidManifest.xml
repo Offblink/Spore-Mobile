@@ -5,6 +5,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- 悬浮球/浮层 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 前台服务 + 截屏类型（Android 14+ 硬要求） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- Android 13+ 通知权限（前台服务通知） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -13,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Spore">
 
-        <!-- 搜题记录主页（占位；悬浮窗/截屏等能力由前台 Service 接管，见 handoff §2/§3） -->
+        <!-- 搜题记录主页（后续接记录列表）；当前承载悬浮球开关与权限引导 -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -22,6 +32,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          透明中转页：承载系统 MediaProjection 授权弹窗（授权结果只能经 Activity 的
+          onActivityResult 拿回，Service 收不到），拿到后转交 CaptureService 即 finish。
+          注意：不能设 noHistory —— 系统授权弹窗会盖住本页，noHistory 会让它先被销毁。
+        -->
+        <activity
+            android:name=".CaptureConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型 -->
+        <service
+            android:name=".CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
     </application>
 

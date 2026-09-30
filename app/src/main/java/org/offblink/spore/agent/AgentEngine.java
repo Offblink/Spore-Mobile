@@ -43,7 +43,8 @@ public final class AgentEngine {
     });
     private final Handler main = new Handler(Looper.getMainLooper());
     private final LlmClient llm = new LlmClient();
-    private final Session session = new Session();
+    /** 当前会话；每次截屏搜题换新（rotateSession），旧的经 SessionStore 归档 */
+    private Session session = new Session();
 
     private Listener listener;
     private volatile boolean busy;
@@ -67,7 +68,29 @@ public final class AgentEngine {
 
     /** 截图提问：新 user(带图) + answer 占位，跑两阶段 */
     public void newCaptureTurn(String imagePath, String supplement) {
-        submit(() -> runImageTurn(imagePath, supplement == null ? "" : supplement));
+        submit(() -> {
+            rotateSession(); // 每次截屏新开会话——第二道题不接在第一道后面（用户实测反馈）
+            runImageTurn(imagePath, supplement == null ? "" : supplement);
+        });
+    }
+
+    /**
+     * 当前会话有内容 → 落盘归档并换新；空会话（面板刚开还没问过）直接复用。
+     * 必须在执行线程调用（有文件 IO 与 emit）。
+     */
+    private void rotateSession() {
+        if (session.messages.isEmpty()) {
+            return;
+        }
+        persist();
+        session = new Session();
+        emit("session-new", "title", session.title);
+    }
+
+    /** 当前会话落盘（记录页数据源）；文件失败不打断作答 */
+    private void persist() {
+        session.updated = System.currentTimeMillis();
+        SessionStore.save(app, session);
     }
 
     /** 追问（纯文本，最快分支） */
@@ -594,6 +617,7 @@ public final class AgentEngine {
     }
 
     private void emitTurnEnd(int idx, boolean error, String errorMessage, Object... extra) {
+        persist(); // 回合结束即落盘（done/aborted/error 都走这里）
         JSONObject ev = jo("idx", idx);
         if (error && errorMessage != null) {
             try {

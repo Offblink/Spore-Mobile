@@ -33,21 +33,17 @@
             </intent-filter>
         </activity>
 
-        <!--
-          透明中转页：承载系统 MediaProjection 授权弹窗（授权结果只能经 Activity 的
-          onActivityResult 拿回，Service 收不到），拿到后转交 CaptureService 即 finish。
-          注意：不能设 noHistory —— 系统授权弹窗会盖住本页，noHistory 会让它先被销毁。
-        -->
-        <activity
-            android:name=".CaptureConsentActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
         <!-- 设置页（端点/key/模型/检索代理/两阶段开关） -->
         <activity
             android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <!-- 搜题记录（会话列表 + 收藏筛选）与单条详情；授权页已删——首授收进 MainActivity 开球开关 -->
+        <activity
+            android:name=".RecordActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DetailActivity"
             android:exported="false" />
 
         <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型 -->

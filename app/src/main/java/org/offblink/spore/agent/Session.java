@@ -4,15 +4,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 移动端会话模型（桌面 spore.sess.&lt;id&gt; 的内存版；持久化在 handoff §9 顺序的第⑤块接 Room）。
+ * 移动端会话模型（桌面 spore.sess.&lt;id&gt; 的移动版）。
+ * 持久化 = {@link SessionStore}（一会话一 JSON，记录页数据源）。
  * 标题契约照搬：占位「新会话」永不含日期；起名 = 题号 + 大意（零模型调用）。
  */
 public final class Session {
+
+    /** 文件名即 ID（时间戳格式，字典序 = 时间序）；记录页/详情页按它取 */
+    public String id = newId();
+    public long created = System.currentTimeMillis();
+    public long updated = created;
+    /** 收藏（桌面 fav 字段；记录页星标切换） */
+    public boolean fav = false;
 
     public String title = "新会话";
     /** answering / verifying / searching / done / error / aborted / "" */
     public String status = "";
     public final List<Msg> messages = new ArrayList<>();
+
+    public static String newId() {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(
+                "yyyyMMdd-HHmmssSSS", java.util.Locale.US);
+        return f.format(new java.util.Date());
+    }
 
     public static final class Msg {
         /** user | assistant */

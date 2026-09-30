@@ -359,7 +359,8 @@ public class CropOverlayView extends View {
                 if (dragging) {
                     dragging = false;
                     if (hasSel) {
-                        if (sel.width() < minW || sel.height() < minH) {
+                        // 桌面契约（design.md）：宽高**都**小于下限才拒，有其一过线就放行
+                        if (sel.width() < minW && sel.height() < minH) {
                             hasSel = false;
                             Toast.makeText(getContext(), R.string.crop_too_small,
                                     Toast.LENGTH_SHORT).show();
@@ -389,9 +390,10 @@ public class CropOverlayView extends View {
         }
     }
 
-    /** 按钮确认：太小只拦不清（用户拖大再来）；与手拖松手路径的「清框重来」刻意不同 */
+    /** 按钮确认：太小只拦不清（用户拖大再来）；与手拖松手路径的「清框重来」刻意不同。
+     *  判定同手拖路径（桌面契约）：都小于下限才拒 */
     private void confirmSelection() {
-        if (sel.width() < minW || sel.height() < minH) {
+        if (sel.width() < minW && sel.height() < minH) {
             Toast.makeText(getContext(), R.string.crop_too_small, Toast.LENGTH_SHORT).show();
             return;
         }

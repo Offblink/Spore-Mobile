@@ -37,17 +37,21 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
     private static final int TYPE_ANSWER = 1;
     private static final int TYPE_CHAT = 2;
 
-    private final Session session;
     private final Markwon markwon;
     private final Host host;
-    private final List<Session.Msg> messages;
+    private List<Session.Msg> messages;
 
     public AnswerAdapter(Session session, Markwon markwon, Host host) {
-        this.session = session;
         this.markwon = markwon;
         this.host = host;
         this.messages = session.messages;
         setHasStableIds(false);
+    }
+
+    /** 换会话（每次截屏搜题新开）：重绑消息源并全量刷新 */
+    public void setSession(Session s) {
+        this.messages = s.messages;
+        notifyDataSetChanged();
     }
 
     @Override

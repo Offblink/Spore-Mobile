@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -27,6 +28,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvStatus;
     private ActivityResultLauncher<Intent> overlayLauncher;
     private ActivityResultLauncher<String> notifLauncher;
+    /** 首授在**开球开关时**过掉（用户拍板）：截屏时不再启动任何授权页 */
+    private ActivityResultLauncher<Intent> consentLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +49,21 @@ public class MainActivity extends AppCompatActivity {
         notifLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> { });
 
+        consentLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), result -> {
+                    Intent data = result.getData();
+                    if (result.getResultCode() == RESULT_OK && data != null) {
+                        Intent i = new Intent(this, CaptureService.class);
+                        i.setAction(CaptureService.ACTION_PROJECT);
+                        i.putExtra(CaptureService.EXTRA_RESULT_CODE, result.getResultCode());
+                        i.putExtra(CaptureService.EXTRA_RESULT_DATA, data);
+                        startService(i);
+                    } else {
+                        Toast.makeText(this, R.string.consent_denied, Toast.LENGTH_LONG).show();
+                    }
+                    refreshStatus();
+                });
+
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                         != PackageManager.PERMISSION_GRANTED) {
@@ -56,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.btn_settings).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.btn_record).setOnClickListener(v ->
+                startActivity(new Intent(this, RecordActivity.class)));
     }
 
     @Override
@@ -70,7 +90,12 @@ public class MainActivity extends AppCompatActivity {
         } else if (!Settings.canDrawOverlays(this)) {
             requestOverlayPermission();
         } else {
+            // 先起服务（FGS 就绪，Android 14+ 要求先 startForeground 才能拿投影），
+            // 紧接着在应用内过首授——截屏时永远零弹窗、零前台抢占（用户实测拍板）
             CaptureService.start(this);
+            MediaProjectionManager mpm =
+                    (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+            consentLauncher.launch(mpm.createScreenCaptureIntent());
         }
         refreshStatus();
     }

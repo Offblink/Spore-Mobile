@@ -56,7 +56,7 @@ import java.util.Locale;
 /**
  * 悬浮球 + 截屏采集的前台服务（handoff §9）。
  *
- * 链路：点球 → （仅首次）CaptureConsentActivity 拿系统授权，此后投影常驻持有 →
+ * 链路：**开球开关时在应用内过首授**（MainActivity → handleProject 存投影，常驻持有）→
  * 每次点球服务侧直接取帧（不启动 Activity、不弹确认，目标应用不离前台）→
  * ImageReader 取首帧 → 黑帧检测（FLAG_SECURE 判据）→ 冻结帧框选（CropOverlayView）→ 裁剪落盘。
  * 裁剪参数沿用桌面端：MAX_CROP_LONG=1600、JPEG 0.82、MIN_W/MIN_H=60/40dp。
@@ -73,8 +73,6 @@ public class CaptureService extends Service {
     private static final String CHANNEL_ID = "spore_fgs";
     private static final int NOTIF_ID = 1;
     private static final long FRAME_TIMEOUT_MS = 3000;
-    /** 首授后等前台回到原应用再取帧的时长（授权页 finish → 原任务恢复，实测需几百 ms） */
-    private static final long POST_CONSENT_SETTLE_MS = 800;
 
     private static volatile boolean running = false;
 
@@ -239,19 +237,14 @@ public class CaptureService extends Service {
         @Override
         public void onTap() {
             if (proj != null) {
-                // 已授权：零 Activity 启动、目标应用不离开前台（handoff §9.3/9.7 修正）
+                // 已授权：零 Activity 启动、目标应用不离开前台（用户实测修复）
                 final Point sz = displaySize();
                 bg.post(() -> captureFrame(sz.x, sz.y));
                 return;
             }
-            try {
-                Intent i = new Intent(CaptureService.this, CaptureConsentActivity.class);
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(i);
-            } catch (Exception e) {
-                // 后台启动限制（Android 10+）会拦这里 → 回退方案见 handoff §9.7②
-                toast(getString(R.string.capture_failed, String.valueOf(e)));
-            }
+            // 授权已失效：不在截屏时拉授权页（会把目标应用挤回桌面 + 留灰色残窗，
+            // 用户实测两条都是它）→ 只提示回 Spore 重开球开关（开关里已内置首授）
+            toastRes(R.string.projection_missing);
         }
 
         @Override
@@ -294,15 +287,10 @@ public class CaptureService extends Service {
 
     // ---------- 截屏 ----------
 
+    /** MainActivity 首授回调转来的授权结果：只**存投影**，不取帧（截屏由点球触发） */
     private void handleProject(int resultCode, Intent data) {
         if (resultCode != Activity.RESULT_OK || data == null) {
-            toastRes(R.string.capture_cancelled);
-            return;
-        }
-        if (!Settings.canDrawOverlays(this)) {
-            toastRes(R.string.status_no_overlay);
-            stopSelf();
-            return;
+            return; // MainActivity 已 toast 未授权
         }
         try {
             // Android 14+：createVirtualDisplay 前必须注册回调，否则 SecurityException
@@ -310,26 +298,14 @@ public class CaptureService extends Service {
             proj.registerCallback(new MediaProjection.Callback() {
                 @Override
                 public void onStop() {
-                    // 用户/系统收回授权（下拉停止投屏等）→ 下次点球重新走授权页
+                    // 用户/系统收回授权（下拉停止投屏等）→ 点球提示回 Spore 重授
                     proj = null;
-                    toastRes(R.string.projection_revoked);
+                    toastRes(R.string.projection_missing);
                 }
             }, main);
         } catch (Exception e) {
             toast(getString(R.string.capture_failed, String.valueOf(e)));
-            return;
         }
-        final Point sz = displaySize();
-        // 首授刚结束：授权页 finish 后前台要几百 ms 才回到原应用，等一拍再取帧，
-        // 否则会截到过场/桌面（用户实测）。后续点球不再走这条路（proj 已持有）。
-        bg.post(() -> {
-            try {
-                Thread.sleep(POST_CONSENT_SETTLE_MS);
-            } catch (InterruptedException ignored) {
-                return;
-            }
-            captureFrame(sz.x, sz.y);
-        });
     }
 
     /**

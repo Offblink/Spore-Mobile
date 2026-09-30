@@ -100,6 +100,8 @@ public final class AnswerPanel implements AgentEngine.Listener, AnswerAdapter.Ho
             return false;
         });
 
+        // 换过会话（rotateSession）也要在这里重绑：事件在收起期间会被丢掉
+        adapter.setSession(engine.session());
         title.setText(engine.session().title);
         status.setText("");
 
@@ -184,6 +186,13 @@ public final class AnswerPanel implements AgentEngine.Listener, AnswerAdapter.Ho
         }
         String type = ev.optString("type");
         switch (type) {
+            case "session-new":
+                // 每次截屏搜题新开会话：重绑消息源、清标题与状态
+                adapter.setSession(engine.session());
+                title.setText(engine.session().title);
+                status.setText("");
+                refresh(true);
+                break;
             case "title":
                 title.setText(ev.optString("title"));
                 break;

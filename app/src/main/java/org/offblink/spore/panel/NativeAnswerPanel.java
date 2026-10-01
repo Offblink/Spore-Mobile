@@ -240,15 +240,19 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     // ---------------------------------------------------------------- 会话列表（MV3 listpop）
 
     private void toggleList() {
-        boolean emptyShown = listempty != null
-                && listempty.getVisibility() == View.VISIBLE;
-        if ((listpop != null && listpop.getVisibility() == View.VISIBLE) || emptyShown) {
+        if (isListShown()) {
             closeList();
             return;
         }
         buildRows();
         listSeen = true;
         paintUnread();
+    }
+
+    /** 列表当前开着吗（弹层或空态卡片可见）——开合判定、原地刷新都用它 */
+    private boolean isListShown() {
+        return (listpop != null && listpop.getVisibility() == View.VISIBLE)
+                || (listempty != null && listempty.getVisibility() == View.VISIBLE);
     }
 
     private void closeList() {
@@ -522,13 +526,17 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         }
         switch (type) {
             case "session-new":
-                // 每次截屏搜题新开会话：重绑消息源、清标题与状态
+                // 新会话（截屏开新题 / 删掉当前会话腾出来的空会话）：重绑消息源、清标题与状态
                 adapter.setSession(engine.session());
                 title.setText(engine.session().title);
                 status.setText("");
                 listSeen = false; // 新会话 = 列表有动静 → 未读点
                 paintUnread();
-                closeList();
+                // 列表开着就原地刷行（新会话要能立刻看见），**不关列表**——
+                // 删掉当前会话时列表必须留在原地（web 侧本来就不关，这里对齐）
+                if (isListShown()) {
+                    buildRows();
+                }
                 refresh(true);
                 break;
             case "title":

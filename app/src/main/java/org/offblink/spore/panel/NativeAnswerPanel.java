@@ -72,6 +72,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     private boolean visible;
     /** 列表自上次打开后有没有新会话（MV3 has-unread 语义） */
     private boolean listSeen;
+    private View scrim;
 
     /** 模态操作的目标会话（确认/重命名期间暂存） */
     private Session target;
@@ -174,8 +175,9 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         favBtn.setOnClickListener(v -> toggleFav());
         // 点消息区收起弹层（背景行为，同桌面点外面关）
         list.setOnClickListener(v -> closeList());
-        // 第六轮回灌：面板任意空白也收起（子视图消费的点击不会冒到这里）
-        panel.setOnClickListener(v -> closeList());
+        // 第六轮回灌：弹层外任意空白由遮罩接住 → 关（照 web 点外面关；子视图消费的点击到不了根）
+        scrim = panel.findViewById(R.id.panel_scrim);
+        scrim.setOnClickListener(v -> closeList());
         wireModals();
 
         Point sz = displaySize();
@@ -235,13 +237,18 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     // ---------------------------------------------------------------- 会话列表（MV3 listpop）
 
     private void toggleList() {
-        if (listpop.getVisibility() == View.VISIBLE) {
+        boolean emptyShown = listempty != null
+                && listempty.getVisibility() == View.VISIBLE;
+        if ((listpop != null && listpop.getVisibility() == View.VISIBLE) || emptyShown) {
             closeList();
             return;
         }
         buildRows();
         listSeen = true;
         paintUnread();
+        if (scrim != null) {
+            scrim.setVisibility(View.VISIBLE);
+        }
     }
 
     private void closeList() {
@@ -250,6 +257,9 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         }
         if (listempty != null) {
             listempty.setVisibility(View.GONE);
+        }
+        if (scrim != null) {
+            scrim.setVisibility(View.GONE);
         }
     }
 

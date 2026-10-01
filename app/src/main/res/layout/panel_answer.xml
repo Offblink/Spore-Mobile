@@ -160,6 +160,14 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- listpop 遮罩：点弹层外任意空白即关（第六轮原生补，照 web 点外面关的行为） -->
+    <View
+        android:id="@+id/panel_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#00000000"
+        android:visibility="gone" />
+
     <!-- MV3 listpop：会话弹层（默认隐藏，💬 展开，pop 动画） -->
     <ScrollView
         android:id="@+id/panel_listpop"
@@ -205,6 +213,7 @@
         android:id="@+id/panel_confirm"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:elevation="20dp"
         android:background="@drawable/spore_dialog_overlay"
         android:gravity="center"
         android:orientation="vertical"
@@ -280,6 +289,7 @@
         android:id="@+id/panel_rename"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:elevation="20dp"
         android:background="@drawable/spore_dialog_overlay"
         android:gravity="center"
         android:orientation="vertical"

@@ -402,7 +402,10 @@ public class CropOverlayView extends View {
                         invalidate();
                         return true;
                     }
-                    confirmSelection();
+                    // 第六轮更正：拖完只留选区，绝不自动搜——确认唯一入口是「搜」按钮。
+                    // 由此人工与 ML 彻底同口：预选 → 点搜 → 同一个 confirmSelection/cropSelection。
+                    // （上一版误删的是「调角结束」分支里的自动搜，拖拽结束这条一直漏着）
+                    invalidate();
                     return true;
                 }
                 return true;

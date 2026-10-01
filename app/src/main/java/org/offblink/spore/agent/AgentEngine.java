@@ -16,8 +16,14 @@ import org.offblink.spore.tools.ToolSchemas;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 两阶段作答引擎——移植桌面 `src/lib/agent.js`（先快再准）：
@@ -25,8 +31,20 @@ import java.util.concurrent.Executors;
  * 阶段B 联网核实（工具循环，三道闸检索）→ FIX 覆盖答案。
  * 追问 = 纯文本对话分支（带历史）。
  *
- * 线程模型：回合跑在单线程 executor（阻塞式 SSE），事件经 main Handler 回主线程；
- * {@link Listener#onEvent} 保证在主线程。会话是唯一事实源（内存，handoff §9⑤ 接 Room）。
+ * <h3>线程与并行模型（第九轮用户拍板：生成中照样能操作，「并行」要看得见）</h3>
+ * <ul>
+ *   <li>回合跑在 <b>3 线程池</b>上（阻塞式 SSE），事件经 main Handler 回主线程；
+ *       {@link Listener#onEvent} 保证在主线程。</li>
+ *   <li><b>一会话一回合</b>：同一个会话里不并发（两条流写同一个消息列表会互相踩），
+ *       <b>不同会话各跑各的</b>——第一题还在生成时截第二题，两条流并行。</li>
+ *   <li>回合用 {@link #curSession()} 取自己绑定的 Session，<b>绝不碰「正在查看的会话」</b>；
+ *       所以生成中途切会话/收藏/改名/删除都不会打断在跑的那条流，也不会写串数据。</li>
+ *   <li>事件带 {@code sid}（属于哪个会话）：面板只渲染正在看的那个，其余会话的流式增量
+ *       直接忽略（列表红点靠回合结束后的 state 刷新）。</li>
+ *   <li>列表顺序的键是 {@code Session.updated}，<b>只有内容（消息）变了才抬</b>
+ *       （{@link SessionStore#saveActive}）；改名/收藏走 {@link SessionStore#save} 不抬 ——
+ *       否则「收藏完/改名完该条就跳到最前」。</li>
+ * </ul>
  */
 public final class AgentEngine {
 
@@ -36,19 +54,40 @@ public final class AgentEngine {
     }
 
     private final Context app;
-    private final ExecutorService exec = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "spore-agent");
+    private final ExecutorService exec = Executors.newFixedThreadPool(3, r -> {
+        Thread t = new Thread(r, "spore-agent-" + AGENT_SEQ.incrementAndGet());
         t.setDaemon(true);
         return t;
     });
+    private static final AtomicInteger AGENT_SEQ = new AtomicInteger();
+
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final LlmClient llm = new LlmClient();
-    /** 当前会话；每次截屏搜题换新（rotateSession），旧的经 SessionStore 归档 */
-    private Session session = new Session();
+
+    /** 正在查看的会话（面板/记录页显示的那个）；切它不打断任何在途回合 */
+    private volatile Session session = new Session();
+    /** 在途回合：会话 id → 回合上下文。同一会话不并行，不同会话各跑各的 */
+    private final Map<String, Turn> turns = new ConcurrentHashMap<>();
+    /** 已删除的会话 id：在途回合收尾不许把文件写回来（防「删了又复活」） */
+    private final Set<String> deleted = ConcurrentHashMap.newKeySet();
+    /**
+     * 回合线程绑定的上下文。回合方法（runXxx/verifyPhase/historyMessages/emit…）只在
+     * 回合线程上被调用，读它拿「这个回合属于谁」；桥线程/服务线程调的那些（emit session-new、
+     * rename…）拿到 null → 回落到「正在查看的会话」。
+     */
+    private final ThreadLocal<Turn> cur = new ThreadLocal<>();
 
     private Listener listener;
-    private volatile boolean busy;
-    private volatile boolean abort;
+
+    /** 一个在途回合的私有状态：自己的会话对象、自己的 LLM 客户端（■ 只掐自己那条流）、自己的中止开关 */
+    private static final class Turn {
+        final Session session;
+        final LlmClient llm = new LlmClient();
+        volatile boolean abort;
+
+        Turn(Session session) {
+            this.session = session;
+        }
+    }
 
     public AgentEngine(Context app) {
         this.app = app.getApplicationContext();
@@ -62,82 +101,126 @@ public final class AgentEngine {
         return session;
     }
 
-    public boolean isBusy() {
-        return busy;
+    /** 该会话是否在生成（面板只用它：输入框只在**当前会话**生成中才禁用） */
+    public boolean isBusy(String id) {
+        return id != null && turns.containsKey(id);
     }
 
-    /** 截图提问：新 user(带图) + answer 占位，跑两阶段 */
+    /** 在生成中的会话 id（面板列表给这些行打「生成中」标） */
+    public List<String> runningIds() {
+        return new ArrayList<>(turns.keySet());
+    }
+
+    /** 会话在跑 → 返回它的内存活对象（记录详情页轮询用，别读会被归一成 done 的旧文件） */
+    public Session liveSession(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        Turn t = turns.get(id);
+        return t == null ? null : t.session;
+    }
+
+    // ================================================================ 开回合
+
+    /**
+     * 截图提问：新 user(带图) + answer 占位，跑两阶段。
+     * <b>上一题还在生成也照开</b>（用户拍板：并行要能体现）——这条会落到一个新会话里，
+     * 与在跑的那条各写各的。
+     */
     public void newCaptureTurn(String imagePath, String supplement) {
-        submit(() -> {
-            rotateSession(); // 每次截屏新开会话——第二道题不接在第一道后面（用户实测反馈）
-            runImageTurn(imagePath, supplement == null ? "" : supplement);
+        Session prev = session;
+        Session next = nextCaptureSession(); // 只定归属 + 换视图，不在主线程写盘
+        String text = supplement == null ? "" : supplement;
+        submit(next, () -> {
+            if (prev != next && !prev.messages.isEmpty()) {
+                // 旧会话归档（内容落盘、抬 updated → 它排到列表最前，因为**确实有新内容**）；
+                // 放工作线程做：主线路是面板开合，不背文件 IO
+                SessionStore.saveActive(app, prev);
+            }
+            runImageTurn(imagePath, text);
         });
     }
 
     /**
-     * 当前会话有内容 → 落盘归档并换新；空会话（面板刚开还没问过）直接复用。
-     * 必须在执行线程调用（有文件 IO 与 emit）。
+     * 这次截图落在哪个会话：当前会话空着且没在跑 → 直接复用（面板刚开还没问过），否则开新的。
      */
-    private void rotateSession() {
-        if (session.messages.isEmpty()) {
-            return;
+    private Session nextCaptureSession() {
+        if (session.messages.isEmpty() && !turns.containsKey(session.id)) {
+            return session;
         }
-        persist();
-        session = new Session();
-        emit("session-new", "title", session.title);
+        Session fresh = new Session();
+        session = fresh;
+        emit("session-new", "title", fresh.title);
+        return fresh;
     }
 
-    /** 当前会话落盘（记录页数据源）；文件失败不打断作答 */
-    private void persist() {
-        session.updated = System.currentTimeMillis();
-        SessionStore.save(app, session);
+    /** 内容落盘（回合结束 / 新会话归档）：抬 updated，列表按最新活动排前 */
+    private void persist(Session cur) {
+        if (deleted.contains(cur.id)) {
+            return; // 回合期间被删掉了：不许把文件写回来
+        }
+        SessionStore.saveActive(app, cur);
     }
 
-    /** 记录/会话列表点入：换入已存会话继续对话（桌面点列表行的语义） */
+    /**
+     * 记录/会话列表点入：换视图，<b>不动任何时间戳</b>——第九轮拍板「点进去不要置顶」。
+     * 点的是在途回合 → 直接换到它的内存活对象（读文件会看到还没更新的旧数据）。
+     */
     public boolean loadSession(String id) {
-        if (busy) {
+        Session target = id == null || id.isEmpty() ? null : resolve(id);
+        if (target == null) {
             return false;
         }
-        Session loaded = SessionStore.load(app, id);
-        if (loaded == null) {
-            return false;
-        }
-        if (loaded.id.equals(session.id)) {
+        if (target.id.equals(session.id)) {
             return true;
         }
-        if (!session.messages.isEmpty()) {
-            persist();
-        }
-        session = loaded;
-        emit("session-new", "title", session.title);
+        session = target;
+        emit("session-new", "title", target.title);
         return true;
     }
 
-    /** 重命名（当前或已存会话）；busy 时不打断在途回合 */
-    public boolean renameSession(String id, String name) {
-        if (busy && id.equals(session.id)) {
-            return false;
+    /** 找会话对象：正在看的 → 在途回合的（活的）→ 磁盘。三处都只读元数据用途 */
+    private Session resolve(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
         }
         if (id.equals(session.id)) {
-            session.title = name;
-            persist();
-            emit("title", "title", name);
-            return true;
+            return session;
         }
-        Session s = SessionStore.load(app, id);
+        Turn t = turns.get(id);
+        if (t != null) {
+            return t.session;
+        }
+        return SessionStore.load(app, id);
+    }
+
+    /**
+     * 重命名：当前 / 历史 / <b>在途回合</b>都能改（第九轮：生成中不再拦操作）。
+     * 只改标题走 save（不抬 updated）→ 列表顺序保持原位。
+     */
+    public boolean renameSession(String id, String name) {
+        Session s = resolve(id);
         if (s == null) {
             return false;
         }
         s.title = name;
         SessionStore.save(app, s);
+        if (s.id.equals(session.id)) {
+            emit("title", "title", name);
+        }
         return true;
     }
 
-    /** 删除会话；删的是当前会话则换成全新空会话 */
+    /**
+     * 删除会话：先掐它的在途回合（否则回合结束 persist 会把文件又写回来），再删文件。
+     * 删的是当前视图 → 换成全新空会话。
+     */
     public boolean deleteSession(String id) {
-        if (busy && id.equals(session.id)) {
+        if (id == null || id.isEmpty()) {
             return false;
         }
+        deleted.add(id);
+        abortTurn(id);
         SessionStore.delete(app, id);
         if (id.equals(session.id)) {
             session = new Session();
@@ -146,21 +229,9 @@ public final class AgentEngine {
         return true;
     }
 
-    /** 收藏切换（面板 listpop ★ / 记录页星标）：当前会话动内存态并落盘，历史会话走文件 */
+    /** 收藏切换：当前 / 历史 / 在途回合都能点；只改 fav，不抬 updated（列表不跳位） */
     public boolean toggleFav(String id) {
-        if (id == null || id.isEmpty()) {
-            return false;
-        }
-        boolean current = id.equals(session.id);
-        if (busy && current) {
-            return false; // 同 renameSession：在途回合不碰当前会话的落盘态
-        }
-        if (current) {
-            session.fav = !session.fav;
-            persist();
-            return true;
-        }
-        Session s = SessionStore.load(app, id);
+        Session s = resolve(id);
         if (s == null) {
             return false;
         }
@@ -169,52 +240,95 @@ public final class AgentEngine {
         return true;
     }
 
-    /** 追问（纯文本，最快分支） */
-    public void sendFollowup(String text) {
+    /**
+     * 追问（纯文本）：落到**面板当前会话**上。返回 false = 该会话已有回合在跑
+     * （同一会话不并行；别的会话在跑不影响这里）。
+     */
+    public boolean sendFollowup(String text) {
         String t = text == null ? "" : text.trim();
         if (t.isEmpty()) {
+            return false;
+        }
+        Session cur = session;
+        return submit(cur, () -> runChatTurn(t));
+    }
+
+    /** 「核实一下」按钮：对**当前会话**最后一条回答单独跑阶段B */
+    public boolean verifyOnly() {
+        Session cur = session;
+        return submit(cur, () -> runVerifyOnly());
+    }
+
+    /** 停止：只掐**当前会话**那条流（面板 ■）；其它会话的并行回合照跑 */
+    public void cancel() {
+        abortTurn(session == null ? null : session.id);
+    }
+
+    private void abortTurn(String id) {
+        if (id == null) {
             return;
         }
-        submit(() -> runChatTurn(t));
-    }
-
-    /** 「核实一下」按钮：对最后一条回答单独跑阶段B（与自动核实同一实现） */
-    public void verifyOnly() {
-        submit(this::runVerifyOnly);
-    }
-
-    /** 停止：中止在途流与回合（面板 ■ 按钮） */
-    public void cancel() {
-        abort = true;
-        llm.cancel();
+        Turn t = turns.get(id);
+        if (t != null) {
+            t.abort = true;
+            t.llm.cancel();
+        }
     }
 
     public void shutdown() {
-        cancel();
+        for (Turn t : turns.values()) {
+            t.abort = true;
+            t.llm.cancel();
+        }
         exec.shutdownNow();
     }
 
-    private void submit(Runnable turn) {
-        if (busy) {
-            return;
+    /**
+     * 提交回合：同一会话已在跑 → 拒绝（返回 false，调用方给提示）；否则绑定上下文入池。
+     * 三个线程同时最多三条流；同一会话永远不会同时两条。
+     */
+    private boolean submit(Session owner, Runnable turn) {
+        Turn t = new Turn(owner);
+        if (turns.putIfAbsent(owner.id, t) != null) {
+            return false;
         }
-        busy = true;
-        abort = false;
         exec.execute(() -> {
+            cur.set(t);
             try {
                 turn.run();
             } catch (RuntimeException e) {
                 // 兜底：回合方法内部已各自 try/catch，这里只防漏网
                 emitError(-1, String.valueOf(e.getMessage() == null ? e : e.getMessage()));
             } finally {
-                busy = false;
+                cur.remove();
+                turns.remove(owner.id, t);
             }
         });
+        return true;
+    }
+
+    /** 当前线程绑定的会话（回合线程 = 该回合的会话；其它线程 = 正在查看的会话） */
+    private Session curSession() {
+        Turn t = cur.get();
+        return t != null ? t.session : session;
+    }
+
+    /** 当前回合的 LLM 客户端：每回合一个 → ■ 停止只 cancel 自己那条流 */
+    private LlmClient llm() {
+        Turn t = cur.get();
+        return t != null ? t.llm : new LlmClient();
+    }
+
+    /** 当前回合的中止开关（非回合线程永远 false） */
+    private boolean aborted() {
+        Turn t = cur.get();
+        return t != null && t.abort;
     }
 
     // ================================================================ 阶段分支
 
     private void runImageTurn(String imagePath, String supplement) {
+        final Session cur = curSession();
         SporeSettings s = SporeSettings.load(app);
         if (!s.isConfigured()) {
             emitTurnEnd(-1, true, "未配置端点或 API Key，请先到设置页填写");
@@ -226,16 +340,16 @@ public final class AgentEngine {
         user.imagePath = imagePath;
         user.text = supplement;
         user.ts = System.currentTimeMillis();
-        session.messages.add(user);
+        cur.messages.add(user);
 
         Session.Msg ans = new Session.Msg();
         ans.role = "assistant";
         ans.kind = "answer";
         ans.ts = System.currentTimeMillis();
-        session.messages.add(ans);
-        int idx = session.messages.size() - 1;
+        cur.messages.add(ans);
+        int idx = cur.messages.size() - 1;
 
-        session.status = "answering";
+        cur.status = "answering";
         emit("status", "status", "answering", "text", "读题中…");
         emit("answer-start", "idx", idx);
 
@@ -269,7 +383,7 @@ public final class AgentEngine {
                     emitAnswerDelta(idx, ans);
                 }
             };
-            LlmClient.Result resA = llm.streamChat(r);
+            LlmClient.Result resA = llm().streamChat(r);
             String rawA = resA.content == null ? "" : resA.content;
             Phases.PhaseA parsedA = Phases.parsePhaseA(rawA);
             if (!parsedA.no.isEmpty()) {
@@ -298,7 +412,7 @@ public final class AgentEngine {
                 ans.verifyVerdict = "OK";
                 ans.verifyNote = "初答自评「确定」（<<ok>> 守卫），已跳过联网核实。";
                 emitVerifyDone(idx, ans, true, false, false);
-                session.status = "done";
+                cur.status = "done";
                 emitTurnEnd(idx, false, null);
                 return;
             }
@@ -311,10 +425,10 @@ public final class AgentEngine {
             } else {
                 verifyPhase(s, ans, idx, image, extra);
             }
-            session.status = "done";
+            cur.status = "done";
             emitTurnEnd(idx, false, null);
         } catch (AbortedTurn a) {
-            session.status = "aborted";
+            cur.status = "aborted";
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
@@ -326,6 +440,7 @@ public final class AgentEngine {
     }
 
     private void runChatTurn(String text) {
+        final Session cur = curSession();
         SporeSettings s = SporeSettings.load(app);
         if (!s.isConfigured()) {
             emitTurnEnd(-1, true, "未配置端点或 API Key，请先到设置页填写");
@@ -335,16 +450,16 @@ public final class AgentEngine {
         user.role = "user";
         user.text = text;
         user.ts = System.currentTimeMillis();
-        session.messages.add(user);
+        cur.messages.add(user);
 
         Session.Msg chat = new Session.Msg();
         chat.role = "assistant";
         chat.kind = "chat";
         chat.ts = System.currentTimeMillis();
-        session.messages.add(chat);
-        int idx = session.messages.size() - 1;
+        cur.messages.add(chat);
+        int idx = cur.messages.size() - 1;
 
-        session.status = "answering";
+        cur.status = "answering";
         emit("chat-start", "idx", idx);
         emit("status", "status", "answering", "text", "回答中…");
         try {
@@ -380,14 +495,14 @@ public final class AgentEngine {
                         emit("chat-delta", "idx", idx, "text", chunk, "total", chat.text);
                     }
                 };
-                LlmClient.Result res = llm.streamChat(r);
+                LlmClient.Result res = llm().streamChat(r);
                 if (chat.text.isEmpty() && res.content != null) {
                     chat.text = res.content;
                 }
                 if (maxRounds <= 0 || round >= maxRounds || res.toolCalls.isEmpty()) {
                     break;
                 }
-                session.status = "searching";
+                cur.status = "searching";
                 emit("status", "status", "searching", "text", "检索中…");
                 JSONObject assistant = jo("role", "assistant");
                 try {
@@ -422,10 +537,10 @@ public final class AgentEngine {
                     emit("chat-delta", "idx", idx, "text", "", "total", "");
                 }
             }
-            session.status = "done";
+            cur.status = "done";
             emitTurnEnd(idx, false, null);
         } catch (AbortedTurn a) {
-            session.status = "aborted";
+            cur.status = "aborted";
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
@@ -437,6 +552,7 @@ public final class AgentEngine {
     }
 
     private void runVerifyOnly() {
+        final Session cur = curSession();
         SporeSettings s = SporeSettings.load(app);
         if (!s.isConfigured()) {
             emitTurnEnd(-1, true, "未配置端点或 API Key，请先到设置页填写");
@@ -444,8 +560,8 @@ public final class AgentEngine {
         }
         int idx = -1;
         Session.Msg ans = null;
-        for (int i = session.messages.size() - 1; i >= 0; i--) {
-            Session.Msg m = session.messages.get(i);
+        for (int i = cur.messages.size() - 1; i >= 0; i--) {
+            Session.Msg m = cur.messages.get(i);
             if ("answer".equals(m.kind)) {
                 ans = m;
                 idx = i;
@@ -457,8 +573,8 @@ public final class AgentEngine {
             return;
         }
         Session.Msg lastUser = null;
-        for (int i = session.messages.size() - 1; i >= 0; i--) {
-            Session.Msg m = session.messages.get(i);
+        for (int i = cur.messages.size() - 1; i >= 0; i--) {
+            Session.Msg m = cur.messages.get(i);
             if ("user".equals(m.role)) {
                 lastUser = m;
                 break;
@@ -477,7 +593,7 @@ public final class AgentEngine {
 
         ans.verifyPending = false; // 摘掉按钮
         ans.verifyRan = false;
-        session.status = "verifying";
+        cur.status = "verifying";
         emit("verify-delta", "idx", idx, "ran", false, "note", "", "pending", false);
         emit("status", "status", "verifying", "text", "核实中…");
         try {
@@ -485,10 +601,10 @@ public final class AgentEngine {
                 throw new IOException("截图缺失，无法核实");
             }
             verifyPhase(s, ans, idx, image, extra);
-            session.status = "done";
+            cur.status = "done";
             emitTurnEnd(idx, false, null);
         } catch (AbortedTurn a) {
-            session.status = "aborted";
+            cur.status = "aborted";
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
@@ -503,12 +619,13 @@ public final class AgentEngine {
 
     private void verifyPhase(SporeSettings s, Session.Msg ans, int idx,
                              String image, String extra) throws Exception {
+        final Session cur = curSession();
         int maxRounds = Math.max(0, s.maxToolRounds);
         if (maxRounds <= 0) {
             return; // 桌面同款：0 轮 = 不核实直接收尾
         }
         SearchChain.setProxy(s.proxy);
-        session.status = "verifying";
+        cur.status = "verifying";
         emit("status", "status", "verifying", "text", "核实中…");
 
         JSONArray msgs = verifyMessages(image, extra, ans, maxRounds);
@@ -534,12 +651,12 @@ public final class AgentEngine {
                     emit("verify-delta", "idx", idx, "note", acc.content, "verdict", "");
                 }
             };
-            LlmClient.Result res = llm.streamChat(r);
+            LlmClient.Result res = llm().streamChat(r);
             if (res.toolCalls.isEmpty()) {
                 verify = Phases.parsePhaseB(res.content == null ? "" : res.content);
                 break;
             }
-            session.status = "searching";
+            cur.status = "searching";
             emit("status", "status", "searching", "text", "检索中…");
 
             JSONObject assistant = jo("role", "assistant");
@@ -585,7 +702,7 @@ public final class AgentEngine {
                     emit("verify-delta", "idx", idx, "note", acc.content, "verdict", "");
                 }
             };
-            LlmClient.Result fin = llm.streamChat(r);
+            LlmClient.Result fin = llm().streamChat(r);
             verify = Phases.parsePhaseB(fin.content == null ? "" : fin.content);
         }
 
@@ -651,9 +768,10 @@ public final class AgentEngine {
 
     /** 追问的历史上下文（桌面 historyMessages）：只保留最近一张图，超限截尾 */
     private JSONArray historyMessages(SporeSettings s) {
+        final Session cur = curSession();
         int lastImageIdx = -1;
-        for (int i = 0; i < session.messages.size(); i++) {
-            Session.Msg m = session.messages.get(i);
+        for (int i = 0; i < cur.messages.size(); i++) {
+            Session.Msg m = cur.messages.get(i);
             if ("user".equals(m.role) && m.hasImage) {
                 lastImageIdx = i;
             }
@@ -661,14 +779,14 @@ public final class AgentEngine {
         String imgUrl = null;
         if (lastImageIdx >= 0) {
             try {
-                imgUrl = imageDataUrl(session.messages.get(lastImageIdx).imagePath);
+                imgUrl = imageDataUrl(cur.messages.get(lastImageIdx).imagePath);
             } catch (Exception e) {
                 imgUrl = null; // 图丢了就降级成文本占位
             }
         }
         JSONArray msgs = new JSONArray();
-        for (int i = 0; i < session.messages.size(); i++) {
-            Session.Msg m = session.messages.get(i);
+        for (int i = 0; i < cur.messages.size(); i++) {
+            Session.Msg m = cur.messages.get(i);
             if ("user".equals(m.role)) {
                 String text = !m.text.isEmpty() ? m.text : (m.hasImage ? "（题目截图）" : "");
                 if (imgUrl != null && i == lastImageIdx) {
@@ -712,7 +830,7 @@ public final class AgentEngine {
 
     private void applyNaming(Session.Msg ans) {
         String title = Phases.namingTitle(ans.no, ans.title, ans.ans, ans.why);
-        session.title = title;
+        curSession().title = title;
         emit("title", "title", title);
     }
 
@@ -725,10 +843,10 @@ public final class AgentEngine {
             msg = msg.substring(0, 200);
         }
         if (aborted) {
-            session.status = "aborted";
+            curSession().status = "aborted";
             emitTurnEnd(idx, false, null, "aborted", true);
         } else {
-            session.status = "error";
+            curSession().status = "error";
             emit("error", "idx", idx, "message", msg);
             emitTurnEnd(idx, false, null, "error", true);
         }
@@ -752,7 +870,7 @@ public final class AgentEngine {
     }
 
     private void emitTurnEnd(int idx, boolean error, String errorMessage, Object... extra) {
-        persist(); // 回合结束即落盘（done/aborted/error 都走这里）
+        persist(curSession()); // 回合结束即落盘（done/aborted/error 都走这里）
         JSONObject ev = jo("idx", idx);
         if (error && errorMessage != null) {
             try {
@@ -792,12 +910,12 @@ public final class AgentEngine {
     }
 
     private void checkAbort() {
-        if (abort) {
+        if (aborted()) {
             throw new AbortedTurn();
         }
     }
 
-    /** 回合中止（面板停止按钮 / 服务销毁） */
+    /** 回合中止（面板停止按钮 / 服务销毁 / 删除该会话） */
     private static final class AbortedTurn extends RuntimeException {
         AbortedTurn() {
             super("aborted");
@@ -809,8 +927,12 @@ public final class AgentEngine {
     }
 
     private void emit(String type, JSONObject ev) {
+        Session owner = curSession();
         try {
             ev.put("type", type);
+            // sid = 这条事件属于哪个会话：面板只渲染**正在看的**那个，别的会话的流式增量
+            // 直接忽略（否则切了会话会把别的会话的字打进当前屏）
+            ev.put("sid", owner == null ? "" : owner.id);
         } catch (JSONException ignored) {
         }
         Listener l = listener;

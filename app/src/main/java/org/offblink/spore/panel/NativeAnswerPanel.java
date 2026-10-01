@@ -100,7 +100,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     /** 记录页/会话列表点入：换入已存会话继续对话（桌面点列表行语义） */
     public void openSession(String sessionId) {
         if (!engine.loadSession(sessionId)) {
-            Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
             return;
         }
         show();
@@ -154,8 +154,8 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         adapter.setSession(engine.session());
         title.setText(engine.session().title);
         status.setText("");
-        setInputEnabled(!engine.isBusy());
-        if (engine.isBusy()) {
+        setInputEnabled(!engine.isBusy(engine.session().id));
+        if (engine.isBusy(engine.session().id)) {
             status.setText(sessionDisplayStatus());
         }
 
@@ -167,7 +167,10 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 return;
             }
             input.setText("");
-            engine.sendFollowup(text);
+            if (!engine.sendFollowup(text)) {
+                // 同一会话已有回合在跑（别的会话并行不拦这里）
+                Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show();
+            }
         });
 
         // 💬 会话列表弹层 / ★ 收藏当前会话
@@ -311,7 +314,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         row.setOnClickListener(v -> {
             if (!s.id.equals(engine.session().id)) {
                 if (!engine.loadSession(s.id)) {
-                    Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
                     return;
                 }
                 adapter.setSession(engine.session());
@@ -388,7 +391,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             confirmBox.setVisibility(View.GONE);
             if (target != null) {
                 if (!engine.deleteSession(target.id)) {
-                    Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
                 } else {
                     adapter.setSession(engine.session());
                     title.setText(engine.session().title);
@@ -412,7 +415,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             hideKeyboard();
             if (target != null && !name.isEmpty()) {
                 if (!engine.renameSession(target.id, name)) {
-                    Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
                 } else {
                     title.setText(engine.session().title);
                     refresh(false);
@@ -508,6 +511,15 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             return; // 收起期间只丢刷新，状态本体都在 session 里，重开时全量重绘
         }
         String type = ev.optString("type");
+        // 并行回合（第九轮）：别的会话的流式事件不进当前屏；但回合结束意味着列表有动静
+        // （标题/时间戳落盘），这里补一次行刷新（未读点随之更新）。
+        String sid = ev.optString("sid");
+        if (!sid.isEmpty() && !sid.equals(engine.session().id)) {
+            if ("turn-end".equals(type)) {
+                refresh(true);
+            }
+            return;
+        }
         switch (type) {
             case "session-new":
                 // 每次截屏搜题新开会话：重绑消息源、清标题与状态

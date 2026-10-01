@@ -32,12 +32,18 @@ public final class SessionStore {
         return d;
     }
 
-    /** 覆盖写一个会话（回合结束 / 归档 / 收藏切换时调） */
+    /**
+     * 覆盖写一个会话。
+     *
+     * **不动 {@code updated}**（第九轮拍板）：列表按 updated 倒序，任何一次写盘都改时间戳
+     * 就等于「收藏/改名/点开都把该条顶到最前」。所以：
+     * 内容（消息）变了走 {@link #saveActive} 自己抬时间戳，改名/收藏这类元数据写走这里，
+     * 顺序保持原位。
+     */
     public static void save(Context ctx, Session s) {
         if (s == null || s.id.isEmpty()) {
             return;
         }
-        s.updated = System.currentTimeMillis();
         try {
             File f = new File(dir(ctx), s.id + ".json");
             File tmp = new File(dir(ctx), s.id + ".json.tmp");
@@ -54,6 +60,14 @@ public final class SessionStore {
         } catch (IOException | org.json.JSONException ignored) {
             // 记录是次要品：失败不打断主链路（下次回合结束再试）
         }
+    }
+
+    /** 内容落盘（回合结束 / 新会话归档）：抬 {@code updated}，列表按最新活动排前。 */
+    public static void saveActive(Context ctx, Session s) {
+        if (s != null) {
+            s.updated = System.currentTimeMillis();
+        }
+        save(ctx, s);
     }
 
     /** 全量加载，按更新时间倒序；坏文件跳过；进程死掉的进行中状态归一为 done */
@@ -122,8 +136,12 @@ public final class SessionStore {
         o.put("title", s.title);
         o.put("status", s.status);
         JSONArray msgs = new JSONArray();
-        for (Session.Msg m : new ArrayList<>(s.messages)) {
-            msgs.put(msgToJson(m));
+        // 快照拷贝：messages 是**只 append** 的，进场先取定长、再逐个 get —— 回合线程正在
+        // append 也不会撞到失效下标。别改回 new ArrayList<>(s.messages)：并发扩容时它可能
+        // 用「新 size + 旧数组」拷出越界（第九轮并行后，生成中改名/收藏会真的并发走到这里）。
+        int n = s.messages.size();
+        for (int i = 0; i < n; i++) {
+            msgs.put(msgToJson(s.messages.get(i)));
         }
         o.put("messages", msgs);
         return o;

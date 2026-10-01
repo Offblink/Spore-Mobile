@@ -143,8 +143,9 @@ public class CaptureService extends Service {
     }
 
     /**
-     * 记录详情页追问：切到该会话再发（与面板同一引擎）；服务没跑 → 排队补发
+     * 记录详情页追问：与面板同一引擎，走同一会话。服务没跑 → 排队补发
      * （onCreate 里的 pendingFollowup 机制）。返回 ok | busy | gone，bridge 直接把非 ok 当 toast。
+     * busy = **这个会话**已有回合在跑（别的会话在跑不影响它）。
      */
     public static String followup(Context c, String id, String text) {
         String t = text == null ? "" : text.trim();
@@ -161,11 +162,25 @@ public class CaptureService extends Service {
         if (s == null) {
             return "gone";
         }
-        if (!s.engine.loadSession(id)) {
+        if (s.engine.isBusy(id)) {
             return "busy";
         }
-        s.engine.sendFollowup(t);
+        if (!s.engine.loadSession(id)) {
+            return "gone";
+        }
+        if (!s.engine.sendFollowup(t)) {
+            return "busy";
+        }
         return "ok";
+    }
+
+    /**
+     * 该会话有在途回合 → 引擎的内存活对象（记录详情页轮询用）：
+     * 磁盘文件里的 status 会被 fromJson 归一成 done、消息也停在上一回合末。
+     */
+    public static Session liveSession(String id) {
+        CaptureService s = self;
+        return s == null ? null : s.engine.liveSession(id);
     }
 
     public static void start(Context c) {
@@ -235,9 +250,8 @@ public class CaptureService extends Service {
             pendingFollowupText = null;
             if (pfId != null && pfText != null) {
                 main.post(() -> {
-                    if (engine.loadSession(pfId)) {
-                        engine.sendFollowup(pfText);
-                    } else {
+                    // 已发出 = 服务冷启动的排队补发成功；否则给明确提示
+                    if (!(engine.loadSession(pfId) && engine.sendFollowup(pfText))) {
                         toastRes(R.string.busy_wait);
                     }
                 });

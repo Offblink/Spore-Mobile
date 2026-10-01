@@ -20,11 +20,13 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.offblink.spore.CrashLog;
 import org.offblink.spore.R;
 import org.offblink.spore.agent.AgentEngine;
+import org.offblink.spore.agent.Session;
 import org.offblink.spore.agent.SessionStore;
 
 import java.io.File;
@@ -274,9 +276,17 @@ public final class AnswerPanel implements Panel {
     private String stateJson() {
         try {
             JSONObject o = new JSONObject();
-            o.put("session", SessionStore.toJson(engine.session()));
+            Session cur = engine.session();
+            o.put("session", SessionStore.toJson(cur));
             o.put("sessions", SessionStore.metaJson(ctx));
-            o.put("busy", engine.isBusy());
+            // busy 只看**当前会话**：别的会话在生成绝不锁这里（第九轮并行拍板）
+            o.put("busy", engine.isBusy(cur.id));
+            // 在生成中的会话 id 列表：列表行打「生成中」标，让并行看得见
+            JSONArray running = new JSONArray();
+            for (String id : engine.runningIds()) {
+                running.put(id);
+            }
+            o.put("running", running);
             return o.toString();
         } catch (JSONException e) {
             return "{}";
@@ -343,7 +353,10 @@ public final class AnswerPanel implements Panel {
     @JavascriptInterface
     public void followup(String text) {
         bridge("followup", null, () -> {
-            engine.sendFollowup(text);
+            if (!engine.sendFollowup(text)) {
+                // 同一会话已有回合在跑（不同会话并行不受影响）→ 给个明确提示
+                main.post(() -> Toast.makeText(ctx, R.string.busy_wait, Toast.LENGTH_SHORT).show());
+            }
             return null;
         });
     }

@@ -183,6 +183,7 @@ body { overflow: hidden; }
 .srow .t { min-width: 0; font-size: 14.5px; color: var(--row-title);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .srow .ts { font-size: 11.5px; color: var(--muted3); white-space: nowrap; }
+.srow .ts .gen { color: var(--pink); font-weight: 600; }
 .srow.active .t { color: #C2185B; font-weight: 600; }
 /* 移动端无 hover：三个动作常显（桌面是 hover 才露） */
 .srow .act { flex: none; border: 0; background: transparent; padding: 4px 5px;

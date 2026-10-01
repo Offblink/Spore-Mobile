@@ -37,6 +37,7 @@
     <string name="delete_body">确定删除「%1$s」吗？\n截图、回答与思考记录会一并删除，不可恢复。</string>
     <string name="delete_yes">删除</string>
     <string name="busy_wait">正在回答，稍等片刻再操作</string>
+    <string name="session_gone">找不到这条会话</string>
     <string name="capture_timeout">截屏超时，请重试</string>
     <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
     <string name="capture_ml_failed">识别超时，请重试</string>

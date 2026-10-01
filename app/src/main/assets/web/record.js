@@ -79,7 +79,7 @@
           toast(meta && meta.fav ? "已取消收藏" : "已收藏");
           refreshSessions();
         } else if (ok === false) {
-          toast("正在回答，稍等片刻再操作");
+          toast("找不到这条会话");
         }
         return;
       }
@@ -148,7 +148,7 @@
       toast("删除成功");
       refreshSessions();
     } else if (ok === false) {
-      toast("正在回答，稍等片刻再操作");
+      toast("找不到这条会话");
     }
   });
 
@@ -177,7 +177,7 @@
       toast("重命名成功");
       refreshSessions();
     } else if (ok === false) {
-      toast("正在回答，稍等片刻再操作");
+      toast("找不到这条会话");
     }
   }
 
@@ -310,7 +310,7 @@
       refreshSessions();
       renderDetail();
     } else if (ok === false) {
-      toast("正在回答，稍等片刻再操作");
+      toast("找不到这条会话");
     }
   });
 
@@ -327,7 +327,7 @@
       toast("已发送");
       maybeStartPoll();
     } else if (res === "busy") {
-      toast("正在回答，稍等片刻再操作");
+      toast("这条会话正在回答，稍等片刻");
     } else {
       toast("服务未就绪，请稍后再试");
     }

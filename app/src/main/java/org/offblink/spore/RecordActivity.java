@@ -116,7 +116,11 @@ public class RecordActivity extends AppCompatActivity {
         /** 单会话完整 JSON（详情视图数据源）；不存在/损坏回 {} */
         @JavascriptInterface
         public String session(String id) {
-            Session s = SessionStore.load(RecordActivity.this, id == null ? "" : id);
+            // 该会话正在生成 → 用引擎的内存活对象：文件里的 status 会被归一成 done、
+            // 消息也是上一回合的旧数据（第九轮并行：详情页每秒轮询要看的就是生成中的现场）
+            Session live = CaptureService.liveSession(id);
+            Session s = live != null ? live
+                    : SessionStore.load(RecordActivity.this, id == null ? "" : id);
             if (s == null) {
                 return "{}";
             }

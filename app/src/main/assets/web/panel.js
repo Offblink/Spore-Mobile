@@ -174,11 +174,13 @@
       return;
     }
     listpop.innerHTML = list.slice(0, 60).map((e) => {
+      const running = (st.running || []).indexOf(e.id) >= 0;
       const cls = 'srow' + (e.fav ? ' fav' : '') + (e.id === cur ? ' active' : '');
       return '<div class="' + cls + '" data-id="' + esc(e.id) + '">' +
         '<button class="act f" data-op="fav" type="button">★</button>' +
         '<div class="col"><div class="t">' + esc(e.title || e.id) + '</div>' +
-        '<div class="ts">' + fmtShort(e.updated) + '</div></div>' +
+        '<div class="ts">' + fmtShort(e.updated) +
+        (running ? '<span class="gen"> · 生成中</span>' : '') + '</div></div>' +
         '<button class="act r" data-op="rename" type="button">✎</button>' +
         '<button class="act x" data-op="del" type="button">✕</button>' +
         '</div>';
@@ -212,6 +214,12 @@
 
   Host.onEvent = (ev) => {
     if (!ev || !ev.type) {
+      return;
+    }
+    // 并行回合（第九轮）：别的会话的流式事件一律不进当前屏——当前屏只画自己那个会话。
+    // 列表的红点/行数据靠结构事件后原生追推的 state 刷新，不靠这些增量。
+    const curId = st.session && st.session.id;
+    if (ev.sid && curId && ev.sid !== curId) {
       return;
     }
     const ms = (st.session && st.session.messages) || [];
@@ -392,7 +400,7 @@
         toast(meta && meta.fav ? '已取消收藏' : '已收藏');
         refresh();
       } else if (ok === false) {
-        toast('正在回答，稍等片刻再操作');
+        toast('找不到这条会话');
       }
       return;
     }
@@ -414,7 +422,7 @@
         closeList();
         refresh();
       } else if (ok === false) {
-        toast('正在回答，稍等片刻再操作');
+        toast('找不到这条会话');
       }
     } else {
       closeList();

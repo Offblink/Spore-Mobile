@@ -174,6 +174,8 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         favBtn.setOnClickListener(v -> toggleFav());
         // 点消息区收起弹层（背景行为，同桌面点外面关）
         list.setOnClickListener(v -> closeList());
+        // 第六轮回灌：面板任意空白也收起（子视图消费的点击不会冒到这里）
+        panel.setOnClickListener(v -> closeList());
         wireModals();
 
         Point sz = displaySize();
@@ -330,6 +332,11 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             if (s.id.equals(engine.session().id)) {
                 paintFav();
             }
+            // 第六轮回灌：收藏要有反馈（第四轮 web 版 toast 实测过）
+            Toast.makeText(ctx, s.fav ? "收藏成功" : "已取消收藏", Toast.LENGTH_SHORT).show();
+            if (listpop != null && listpop.getVisibility() == View.VISIBLE) {
+                buildRows(); // 原地刷新列表、不退出
+            }
         });
     }
 
@@ -354,14 +361,18 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         if (unreadDot == null) {
             return;
         }
-        boolean hasOthers = false;
+        // 第六轮回灌 web 版语义：红点 = 有比当前会话**更新**的其它会话
+        // （原「存在其它会话」在库里 2+ 条时必亮，第四轮实测抓过）
+        String curId = engine.session().id;
+        long curUpdated = engine.session().updated;
+        boolean newer = false;
         for (Session s : SessionStore.loadAll(ctx)) {
-            if (!s.id.equals(engine.session().id)) {
-                hasOthers = true;
+            if (!s.id.equals(curId) && s.updated > curUpdated) {
+                newer = true;
                 break;
             }
         }
-        unreadDot.setVisibility(!listSeen && hasOthers ? View.VISIBLE : View.GONE);
+        unreadDot.setVisibility(!listSeen && newer ? View.VISIBLE : View.GONE);
     }
 
     // ---------------------------------------------------------------- in-panel 模态
@@ -379,9 +390,12 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                     title.setText(engine.session().title);
                     status.setText("");
                     refresh(true);
+                    Toast.makeText(ctx, "删除成功", Toast.LENGTH_SHORT).show();
+                    target = null;
+                    buildRows(); // 原地刷新列表、不退出（第六轮回灌 web 行为）
+                    return;
                 }
                 target = null;
-                closeList();
             }
         });
         renameBox.findViewById(R.id.panel_rename_no).setOnClickListener(v -> {
@@ -398,9 +412,12 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 } else {
                     title.setText(engine.session().title);
                     refresh(false);
+                    Toast.makeText(ctx, "重命名成功", Toast.LENGTH_SHORT).show();
+                    target = null;
+                    buildRows(); // 原地刷新列表、不退出（第六轮回灌 web 行为）
+                    return;
                 }
                 target = null;
-                closeList();
             }
         });
     }
@@ -408,6 +425,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     private void showConfirm(Session s) {
         target = s;
         confirmBody.setText(ctx.getString(R.string.delete_body, s.title));
+        confirmBox.bringToFront(); // 模态压在 listpop 之上，别再互相遮挡（第六轮回灌）
         confirmBox.setVisibility(View.VISIBLE);
         popIn(confirmBox);
     }
@@ -416,6 +434,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         target = s;
         renameInput.setText(s.title);
         renameInput.setSelection(s.title.length());
+        renameBox.bringToFront(); // 模态压在 listpop 之上，别再互相遮挡（第六轮回灌）
         renameBox.setVisibility(View.VISIBLE);
         popIn(renameBox);
     }

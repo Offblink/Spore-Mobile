@@ -373,24 +373,10 @@ public class CropOverlayView extends View {
                 }
                 if (resizing) {
                     resizing = false;
-                    boolean moved = resizeMoved;
                     resizeMoved = false;
                     handle = H_NONE;
-                    if (!moved) {
-                        invalidate(); // 只是摸了下角：不确认，选区保持
-                        return true;
-                    }
-                    // 判定同手拖路径：宽高都小于下限才拒
-                    if (!hasSel || (sel.width() < minW && sel.height() < minH)) {
-                        int pw = Math.round(sel.width() / scale);
-                        int ph = Math.round(sel.height() / scale);
-                        hasSel = false;
-                        warn(getContext().getString(R.string.crop_warn_small,
-                                pw, ph, minWdp, minHdp));
-                        invalidate();
-                        return true;
-                    }
-                    confirmSelection();
+                    // 拖完绝不自动搜：确认只属于「搜」按钮（第六轮实测：拖个框就自己搜了）
+                    invalidate();
                     return true;
                 }
                 if (moving) {
@@ -447,9 +433,34 @@ public class CropOverlayView extends View {
             return;
         }
         Bitmap crop = cropSelection();
-        if (crop != null) {
-            listener.onCropped(crop);
+        if (crop == null) {
+            return;
         }
+        if (isDark(crop)) {
+            // 第六轮：夜间背景/黑边裁出来就是「纯黑图」——同黑帧判据族，拦下换亮区重拖
+            crop.recycle();
+            warn(getContext().getString(R.string.crop_warn_dark));
+            invalidate();
+            return;
+        }
+        listener.onCropped(crop);
+    }
+
+    /** 8×8 采样均值 < 28 = 暗到没内容（与 CaptureService.isNearBlack 同判据族） */
+    private static boolean isDark(Bitmap b) {
+        int w = b.getWidth();
+        int h = b.getHeight();
+        if (w <= 0 || h <= 0) {
+            return false;
+        }
+        long sum = 0;
+        for (int yy = 0; yy < 8; yy++) {
+            for (int xx = 0; xx < 8; xx++) {
+                int px = b.getPixel(Math.min(w - 1, xx * w / 8), Math.min(h - 1, yy * h / 8));
+                sum += (Color.red(px) * 299 + Color.green(px) * 587 + Color.blue(px) * 114) / 1000;
+            }
+        }
+        return sum / 64 < 28;
     }
 
     private void clampSel() {

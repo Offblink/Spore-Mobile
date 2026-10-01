@@ -44,32 +44,25 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/verify_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/spore_seglite"
+            android:letterSpacing="0.04"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/spore_chip_text"
+            android:textSize="11.5sp" />
+
+        <!-- 第六轮回灌（web 版第四轮同修）：说明独占一行，不再挤在 badge 右侧 -->
+        <TextView
+            android:id="@+id/verify_note"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/verify_badge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/spore_seglite"
-                android:letterSpacing="0.04"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="2dp"
-                android:textColor="@color/spore_chip_text"
-                android:textSize="11.5sp" />
-
-            <TextView
-                android:id="@+id/verify_note"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:textColor="@color/spore_vnote"
-                android:textSize="15sp" />
-        </LinearLayout>
+            android:layout_marginTop="3dp"
+            android:textColor="@color/spore_vnote"
+            android:textSize="15sp" />
 
         <Button
             android:id="@+id/verify_btn"

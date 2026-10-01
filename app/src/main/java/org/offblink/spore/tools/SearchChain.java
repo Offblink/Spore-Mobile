@@ -144,6 +144,10 @@ public final class SearchChain {
         } catch (Exception e) {
             toolLog(name + " threw " + clip(String.valueOf(e.getMessage()), 120));
             return "ERROR: " + (e.getMessage() != null ? e.getMessage() : e);
+        } catch (Throwable t) {
+            // Error（NoSuchMethodError/OOM…）也回 ERROR 字符串：工具绝不许杀进程（第六轮栈实证）
+            toolLog(name + " threw " + String.valueOf(t));
+            return "ERROR: " + t;
         }
     }
 
@@ -473,7 +477,13 @@ public final class SearchChain {
 
     private static String encode(String s) {
         // 对齐 JS encodeURIComponent 的查询串语义（空格 %20 即可，引擎不挑）
-        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
+        // 必须用 String 重载：URLEncoder.encode(String, Charset) 是 API 33+ 才有，
+        // 旧机（鸿蒙底座 <33）会 NoSuchMethodError = 一进检索就崩（第六轮真机栈实证）
+        try {
+            return URLEncoder.encode(s, "UTF-8").replace("+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return s; // UTF-8 必在
+        }
     }
 
     /** ddg 跳转 → 真链（只解码一次；Fungi 二次 unquote 会把 URL 里合法的 %20 解坏） */

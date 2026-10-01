@@ -24,8 +24,9 @@ public final class SporeSettings {
     public boolean autoVerify = true;
     /** 检索代理（可选）：填了 = 引擎链 ddg→bing→brave；留空 = 只走 bing（Fungi §71 替身闸） */
     public String proxy = "";
-    /** 面板渲染分叉（第五轮）：auto（默认，华为/鸿蒙→原生）| web | native */
-    public String panelRender = "auto";
+    /** 面板渲染分叉（第六轮拍板）：web（默认）| native——auto/设备探测已删除，
+     *  「一检索就崩」根因是 URLEncoder API33 重载、与 WebView 无关，鸿蒙可放心走 web */
+    public String panelRender = "web";
 
     private SporeSettings() {
     }
@@ -111,33 +112,11 @@ public final class SporeSettings {
     }
 
     /**
-     * 面板渲染分叉判定：显式 web/native 优先；auto = 华为/鸿蒙 → 原生
-     * （round-3 原生面板实测零 WebView 崩溃；第五轮纵深保险，根因修复另见 CaptureService）。
+     * 面板渲染分叉：只有显式 "native" 走原生（含历史遗留的 "auto" 等一律按 web）。
+     * 第六轮拍板删 auto/华为探测——崩溃根因是检索侧 API 兼容，不是 WebView。
      */
     public boolean panelNative() {
-        if ("web".equals(panelRender)) {
-            return false;
-        }
-        if ("native".equals(panelRender)) {
-            return true;
-        }
-        String m = android.os.Build.MANUFACTURER == null ? "" : android.os.Build.MANUFACTURER;
-        String b = android.os.Build.BRAND == null ? "" : android.os.Build.BRAND;
-        if (m.equalsIgnoreCase("HUAWEI") || b.equalsIgnoreCase("HUAWEI")) {
-            return true;
-        }
-        return !sysProp("harmony.version").isEmpty() || !sysProp("ro.build.version.harmony").isEmpty();
-    }
-
-    /** @hide API 反射读，任何失败回空串（不崩是底线） */
-    private static String sysProp(String key) {
-        try {
-            Class<?> c = Class.forName("android.os.SystemProperties");
-            Object v = c.getMethod("get", String.class, String.class).invoke(null, key, "");
-            return v instanceof String ? (String) v : "";
-        } catch (Throwable ignored) {
-            return "";
-        }
+        return "native".equals(panelRender);
     }
 
     /** 端点与 key 都填了才可发起作答；缺配置时面板给引导而不是抛异常 */

@@ -98,19 +98,13 @@ public class MainActivity extends AppCompatActivity {
      */
     private void maybeShowCrashReport() {
         String crash = CrashLog.readCrash(this);
-        boolean killed = CrashLog.diedAbnormally(this);
-        if (crash.isEmpty() && !killed) {
+        // 心跳（create 无 destroy）不弹：force-stop/划后台都会留这个形态，误报率过高且会
+        // 堵死正常操作（第六轮实测）。文件仍保留（CrashLog.readHeartbeat）供排错手动查。
+        if (crash.isEmpty()) {
             return;
         }
         StringBuilder sb = new StringBuilder();
-        if (!crash.isEmpty()) {
-            sb.append("上次运行发生崩溃（栈见下，点复制发给开发者）：\n\n").append(crash.trim());
-        }
-        if (killed) {
-            sb.append(sb.length() > 0 ? "\n\n" : "")
-                    .append("心跳：悬浮服务有启动无销毁 —— 进程被系统杀死（无 Java 栈，长时投屏/锁屏回收家族）。\n")
-                    .append(CrashLog.readHeartbeat(this).trim());
-        }
+        sb.append("上次运行发生崩溃（栈见下，点复制发给开发者）：\n\n").append(crash.trim());
         String msg = sb.length() > 6000 ? sb.substring(0, 3000) + "\n……\n" + sb.substring(sb.length() - 2600) : sb.toString();
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("检测到上次异常终止")

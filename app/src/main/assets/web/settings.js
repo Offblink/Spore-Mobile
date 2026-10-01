@@ -32,11 +32,11 @@
     $("swFastNoThink").classList.toggle("on", !!current.fastNoThink);
     $("swAutoVerify").classList.toggle("on", !!current.autoVerify);
     var pr = document.querySelector(
-      'input[name="panelRender"][value="' + (current.panelRender || "auto") + '"]');
+      'input[name="panelRender"][value="' + (current.panelRender || "web") + '"]');
     if (pr) {
       pr.checked = true;
     } else {
-      var def = document.querySelector('input[name="panelRender"][value="auto"]');
+      var def = document.querySelector('input[name="panelRender"][value="web"]');
       if (def) {
         def.checked = true;
       }
@@ -57,7 +57,7 @@
       autoVerify: on("swAutoVerify"),
       panelRender: (function () {
         var c = document.querySelector('input[name="panelRender"]:checked');
-        return c ? c.value : "auto";
+        return c ? c.value : "web";
       })()
     };
     bridge("save", JSON.stringify(form));

@@ -14,6 +14,8 @@
   };
 
   var hintTimer = 0;
+  /** 授权缺失状态的起点：稳定满 2s 才显示提示（第六轮：授权落库异步，别短闪「失效」） */
+  var hintSince = 0;
 
   function render(st) {
     if (!st) {
@@ -28,12 +30,23 @@
     cta.textContent = running ? TXT.stop : TXT.start;
     cta.classList.toggle("btn-soft", running);
     cta.classList.toggle("btn-primary", !running);
-    // 投影授权只在开球开关时过桥；running && 授权没读到 = 提示重授。
-    // 竞态自愈：授权结果经 startService 异步落库，400ms 重拉可能抢先读到 false →
-    // 提示挂着就每 1.5s 复查一次，projection 到手（或球关了）即停，别把误报挂死。
-    var needHint = running && !st.projection;
+    // 投影授权只在开球开关时过桥；running && 授权没读到 = 可能需重授。
+    // 第六轮：授权落库是异步的，false 稳定满 2s 才亮提示（防授权刚过就短闪）；
+    // 复查轮询照常跑（1.5s 一拉，projection 到手即停，别把误报挂死）。
+    var missing = running && !st.projection;
+    var needHint = missing;
+    if (missing) {
+      if (!hintSince) {
+        hintSince = Date.now();
+      }
+      if (Date.now() - hintSince < 2000) {
+        needHint = false;
+      }
+    } else {
+      hintSince = 0;
+    }
     $("projHint").hidden = !needHint;
-    if (needHint && !hintTimer) {
+    if (missing && !hintTimer) {
       hintTimer = setInterval(function () {
         var s2 = bridge("ready");
         if (!s2) {
@@ -41,7 +54,7 @@
         }
         render(s2);
       }, 1500);
-    } else if (!needHint && hintTimer) {
+    } else if (!missing && hintTimer) {
       clearInterval(hintTimer);
       hintTimer = 0;
     }

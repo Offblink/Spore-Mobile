@@ -50,6 +50,8 @@ public class CropOverlayView extends View {
     private final RectF dst = new RectF();
     private final RectF sel = new RectF();
     private final RectF closeRect = new RectF();
+    /** 左下备用 ✕：顶部可能被系统全屏提示窗盖住（SystemUI Viewing full screen 卡片实测压过悬浮层） */
+    private final RectF closeRectB = new RectF();
     private final RectF searchRect = new RectF();
     private final RectF searchHitRect = new RectF();
     private final RectF hintRect = new RectF();
@@ -142,6 +144,11 @@ public class CropOverlayView extends View {
         float cx = w - r - 12 * density;
         float cy = r + 12 * density;
         closeRect.set(cx - r, cy - r, cx + r, cy + r);
+        // 左下备用 ✕：与顶部同尺寸，避开系统提示卡（用户第五轮实测被盖）
+        float br = 18 * density;
+        float blx = br + 16 * density;
+        float bly = h - br - 16 * density;
+        closeRectB.set(blx - br, bly - br, blx + br, bly + br);
 
         float btnW = 110 * density;
         float btnH = 46 * density;
@@ -200,10 +207,15 @@ public class CropOverlayView extends View {
             canvas.drawText(confirm, searchRect.centerX(), baseline, btnTextPaint);
         }
 
-        // 右上 ✕
-        float cr = closeRect.width() / 2f;
-        float ccx = closeRect.centerX();
-        float ccy = closeRect.centerY();
+        // 右上 ✕ + 左下备用 ✕（系统提示可能盖顶）
+        drawClose(canvas, closeRect);
+        drawClose(canvas, closeRectB);
+    }
+
+    private void drawClose(Canvas canvas, RectF rect) {
+        float cr = rect.width() / 2f;
+        float ccx = rect.centerX();
+        float ccy = rect.centerY();
         float arm = cr * 0.45f;
         canvas.drawCircle(ccx, ccy, cr, closeBgPaint);
         canvas.drawLine(ccx - arm, ccy - arm, ccx + arm, ccy + arm, closePaint);
@@ -282,7 +294,7 @@ public class CropOverlayView extends View {
                     invalidate();
                     return true;
                 }
-                closeHit = closeRect.contains(x, y);
+                closeHit = closeRect.contains(x, y) || closeRectB.contains(x, y);
                 if (closeHit) {
                     return true;
                 }
@@ -354,7 +366,7 @@ public class CropOverlayView extends View {
                 }
                 if (closeHit) {
                     closeHit = false;
-                    if (closeRect.contains(x, y)) {
+                    if (closeRect.contains(x, y) || closeRectB.contains(x, y)) {
                         listener.onClose();
                     }
                     return true;

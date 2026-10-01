@@ -20,6 +20,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import org.offblink.spore.agent.SessionStore;
+
 /**
  * 主页（web 皮）+ 悬浮球开关与权限引导。
  * 皮在 assets/web/main.html（字标 / 状态胶囊 / 主 CTA / 分组导航卡），权限、授权与
@@ -89,19 +91,23 @@ public class MainActivity extends AppCompatActivity {
         }
 
         web.loadUrl("file:///android_asset/web/main.html");
-        maybeShowCrashReport();
+        if (!maybeShowCrashReport()) {
+            maybeShowFrameDiag();
+        }
     }
 
     /**
      * 下次开主页：上次有崩溃栈/服务被异常杀 → 弹给用户（栈可复制发给开发者）。
      * 这是真机抓栈的唯一通道——悬浮窗死在别的 App 前台，logcat 拿不到。
+     *
+     * @return true = 已弹（调用方别叠第二个诊断弹窗）
      */
-    private void maybeShowCrashReport() {
+    private boolean maybeShowCrashReport() {
         String crash = CrashLog.readCrash(this);
         // 心跳（create 无 destroy）不弹：force-stop/划后台都会留这个形态，误报率过高且会
         // 堵死正常操作（第六轮实测）。文件仍保留（CrashLog.readHeartbeat）供排错手动查。
         if (crash.isEmpty()) {
-            return;
+            return false;
         }
         StringBuilder sb = new StringBuilder();
         sb.append("上次运行发生崩溃（栈见下，点复制发给开发者）：\n\n").append(crash.trim());
@@ -116,6 +122,46 @@ public class MainActivity extends AppCompatActivity {
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("spore-crash", msg));
                     Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
                 })
+                .show();
+        return true;
+    }
+
+    /**
+     * 第九轮黑屏悬案：上次取帧「过闸但帧脏」（大片死黑 = 合成未完成 / 局部禁截）→ 弹给用户。
+     * 「保存到相册」把**进框选之前的那张原始帧**存进 Pictures/Spore —— 真机不能 adb 取文件，
+     * 这是现场帧回传开发者的唯一通道（配合 files/captures 里的成片一起判读）。
+     */
+    private void maybeShowFrameDiag() {
+        String diag = FrameDiag.readPending(this);
+        if (diag.isEmpty()) {
+            return;
+        }
+        String[] lines = diag.split("\n");
+        String path = lines[0].trim();
+        if (path.isEmpty() || !new java.io.File(path).isFile()) {
+            FrameDiag.clearPending(this); // 样本已被清理 → 别弹空窗
+            return;
+        }
+        StringBuilder stats = new StringBuilder();
+        for (int i = 1; i < lines.length; i++) {
+            stats.append(lines[i]).append('\n');
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("上次截屏取到的画面不完整")
+                .setMessage("取帧里有大片黑色斑块（图层没合成完，或该界面禁止截屏）。"
+                        + "已把那张原始帧存下来：点「保存到相册」，再去相册 Pictures/Spore "
+                        + "找到它发给我，就能定位黑屏。\n\n帧统计：\n" + stats.toString().trim())
+                .setPositiveButton("保存到相册", (d, w) -> {
+                    boolean ok = SessionStore.saveToGallery(this, path);
+                    Toast.makeText(this, ok
+                                    ? "已存到相册 Pictures/Spore，把它发给我"
+                                    : "保存失败（样本可能已被清理）",
+                            Toast.LENGTH_LONG).show();
+                    if (ok) {
+                        FrameDiag.clearPending(this);
+                    }
+                })
+                .setNegativeButton("知道了", (d, w) -> FrameDiag.clearPending(this))
                 .show();
     }
 

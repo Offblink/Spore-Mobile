@@ -77,6 +77,8 @@ public class CaptureService extends Service {
     private static final String CHANNEL_ID = "spore_fgs";
     private static final int NOTIF_ID = 1;
     private static final long FRAME_TIMEOUT_MS = 3000;
+    /** 取帧尝试上限：首抓 + 至多两次「重建 VD 强制重新合成」（干净帧一次即返回）。 */
+    private static final int GRAB_TRIES = 3;
 
     private static volatile boolean running = false;
     /** 服务单例句柄：记录页「点进去接着对话」从静态入口喊面板 */
@@ -457,44 +459,86 @@ public class CaptureService extends Service {
      * 下次读到的是陈旧帧——临时建取帧才能保证是「此刻」的屏幕。
      */
     private void captureFrame(int w, int h, int attempt) {
+        MediaProjection p = proj;
+        if (p == null) {
+            return; // 授权中途被收回 → 下次点球重新授权
+        }
+        Bitmap[] seen = new Bitmap[1];
+        Bitmap frame = null;
+        FrameQuality best = null;
+        int dup = 0;
+        // 第九轮（黑屏悬案）：首抓可能拿到「合成未完成」的帧——视觉特征就是**大片死黑**
+        // （图层还没上屏 / 局部 FLAG_SECURE）。旧判据近黑只拦 max<10，噪声黑/半黑全放行 →
+        // ML 在黑帧上必然空手 → 整屏预选 → 裁出来还是黑。这里只做两件事，都不加闸：
+        //   ① 多帧取「最亮的一张」：半黑帧必然比完整帧暗，取最亮 = 取最完整；
+        //   ② 可疑帧重建虚拟显示强制重新合成再取（静态屏下 VD 可能不再产新帧，重抓=同一张）。
+        // 干净帧（正常屏幕）第一次就返回：正常路径零额外耗时，可疑帧多花几百毫秒。
+        for (int i = 0; i < GRAB_TRIES; i++) {
+            Bitmap f = grabFrame(p, w, h, seen);
+            if (f == null) {
+                break; // 全近黑/超时 → 走下面的重试与取证分支
+            }
+            FrameQuality q = FrameQuality.of(f);
+            if (frame != null && f.sameAs(frame)) {
+                dup++; // 逐像素撞车 = 重建 VD 也没拿到新帧（合成根本没动）
+            }
+            if (best == null || q.mean > best.mean) {
+                if (frame != null) {
+                    frame.recycle();
+                }
+                frame = f;
+                best = q;
+            } else {
+                f.recycle();
+            }
+            if (!q.suspect()) {
+                break;
+            }
+        }
+        if (frame == null) {
+            if (attempt < 2) {
+                // 首帧迟到/合成未就绪：自动重试（用户拍板——别让用户再点一次球）
+                bg.postDelayed(() -> captureFrame(w, h, attempt + 1), 600);
+                return;
+            }
+            if (seen[0] != null) {
+                // 三轮只等到近黑帧（FLAG_SECURE / 取帧失败）→ 黑屏 toast + 留样本定罪
+                FrameDiag.save(this, seen[0], FrameQuality.of(seen[0]), 0, "black");
+                toastRes(R.string.capture_black);
+            } else {
+                toastRes(R.string.capture_timeout);
+            }
+            return;
+        }
+        // 第七轮用户拍板：整屏 meanLuma「屏幕太暗」闸**撤掉**——屏幕没问题时它误杀。
+        // ML 识别失败也进框选（suggestFromFrame 预选整屏、用户自己拖），
+        // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
+        // 第九轮：只因大片死黑多取几帧，**绝不因此拒绝进框选**（不回头加闸）。
+        final Bitmap show = frame;
+        final FrameQuality fq = best;
+        final int dupCount = dup;
+        main.post(() -> showCropOverlay(show)); // 先上框选；取证在后台落，不拖 UI
+        bg.post(() -> FrameDiag.save(this, show, fq, dupCount, "frame"));
+    }
+
+    /**
+     * 建一次临时 VirtualDisplay + ImageReader 取一帧，读完即释放（不 stop 投影）。
+     * 不常驻 VD 是刻意的：缓冲占满后生产者会停更，下次读到的是陈旧帧；
+     * 每轮重建 VD 同时兼作「强制重新合成」——可疑帧就靠它要一张新帧。
+     */
+    private Bitmap grabFrame(MediaProjection p, int w, int h, Bitmap[] lastSeen) {
         ImageReader reader = null;
         VirtualDisplay vd = null;
         try {
-            MediaProjection p = proj;
-            if (p == null) {
-                return; // 授权中途被收回 → 下次点球重新授权
-            }
-
             int dpi = getResources().getDisplayMetrics().densityDpi;
             reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
             vd = p.createVirtualDisplay("spore-cap", w, h, dpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     reader.getSurface(), null, null);
-
-            Bitmap[] seen = new Bitmap[1];
-            Bitmap frame = awaitFrame(reader, w, h, seen);
-            if (frame == null) {
-                if (attempt < 2) {
-                    // 首帧迟到/合成未就绪：自动重试（用户拍板——别让用户再点一次球）
-                    bg.postDelayed(() -> captureFrame(w, h, attempt + 1), 600);
-                    return;
-                }
-                if (seen[0] != null) {
-                    // 三轮只等到近黑帧（FLAG_SECURE / 取帧失败）→ 黑屏 toast + 留样本定罪
-                    saveDiagFrame(seen[0]);
-                    toastRes(R.string.capture_black);
-                } else {
-                    toastRes(R.string.capture_timeout);
-                }
-                return;
-            }
-            // 第七轮用户拍板：整屏 meanLuma「屏幕太暗」闸**撤掉**——屏幕没问题时它误杀。
-            // ML 识别失败也进框选（suggestFromFrame 预选整屏、用户自己拖），
-            // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
-            final Bitmap show = frame;
-            main.post(() -> showCropOverlay(show));
+            return awaitFrame(reader, w, h, lastSeen);
         } catch (Exception e) {
             toast(getString(R.string.capture_failed, String.valueOf(e)));
+            return null;
         } finally {
             if (vd != null) {
                 vd.release();
@@ -519,7 +563,7 @@ public class CaptureService extends Service {
                 img.close();
                 if (bmp != null) {
                     lastSeen[0] = bmp;
-                    if (!isNearBlack(bmp)) {
+                    if (!FrameQuality.of(bmp).nearBlack()) {
                         return bmp;
                     }
                 }
@@ -560,58 +604,6 @@ public class CaptureService extends Service {
             bmp.copyPixelsFromBuffer(packed);
         }
         return bmp;
-    }
-
-    /** 抽样判断是否近全黑（FLAG_SECURE 截出来就是纯黑）。 */
-    private boolean isNearBlack(Bitmap bmp) {
-        int w = bmp.getWidth();
-        int h = bmp.getHeight();
-        int step = Math.max(1, (w * h) / 4000);
-        int maxChannel = 0;
-        for (int i = 0; i < w * h; i += step) {
-            int p = bmp.getPixel(i % w, i / w);
-            int m = Math.max(Math.max((p >> 16) & 0xFF, (p >> 8) & 0xFF), p & 0xFF);
-            if (m > maxChannel) {
-                maxChannel = m;
-            }
-        }
-        return maxChannel < 10;
-    }
-
-    /** 抽样平均亮度（0-255）：黑帧取证样本的文件名自描述用（mean<常数即暗帧定罪） */
-    private int meanLuma(Bitmap bmp) {
-        int w = bmp.getWidth();
-        int h = bmp.getHeight();
-        int step = Math.max(1, (w * h) / 4000);
-        long sum = 0;
-        int n = 0;
-        for (int i = 0; i < w * h; i += step) {
-            int p = bmp.getPixel(i % w, i / w);
-            sum += ((p >> 16) & 0xFF) * 299 + ((p >> 8) & 0xFF) * 587
-                    + (p & 0xFF) * 114;
-            n++;
-        }
-        return n == 0 ? 255 : (int) (sum / 1000 / n);
-    }
-
-    /**
-     * 黑帧取证样本（handoff §3 悬案「等用户真机黑图样本」）：三轮取帧全黑时落一张
-     * 到 files/diag/，文件名带亮度均值自描述（black_时间戳_meanN.jpg）。
-     * 取证失败绝不影响截屏主链路。
-     */
-    private void saveDiagFrame(Bitmap bmp) {
-        try {
-            File dir = new File(getFilesDir(), "diag");
-            //noinspection ResultOfMethodCallIgnored
-            dir.mkdirs();
-            String name = "black_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
-                    .format(new Date()) + "_mean" + meanLuma(bmp) + ".jpg";
-            try (FileOutputStream fos = new FileOutputStream(new File(dir, name))) {
-                bmp.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, fos);
-            }
-        } catch (Throwable ignored) {
-            // 落盘失败只丢样本，不打断 toast
-        }
     }
 
     // ---------- 框选 ----------

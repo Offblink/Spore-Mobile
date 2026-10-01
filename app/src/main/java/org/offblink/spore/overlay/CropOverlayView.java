@@ -446,7 +446,7 @@ public class CropOverlayView extends View {
         listener.onCropped(crop);
     }
 
-    /** 8×8 采样均值 < 28 = 暗到没内容（与 CaptureService.isNearBlack 同判据族） */
+    /** 8×8 采样均值 < 28 = 暗到没内容（与 FrameQuality 近黑判据同族） */
     private static boolean isDark(Bitmap b) {
         int w = b.getWidth();
         int h = b.getHeight();

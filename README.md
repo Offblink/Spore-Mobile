@@ -2,7 +2,7 @@
 
 > **The Real Spore is Mobile.** The Android counterpart of [Spore](https://github.com/Offblink/Spore), the Chromium
 > **Manifest V3** screenshot-Q&A extension: tap the floating ball, box the question on your screen, get a fast answer
-> that verifies itself online. 本项目是**《移动应用开发》课程的课设项目**。
+> that verifies itself online. 本项目是**移动应用开发 的课设项目**。
 
 <p align="center">
   <img src="docs/readme/icon.png" width="150" alt="Spore 孢子图标">
@@ -37,7 +37,7 @@
 
 ## 这是一门课的课设项目
 
-本项目是**《移动应用开发》课程的课设项目**，按课程约束实现：
+本项目是**移动应用开发 的课设项目**，按课程约束实现：
 
 - **Java + XML Views + Material Components**，不使用 Kotlin、不使用 Jetpack Compose；
 - 单模块 `app`，包名 `org.offblink.spore`，`minSdk 26` / `targetSdk 37` / Java 11；
@@ -50,7 +50,7 @@
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
    （2026-10-01 构建，51.6 MB），允许「安装未知应用」后安装。
-2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制（投屏）**权限。
+2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限。
 3. 日常：
    - **点球** = 截屏取帧 → 框选题目 → 面板里看答案；
    - **长按球** = 开 / 关面板；

@@ -58,6 +58,13 @@ public class CropOverlayView extends View {
     private boolean hasSel;
     private boolean dragging;
     private boolean moving;
+    /** 隐形四角把手（第五轮：圆圈删除后角拖丢失→恢复命中区但不绘制，不遮题） */
+    private static final int H_NONE = 0, H_TL = 1, H_TR = 2, H_BL = 3, H_BR = 4;
+    private int handle = H_NONE;
+    private boolean resizing;
+    private boolean resizeMoved;
+    /** 缩放锚点 = 抓住的角的对角（拖动时固定） */
+    private float anchorX, anchorY;
     private boolean closeHit;
     private boolean searchHit;
     private float startX, startY;
@@ -235,6 +242,35 @@ public class CropOverlayView extends View {
         invalidate();
     }
 
+    /**
+     * 隐形角把手命中：向外 24dp、向内 min(24dp, 短边×25%) 的方形区。
+     * 向内收窄保证小选框中央仍是「移动整体」，角外扩保证和原圆圈一样好抓。
+     */
+    private int cornerHit(float x, float y) {
+        if (!hasSel) {
+            return H_NONE;
+        }
+        float hit = 24 * density;
+        float in = Math.min(hit, Math.min(sel.width(), sel.height()) * 0.25f);
+        boolean x0 = x >= sel.left - hit && x <= sel.left + in;
+        boolean x1 = x >= sel.right - in && x <= sel.right + hit;
+        boolean y0 = y >= sel.top - hit && y <= sel.top + in;
+        boolean y1 = y >= sel.bottom - in && y <= sel.bottom + hit;
+        if (x0 && y0) {
+            return H_TL;
+        }
+        if (x1 && y0) {
+            return H_TR;
+        }
+        if (x0 && y1) {
+            return H_BL;
+        }
+        if (x1 && y1) {
+            return H_BR;
+        }
+        return H_NONE;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         float x = event.getX();
@@ -251,6 +287,15 @@ public class CropOverlayView extends View {
                     return true;
                 }
                 if (hasSel) {
+                    int h = cornerHit(x, y);
+                    if (h != H_NONE) {
+                        handle = h;
+                        resizing = true;
+                        resizeMoved = false;
+                        anchorX = (h == H_TL || h == H_BL) ? sel.right : sel.left;
+                        anchorY = (h == H_TL || h == H_TR) ? sel.bottom : sel.top;
+                        return true;
+                    }
                     if (sel.contains(x, y)) {
                         moving = true;
                         lastX = x;
@@ -275,6 +320,15 @@ public class CropOverlayView extends View {
                     lastX = x;
                     lastY = y;
                     clampSel();
+                    invalidate();
+                    return true;
+                }
+                if (resizing) {
+                    resizeMoved = true;
+                    sel.set(Math.min(anchorX, x), Math.min(anchorY, y),
+                            Math.max(anchorX, x), Math.max(anchorY, y));
+                    clampSel();
+                    hasSel = sel.width() > 4 && sel.height() > 4;
                     invalidate();
                     return true;
                 }
@@ -303,6 +357,28 @@ public class CropOverlayView extends View {
                     if (closeRect.contains(x, y)) {
                         listener.onClose();
                     }
+                    return true;
+                }
+                if (resizing) {
+                    resizing = false;
+                    boolean moved = resizeMoved;
+                    resizeMoved = false;
+                    handle = H_NONE;
+                    if (!moved) {
+                        invalidate(); // 只是摸了下角：不确认，选区保持
+                        return true;
+                    }
+                    // 判定同手拖路径：宽高都小于下限才拒
+                    if (!hasSel || (sel.width() < minW && sel.height() < minH)) {
+                        int pw = Math.round(sel.width() / scale);
+                        int ph = Math.round(sel.height() / scale);
+                        hasSel = false;
+                        warn(getContext().getString(R.string.crop_warn_small,
+                                pw, ph, minWdp, minHdp));
+                        invalidate();
+                        return true;
+                    }
+                    confirmSelection();
                     return true;
                 }
                 if (moving) {
@@ -336,6 +412,9 @@ public class CropOverlayView extends View {
             case MotionEvent.ACTION_CANCEL:
                 dragging = false;
                 moving = false;
+                resizing = false;
+                resizeMoved = false;
+                handle = H_NONE;
                 closeHit = false;
                 searchHit = false;
                 hasSel = false;

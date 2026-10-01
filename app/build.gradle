@@ -54,6 +54,7 @@ dependencies {
     implementation libs.okhttp
     implementation libs.recyclerview
     implementation libs.mlkit.chinese
+    implementation libs.markwon
 
     testImplementation libs.junit
     testImplementation libs.json

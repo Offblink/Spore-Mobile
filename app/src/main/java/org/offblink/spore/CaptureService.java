@@ -44,6 +44,8 @@ import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
 import org.offblink.spore.overlay.Suggestor;
 import org.offblink.spore.panel.AnswerPanel;
+import org.offblink.spore.panel.NativeAnswerPanel;
+import org.offblink.spore.panel.Panel;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -177,7 +179,8 @@ public class CaptureService extends Service {
 
     /** 两阶段作答引擎与浮动作答面板（截图落盘后接力，handoff §9.2） */
     private AgentEngine engine;
-    private AnswerPanel panel;
+    /** 第五轮分叉：web（默认）/ 原生（auto 判定华为鸿蒙，见 SporeSettings.panelNative） */
+    private Panel panel;
 
     private BallView ball;
     private WindowManager.LayoutParams ballParams;
@@ -210,9 +213,12 @@ public class CaptureService extends Service {
         startAsForeground();
 
         engine = new AgentEngine(this);
-        panel = new AnswerPanel(this, wm, engine);
+        panel = SporeSettings.load(this).panelNative()
+                ? new NativeAnswerPanel(this, wm, engine)
+                : new AnswerPanel(this, wm, engine);
         engine.setListener(panel);
         self = this;
+        CrashLog.hb(this, "create");
 
         if (Settings.canDrawOverlays(this)) {
             addBall();
@@ -242,7 +248,11 @@ public class CaptureService extends Service {
             Intent data = intent.getParcelableExtra(EXTRA_RESULT_DATA);
             handleProject(resultCode, data);
         }
-        return START_NOT_STICKY;
+        // 第五轮根因修复：投影在长检索/锁屏时被系统收回，mediaProjection→specialUse
+        // 切换一旦失败系统会杀服务——NOT_STICKY 意味着球+面板窗（都挂在服务上）永不回来，
+        // 用户看到的就是「悬浮窗崩了」且无 Java 栈。STICKY 拉回后 onCreate 重建一切：
+        // 无投影 → 走已有的「授权失效」提示，下次点球重授权。
+        return START_STICKY;
     }
 
     @Override
@@ -267,6 +277,7 @@ public class CaptureService extends Service {
         bgThread.quitSafely();
         running = false;
         self = null;
+        CrashLog.hb(this, "destroy");
         super.onDestroy();
     }
 
@@ -340,10 +351,16 @@ public class CaptureService extends Service {
     private final BallView.Listener ballListener = new BallView.Listener() {
         @Override
         public void onTap() {
+            if (cropView != null) {
+                // 第五轮：框选开着时再点球 = 收起（曾因二次截屏覆盖字段泄漏旧窗 →
+                // 暗幕叠加成「全黑」+ 界面关不掉的无限截屏态）
+                removeCropView();
+                return;
+            }
             if (proj != null) {
                 // 已授权：零 Activity 启动、目标应用不离开前台（用户实测修复）
                 final Point sz = displaySize();
-                bg.post(() -> captureFrame(sz.x, sz.y));
+                bg.post(() -> captureFrame(sz.x, sz.y, 0));
                 return;
             }
             // 授权已失效：不在截屏时拉授权页（会把目标应用挤回桌面 + 留灰色残窗，
@@ -413,14 +430,20 @@ public class CaptureService extends Service {
             proj.registerCallback(new MediaProjection.Callback() {
                 @Override
                 public void onStop() {
-                    // 用户/系统收回授权（下拉停止投屏等）→ 点球提示回 Spore 重授
-                    proj = null;
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        // 14+ 规则：mediaProjection 类型却无投影 → 系统会杀服务 → 切回 specialUse
-                        startForeground(NOTIF_ID, buildNotification(),
-                                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                    // 用户/系统收回授权（锁屏/长闲置/下拉停止投屏）→ 提示回 Spore 重授。
+                    // 这是主线程回调：任何一步抛出都会直接杀进程（第五轮崩溃家族），
+                    // 全体包 try/catch 落盘；类型切不上去就交给 STICKY 重建。
+                    try {
+                        proj = null;
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            // 14+ 规则：mediaProjection 类型却无投影 → 系统会杀服务 → 切回 specialUse
+                            startForeground(NOTIF_ID, buildNotification(),
+                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                        }
+                        toastRes(R.string.projection_missing);
+                    } catch (Throwable t) {
+                        CrashLog.write(CaptureService.this, t, "projection.onStop");
                     }
-                    toastRes(R.string.projection_missing);
                 }
             }, main);
         } catch (Exception e) {
@@ -433,7 +456,7 @@ public class CaptureService extends Service {
      * （不 stop 投影，授权保持存活）。不常驻 VD 是刻意的：缓冲占满后生产者会停更，
      * 下次读到的是陈旧帧——临时建取帧才能保证是「此刻」的屏幕。
      */
-    private void captureFrame(int w, int h) {
+    private void captureFrame(int w, int h, int attempt) {
         ImageReader reader = null;
         VirtualDisplay vd = null;
         try {
@@ -450,6 +473,11 @@ public class CaptureService extends Service {
 
             Bitmap frame = awaitFrame(reader, w, h);
             if (frame == null) {
+                if (attempt < 2) {
+                    // 首帧迟到/合成未就绪：自动重试（用户拍板——别让用户再点一次球）
+                    bg.postDelayed(() -> captureFrame(w, h, attempt + 1), 600);
+                    return;
+                }
                 toastRes(R.string.capture_timeout);
                 return;
             }
@@ -554,6 +582,7 @@ public class CaptureService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
         cropParams.gravity = Gravity.TOP | Gravity.LEFT;
+        removeCropView(); // 防重入：绝不允许第二张框选叠上去（暗幕叠加 = 全黑 + 关不掉）
         cropView = new CropOverlayView(this, frame, cropListener);
         wm.addView(cropView, cropParams);
         suggestFromFrame(frame);

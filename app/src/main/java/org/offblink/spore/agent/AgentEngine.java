@@ -8,6 +8,7 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.offblink.spore.CrashLog;
 import org.offblink.spore.SporeSettings;
 import org.offblink.spore.llm.LlmClient;
 import org.offblink.spore.tools.SearchChain;
@@ -317,6 +318,10 @@ public final class AgentEngine {
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
+        } catch (Throwable t) {
+            // Error（OOM 等）不许无声穿死进程：先落盘再放行（进程死但下次开屏有栈可查）
+            CrashLog.write(app, t, "turn");
+            throw (t instanceof RuntimeException) ? (RuntimeException) t : new RuntimeException(t);
         }
     }
 
@@ -343,32 +348,79 @@ public final class AgentEngine {
         emit("chat-start", "idx", idx);
         emit("status", "status", "answering", "text", "回答中…");
         try {
-            LlmClient.ChatRequest r = new LlmClient.ChatRequest();
-            fillApi(r, s);
             JSONArray msgs = new JSONArray();
             msgs.put(jo("role", "system", "content", Prompts.SYSTEM));
             JSONArray hist = historyMessages(s);
             for (int i = 0; i < hist.length(); i++) {
                 msgs.put(hist.get(i));
             }
-            r.messages = msgs;
-            r.noThink = s.fastNoThink;
-            r.onDelta = (kind, chunk, acc) -> {
-                if ("reasoning".equals(kind)) {
-                    if (!acc.reasoning.equals(chat.think)) {
-                        chat.think = acc.reasoning;
-                        emit("think-delta", "idx", idx, "kind", "chat", "think", chat.think);
+            // 第五轮（用户拍板）：检索 = agent 随时可调的工具——追问同样挂工具环，
+            // 「核实触发检索」之外，记录页继续提问也能当场联网（也方便测试检索崩溃路径）。
+            int maxRounds = Math.max(0, s.maxToolRounds);
+            SearchChain.setProxy(s.proxy);
+            for (int round = 0; ; round++) {
+                checkAbort();
+                LlmClient.ChatRequest r = new LlmClient.ChatRequest();
+                fillApi(r, s);
+                r.messages = msgs;
+                r.noThink = s.fastNoThink;
+                if (maxRounds > 0) {
+                    r.toolsJson = ToolSchemas.toolsJson();
+                }
+                r.onDelta = (kind, chunk, acc) -> {
+                    if ("reasoning".equals(kind)) {
+                        if (!acc.reasoning.equals(chat.think)) {
+                            chat.think = acc.reasoning;
+                            emit("think-delta", "idx", idx, "kind", "chat", "think", chat.think);
+                        }
+                        return;
                     }
-                    return;
+                    if ("text".equals(kind) && !chunk.isEmpty()) {
+                        chat.text += chunk;
+                        emit("chat-delta", "idx", idx, "text", chunk, "total", chat.text);
+                    }
+                };
+                LlmClient.Result res = llm.streamChat(r);
+                if (chat.text.isEmpty() && res.content != null) {
+                    chat.text = res.content;
                 }
-                if ("text".equals(kind) && !chunk.isEmpty()) {
-                    chat.text += chunk;
-                    emit("chat-delta", "idx", idx, "text", chunk, "total", chat.text);
+                if (maxRounds <= 0 || round >= maxRounds || res.toolCalls.isEmpty()) {
+                    break;
                 }
-            };
-            LlmClient.Result res = llm.streamChat(r);
-            if (chat.text.isEmpty() && res.content != null) {
-                chat.text = res.content;
+                session.status = "searching";
+                emit("status", "status", "searching", "text", "检索中…");
+                JSONObject assistant = jo("role", "assistant");
+                try {
+                    assistant.put("content", (res.content == null || res.content.isEmpty())
+                            ? JSONObject.NULL : res.content);
+                    JSONArray tcs = new JSONArray();
+                    for (LlmClient.ToolCall t : res.toolCalls) {
+                        tcs.put(jo("id", t.id, "type", "function", "function",
+                                jo("name", t.name, "arguments", t.args == null ? "{}" : t.args)));
+                    }
+                    assistant.put("tool_calls", tcs);
+                } catch (JSONException ignored) {
+                    // 字面量 key，不会发生
+                }
+                msgs.put(assistant);
+                for (LlmClient.ToolCall t : res.toolCalls) {
+                    checkAbort();
+                    JSONObject args = parseArgs(t.args);
+                    String briefRaw = !args.optString("query").isEmpty()
+                            ? args.optString("query") : args.optString("url");
+                    String brief = briefRaw.length() > 80 ? briefRaw.substring(0, 80) : briefRaw;
+                    String chip = "web".equals(t.name) ? "读取 " + brief : "检索 " + brief;
+                    chat.tools.add(chip);
+                    emit("tool", "idx", idx, "name", t.name, "brief", brief);
+                    String out = SearchChain.dispatch(t.name, t.args == null ? "{}" : t.args);
+                    msgs.put(jo("role", "tool", "tool_call_id", t.id, "content", out));
+                }
+                // 工具轮的半截正文是过程稿：清掉，最终轮输出才是回答（panel 的 total 重绘生效）
+                if (!chat.text.isEmpty() || !chat.think.isEmpty()) {
+                    chat.text = "";
+                    chat.think = "";
+                    emit("chat-delta", "idx", idx, "text", "", "total", "");
+                }
             }
             session.status = "done";
             emitTurnEnd(idx, false, null);
@@ -377,6 +429,10 @@ public final class AgentEngine {
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
+        } catch (Throwable t) {
+            // Error（OOM 等）不许无声穿死进程：先落盘再放行（进程死但下次开屏有栈可查）
+            CrashLog.write(app, t, "turn");
+            throw (t instanceof RuntimeException) ? (RuntimeException) t : new RuntimeException(t);
         }
     }
 
@@ -436,6 +492,10 @@ public final class AgentEngine {
             emitTurnEnd(idx, false, null, "aborted", true);
         } catch (Exception e) {
             failTurn(e, idx);
+        } catch (Throwable t) {
+            // Error（OOM 等）不许无声穿死进程：先落盘再放行（进程死但下次开屏有栈可查）
+            CrashLog.write(app, t, "turn");
+            throw (t instanceof RuntimeException) ? (RuntimeException) t : new RuntimeException(t);
         }
     }
 
@@ -760,8 +820,9 @@ public final class AgentEngine {
             main.post(() -> {
                 try {
                     l.onEvent(ev);
-                } catch (Exception e) {
-                    Log.e("spore-engine", "onEvent failed: " + ev.optString("type"), e);
+                } catch (Throwable t) {
+                    // Throwable 也接：Error 在主线程直接杀进程，悬浮窗不能死（第五轮）；落盘留证
+                    CrashLog.write(app, t, "onEvent " + ev.optString("type"));
                 }
             });
         }

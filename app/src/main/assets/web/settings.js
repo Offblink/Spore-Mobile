@@ -31,6 +31,16 @@
     $("historyLimit").value = current.historyLimit == null ? 10 : current.historyLimit;
     $("swFastNoThink").classList.toggle("on", !!current.fastNoThink);
     $("swAutoVerify").classList.toggle("on", !!current.autoVerify);
+    var pr = document.querySelector(
+      'input[name="panelRender"][value="' + (current.panelRender || "auto") + '"]');
+    if (pr) {
+      pr.checked = true;
+    } else {
+      var def = document.querySelector('input[name="panelRender"][value="auto"]');
+      if (def) {
+        def.checked = true;
+      }
+    }
   }
 
   function save() {
@@ -44,7 +54,11 @@
       historyLimit: num("historyLimit",
         current && current.historyLimit != null ? current.historyLimit : 10),
       fastNoThink: on("swFastNoThink"),
-      autoVerify: on("swAutoVerify")
+      autoVerify: on("swAutoVerify"),
+      panelRender: (function () {
+        var c = document.querySelector('input[name="panelRender"]:checked');
+        return c ? c.value : "auto";
+      })()
     };
     bridge("save", JSON.stringify(form));
     // 空配置仍允许保存（引擎 isConfigured 会拦作答），只警示

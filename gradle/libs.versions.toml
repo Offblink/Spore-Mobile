@@ -8,6 +8,8 @@ material = "1.10.0"
 okhttp = "4.12.0"
 recyclerview = "1.3.2"
 mlkit = "16.0.1"
+# 原生面板 markdown 渲染（第五轮 fork 回仓的 round-3 依赖）
+markwon = "4.6.2"
 # 只进 testImplementation：单测里要真 org.json（mockable android.jar 的 JSONObject 不可用）。
 # 钉 LlmClient.wireStr 契约（Android optString 把 JSON null 变 "null" 的坑）。
 json = "20240303"
@@ -22,6 +24,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
 # bundled 中文识别（模型打进 APK，不依赖 GMS——华为路径的正解，handoff §10）
 mlkit-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkit" }
+# 注意：io.noties:markwon 在 Central 是 404，坐标必须是 io.noties.markwon:core
+markwon = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
 json = { group = "org.json", name = "json", version.ref = "json" }
 
 [plugins]

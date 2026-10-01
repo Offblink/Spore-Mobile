@@ -22,6 +22,7 @@ import android.widget.Toast;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.offblink.spore.CrashLog;
 import org.offblink.spore.R;
 import org.offblink.spore.agent.AgentEngine;
 import org.offblink.spore.agent.SessionStore;
@@ -44,7 +45,7 @@ import java.io.File;
  * <p>窗口参数与旧版一致：TYPE_APPLICATION_OVERLAY、高 55%、可聚焦（输入法）；
  * WebView 实例跨 show/close 复用（重开零重载），服务销毁时 {@link #destroy()}。
  */
-public final class AnswerPanel implements AgentEngine.Listener {
+public final class AnswerPanel implements Panel {
 
     private static final String PAGE = "file:///android_asset/web/panel.html";
 
@@ -100,7 +101,9 @@ public final class AnswerPanel implements AgentEngine.Listener {
                 WindowManager.LayoutParams.MATCH_PARENT,
                 Math.round(sz.y * 0.55f),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                0, // 可聚焦：不带 FLAG_NOT_FOCUSABLE，否则输入法拉不起来
+                // 可聚焦（否则输入法拉不起来）；KEEP_SCREEN_ON = 面板开着就锁不了屏——
+                // 锁屏/闲置会触发系统收回投屏 → 杀服务 → 悬浮窗全灭（第五轮根因链）
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.LEFT;
         params.x = 0;
@@ -292,64 +295,92 @@ public final class AnswerPanel implements AgentEngine.Listener {
 
     // ---------------------------------------------------------------- JS 桥（@JavascriptInterface 跑在 JavaBridge 线程）
 
+    /** 桥线程兜底：JavaBridge 上任何未捕获 Throwable = 进程死（第五轮崩溃家族）→ 落盘回安全值 */
+    private interface BridgeBody<T> {
+        T get() throws Throwable;
+    }
+
+    private <T> T bridge(String what, T fallback, BridgeBody<T> body) {
+        try {
+            return body.get();
+        } catch (Throwable t) {
+            CrashLog.write(ctx, t, "bridge." + what);
+            return fallback;
+        }
+    }
+
     /** 首屏握手：置闩 + 返回全量快照 */
     @JavascriptInterface
     public String ready() {
-        webReady = true;
-        return stateJson();
+        return bridge("ready", "{}", () -> {
+            webReady = true;
+            return stateJson();
+        });
     }
 
     /** 主动拉全量快照（JS 在动作后自行刷新用） */
     @JavascriptInterface
     public String state() {
-        return stateJson();
+        return bridge("state", "{}", () -> stateJson());
     }
 
     /** 截图 data URL：按 path 只取一次，前端缓存（见 common.js imageFor） */
     @JavascriptInterface
     public String image(String path) {
-        return SessionStore.imageDataUrl(path);
+        return bridge("image", "", () -> SessionStore.imageDataUrl(path));
     }
 
     @JavascriptInterface
     public void followup(String text) {
-        engine.sendFollowup(text);
+        bridge("followup", null, () -> {
+            engine.sendFollowup(text);
+            return null;
+        });
     }
 
     @JavascriptInterface
     public void stop() {
-        engine.cancel();
+        bridge("stop", null, () -> {
+            engine.cancel();
+            return null;
+        });
     }
 
     @JavascriptInterface
     public void verifyNow() {
-        engine.verifyOnly();
+        bridge("verifyNow", null, () -> {
+            engine.verifyOnly();
+            return null;
+        });
     }
 
     @JavascriptInterface
     public boolean fav(String id) {
-        return engine.toggleFav(id);
+        return bridge("fav", false, () -> engine.toggleFav(id));
     }
 
     @JavascriptInterface
     public boolean open(String id) {
-        return engine.loadSession(id);
+        return bridge("open", false, () -> engine.loadSession(id));
     }
 
     @JavascriptInterface
     public boolean rename(String id, String name) {
-        return engine.renameSession(id, name);
+        return bridge("rename", false, () -> engine.renameSession(id, name));
     }
 
     @JavascriptInterface
     public boolean delete(String id) {
-        return engine.deleteSession(id);
+        return bridge("delete", false, () -> engine.deleteSession(id));
     }
 
     /** 顶栏「—」收起 */
     @JavascriptInterface
     public void hide() {
-        main.post(this::close);
+        bridge("hide", null, () -> {
+            main.post(this::close);
+            return null;
+        });
     }
 
     /**
@@ -358,26 +389,29 @@ public final class AnswerPanel implements AgentEngine.Listener {
      */
     @JavascriptInterface
     public void drag(String action, int dx, int dy) {
-        main.post(() -> {
-            if (!visible || params == null || root == null) {
-                return;
-            }
-            if ("down".equals(action)) {
-                dragStartX = params.x;
-                dragStartY = params.y;
-                return;
-            }
-            if (!"move".equals(action)) {
-                return;
-            }
-            Point sz = displaySize();
-            int maxX = Math.max(0, sz.x - (root.getWidth() > 0 ? root.getWidth() : sz.x));
-            params.x = clamp(dragStartX + dx, 0, maxX);
-            params.y = clamp(dragStartY + dy, 0, Math.max(0, sz.y - params.height));
-            try {
-                wm.updateViewLayout(root, params);
-            } catch (Exception ignored) {
-            }
+        bridge("drag", null, () -> {
+            main.post(() -> {
+                if (!visible || params == null || root == null) {
+                    return;
+                }
+                if ("down".equals(action)) {
+                    dragStartX = params.x;
+                    dragStartY = params.y;
+                    return;
+                }
+                if (!"move".equals(action)) {
+                    return;
+                }
+                Point sz = displaySize();
+                int maxX = Math.max(0, sz.x - (root.getWidth() > 0 ? root.getWidth() : sz.x));
+                params.x = clamp(dragStartX + dx, 0, maxX);
+                params.y = clamp(dragStartY + dy, 0, Math.max(0, sz.y - params.height));
+                try {
+                    wm.updateViewLayout(root, params);
+                } catch (Exception ignored) {
+                }
+            });
+            return null;
         });
     }
 

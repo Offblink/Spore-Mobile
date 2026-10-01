@@ -89,6 +89,40 @@ public class MainActivity extends AppCompatActivity {
         }
 
         web.loadUrl("file:///android_asset/web/main.html");
+        maybeShowCrashReport();
+    }
+
+    /**
+     * 下次开主页：上次有崩溃栈/服务被异常杀 → 弹给用户（栈可复制发给开发者）。
+     * 这是真机抓栈的唯一通道——悬浮窗死在别的 App 前台，logcat 拿不到。
+     */
+    private void maybeShowCrashReport() {
+        String crash = CrashLog.readCrash(this);
+        boolean killed = CrashLog.diedAbnormally(this);
+        if (crash.isEmpty() && !killed) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        if (!crash.isEmpty()) {
+            sb.append("上次运行发生崩溃（栈见下，点复制发给开发者）：\n\n").append(crash.trim());
+        }
+        if (killed) {
+            sb.append(sb.length() > 0 ? "\n\n" : "")
+                    .append("心跳：悬浮服务有启动无销毁 —— 进程被系统杀死（无 Java 栈，长时投屏/锁屏回收家族）。\n")
+                    .append(CrashLog.readHeartbeat(this).trim());
+        }
+        String msg = sb.length() > 6000 ? sb.substring(0, 3000) + "\n……\n" + sb.substring(sb.length() - 2600) : sb.toString();
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("检测到上次异常终止")
+                .setMessage(msg)
+                .setPositiveButton("知道了", (d, w) -> CrashLog.clearCrash(this))
+                .setNeutralButton("复制", (d, w) -> {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("spore-crash", msg));
+                    Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 
     @Override

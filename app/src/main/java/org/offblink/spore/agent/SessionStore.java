@@ -176,6 +176,26 @@ public final class SessionStore {
                     off += n;
                 }
             }
+            if (buf.length > 400 * 1024) {
+                // 手机 1440p 截图 q82 可超 1MB：桥上再乘 base64/4/3 与字符串拷贝，
+                // JavaBridge 线程 OOM = 进程死（第五轮崩溃家族）→ 超 400KB 降采样到 1600px
+                android.graphics.BitmapFactory.Options bound =
+                        new android.graphics.BitmapFactory.Options();
+                bound.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeByteArray(buf, 0, buf.length, bound);
+                int longSide = Math.max(bound.outWidth, bound.outHeight);
+                android.graphics.BitmapFactory.Options dec =
+                        new android.graphics.BitmapFactory.Options();
+                dec.inSampleSize = Math.max(1, longSide / 1600);
+                android.graphics.Bitmap bmp =
+                        android.graphics.BitmapFactory.decodeByteArray(buf, 0, buf.length, dec);
+                if (bmp != null) {
+                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, bos);
+                    bmp.recycle();
+                    buf = bos.toByteArray();
+                }
+            }
             return "data:image/jpeg;base64,"
                     + android.util.Base64.encodeToString(buf, android.util.Base64.NO_WRAP);
         } catch (IOException | RuntimeException e) {

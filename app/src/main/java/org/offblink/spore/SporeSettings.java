@@ -24,6 +24,8 @@ public final class SporeSettings {
     public boolean autoVerify = true;
     /** 检索代理（可选）：填了 = 引擎链 ddg→bing→brave；留空 = 只走 bing（Fungi §71 替身闸） */
     public String proxy = "";
+    /** 面板渲染分叉（第五轮）：auto（默认，华为/鸿蒙→原生）| web | native */
+    public String panelRender = "auto";
 
     private SporeSettings() {
     }
@@ -39,6 +41,7 @@ public final class SporeSettings {
         s.model = p.getString("model", s.model);
         s.apiKey = p.getString("apiKey", s.apiKey);
         s.proxy = p.getString("proxy", s.proxy);
+        s.panelRender = p.getString("panelRender", s.panelRender);
         s.maxToolRounds = p.getInt("maxToolRounds", s.maxToolRounds);
         s.historyLimit = p.getInt("historyLimit", s.historyLimit);
         s.fastNoThink = p.getBoolean("fastNoThink", s.fastNoThink);
@@ -52,6 +55,7 @@ public final class SporeSettings {
                 .putString("model", model)
                 .putString("apiKey", apiKey)
                 .putString("proxy", proxy)
+                .putString("panelRender", panelRender)
                 .putInt("maxToolRounds", maxToolRounds)
                 .putInt("historyLimit", historyLimit)
                 .putBoolean("fastNoThink", fastNoThink)
@@ -67,6 +71,7 @@ public final class SporeSettings {
             o.put("model", model);
             o.put("apiKey", apiKey);
             o.put("proxy", proxy);
+            o.put("panelRender", panelRender);
             o.put("maxToolRounds", maxToolRounds);
             o.put("historyLimit", historyLimit);
             o.put("fastNoThink", fastNoThink);
@@ -89,6 +94,7 @@ public final class SporeSettings {
             s.model = str(o, "model", s.model);
             s.apiKey = str(o, "apiKey", s.apiKey);
             s.proxy = str(o, "proxy", s.proxy);
+            s.panelRender = str(o, "panelRender", s.panelRender);
             s.maxToolRounds = o.optInt("maxToolRounds", s.maxToolRounds);
             s.historyLimit = o.optInt("historyLimit", s.historyLimit);
             s.fastNoThink = o.optBoolean("fastNoThink", s.fastNoThink);
@@ -102,6 +108,36 @@ public final class SporeSettings {
     private static String str(JSONObject o, String key, String def) {
         Object v = o.opt(key);
         return v instanceof String ? (String) v : def;
+    }
+
+    /**
+     * 面板渲染分叉判定：显式 web/native 优先；auto = 华为/鸿蒙 → 原生
+     * （round-3 原生面板实测零 WebView 崩溃；第五轮纵深保险，根因修复另见 CaptureService）。
+     */
+    public boolean panelNative() {
+        if ("web".equals(panelRender)) {
+            return false;
+        }
+        if ("native".equals(panelRender)) {
+            return true;
+        }
+        String m = android.os.Build.MANUFACTURER == null ? "" : android.os.Build.MANUFACTURER;
+        String b = android.os.Build.BRAND == null ? "" : android.os.Build.BRAND;
+        if (m.equalsIgnoreCase("HUAWEI") || b.equalsIgnoreCase("HUAWEI")) {
+            return true;
+        }
+        return !sysProp("harmony.version").isEmpty() || !sysProp("ro.build.version.harmony").isEmpty();
+    }
+
+    /** @hide API 反射读，任何失败回空串（不崩是底线） */
+    private static String sysProp(String key) {
+        try {
+            Class<?> c = Class.forName("android.os.SystemProperties");
+            Object v = c.getMethod("get", String.class, String.class).invoke(null, key, "");
+            return v instanceof String ? (String) v : "";
+        } catch (Throwable ignored) {
+            return "";
+        }
     }
 
     /** 端点与 key 都填了才可发起作答；缺配置时面板给引导而不是抛异常 */

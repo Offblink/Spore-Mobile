@@ -106,13 +106,14 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         show();
     }
 
-    /** 球长按 = 面板开/收切换（收起后唯一的唤回入口，handoff §9 拍板） */
+    /** 球长按 = 面板开/关（第八轮拍板：不再连带弹会话列表，列表由面板内 💬 手动开） */
+    @Override
     public void toggle() {
-        if (visible) {
-            close();
-        } else {
+        if (!visible) {
             show();
+            return;
         }
+        close(); // 内部已 closeList()
     }
 
     public void show() {

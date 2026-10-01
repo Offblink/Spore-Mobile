@@ -79,13 +79,14 @@ public final class AnswerPanel implements Panel {
         engine.newCaptureTurn(crop.getAbsolutePath(), "");
     }
 
-    /** 球长按 = 面板开/收切换（收起后唯一的唤回入口） */
+    /** 球长按 = 面板开/关（第八轮拍板：不再连带弹会话列表，列表由面板内 💬 手动开） */
+    @Override
     public void toggle() {
-        if (visible) {
-            close();
-        } else {
+        if (!visible) {
             show();
+            return;
         }
+        close();
     }
 
     public void show() {
@@ -120,6 +121,8 @@ public final class AnswerPanel implements Panel {
         }
         // 重开时页面还活着 → 立刻全量刷新；首开由 JS 的 ready() 接管
         pushState();
+        // 打开永远是干净面板：上次开着的会话列表不跟出来（第八轮拍板）
+        eval("window.SporePanel && SporePanel.closeList()");
 
         // MV3 进场：上滑 + 淡入 .42s（同旧版）
         root.setTranslationY(params.height * 0.3f);
@@ -309,12 +312,13 @@ public final class AnswerPanel implements Panel {
         }
     }
 
-    /** 首屏握手：置闩 + 返回全量快照 */
+    /** 首屏握手：置闩 + 返回全量快照；球长按挂起的抽屉在这里补开 */
     @JavascriptInterface
     public String ready() {
         return bridge("ready", "{}", () -> {
             webReady = true;
-            return stateJson();
+            String json = stateJson();
+            return json;
         });
     }
 
@@ -328,6 +332,12 @@ public final class AnswerPanel implements Panel {
     @JavascriptInterface
     public String image(String path) {
         return bridge("image", "", () -> SessionStore.imageDataUrl(path));
+    }
+
+    /** 「保存到相册」：全屏查看器的保存按钮（见 common.js openShot） */
+    @JavascriptInterface
+    public boolean saveImage(String path) {
+        return bridge("saveImage", false, () -> SessionStore.saveToGallery(ctx, path));
     }
 
     @JavascriptInterface

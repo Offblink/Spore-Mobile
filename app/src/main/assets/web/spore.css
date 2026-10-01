@@ -115,6 +115,29 @@ img { -webkit-user-drag: none; user-select: none; }
   word-break: break-all; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
+/* ---- 照片全屏查看器（common.js openShot；面板 + 记录共用） ---- */
+#shotView {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(6, 6, 10, .94);
+  display: flex; flex-direction: column;
+  opacity: 0; animation: maskIn var(--t-fast) forwards;
+}
+#shotView .shot-img {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+#shotView .shot-img img {
+  max-width: 100%; max-height: 100%;
+  border-radius: var(--r12);
+  animation: popIn .24s var(--pop-ease);
+}
+#shotView .shot-bar {
+  display: flex; gap: 14px; justify-content: center;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+}
+#shotView .shot-bar .btn { min-width: 132px; font-size: 16px; padding: 12px 18px; }
+
 /* ---- 开关（MV3 switch：轨道粉/灰，滑块白） ---- */
 .switch { position: relative; width: 44px; height: 26px; flex: none;
   border-radius: var(--r999); background: var(--line4);

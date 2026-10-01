@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 返回（spore_nav_in 的反向）：新页（设置/搜题记录）向右滑出淡出 -->
+<!-- 返回配套（旧页退场）：旧页向右反向平移淡出（与进场同一条轨道原路出去） -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:interpolator/fast_out_slow_in"
     android:shareInterpolator="true">
     <translate
-        android:duration="280"
+        android:duration="320"
         android:fromXDelta="0"
-        android:toXDelta="30%" />
+        android:toXDelta="40%" />
     <alpha
-        android:duration="280"
+        android:duration="320"
         android:fromAlpha="1.0"
-        android:toAlpha="0.0" />
+        android:toAlpha="0.35" />
 </set>

@@ -225,7 +225,8 @@
   function rowHtml(m, i) {
     if (m.role === "user") {
       const img = (m.hasImage && m.imagePath)
-        ? '<img class="shot" src="' + imageFor(m.imagePath) + '" alt="题目截图">'
+        ? '<img class="shot" src="' + imageFor(m.imagePath) + '" data-path="' +
+          esc(m.imagePath) + '" alt="题目截图">'
         : "";
       const text = m.text ? '<div class="utext">' + esc(m.text) + "</div>" : "";
       return img || text ? '<div class="msg user">' + img + text + "</div>" : "";
@@ -288,6 +289,14 @@
   }
 
   $("#dBack").addEventListener("click", closeDetail);
+
+  // 详情里的截图点开全屏查看（取消/保存，与面板同一查看器）
+  $("#dStream").addEventListener("click", (e) => {
+    const img = e.target.closest(".shot");
+    if (img) {
+      openShot(img.src, img.dataset.path || "");
+    }
+  });
 
   $("#dFav").addEventListener("click", () => {
     if (!detail) {

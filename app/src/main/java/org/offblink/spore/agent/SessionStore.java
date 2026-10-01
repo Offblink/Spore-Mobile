@@ -203,6 +203,69 @@ public final class SessionStore {
         }
     }
 
+    /**
+     * 「保存到相册」（照片全屏查看器的保存按钮）：Q+ 走 MediaStore Pictures/Spore
+     * （免权限、系统相册可见）；pre-Q 无运行时存储权限链 → 落应用外置 Pictures
+     * （文件管理器可达）。true = 已落盘；路径非法/写失败回 false。
+     */
+    public static boolean saveToGallery(Context ctx, String path) {
+        try {
+            if (path == null || path.isEmpty()) {
+                return false;
+            }
+            File src = new File(path);
+            if (!src.isFile() || src.length() == 0) {
+                return false;
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                        "Spore_" + src.getName());
+                v.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                v.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+                        android.os.Environment.DIRECTORY_PICTURES + "/Spore");
+                v.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
+                android.content.ContentResolver cr = ctx.getContentResolver();
+                android.net.Uri uri = cr.insert(
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) {
+                    return false;
+                }
+                try (java.io.OutputStream os = cr.openOutputStream(uri)) {
+                    if (os == null || !copy(src, os)) {
+                        cr.delete(uri, null, null);
+                        return false;
+                    }
+                }
+                v.clear();
+                v.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0);
+                cr.update(uri, v, null, null);
+                return true;
+            }
+            // pre-Q：应用外置 Pictures（免运行时权限）
+            File dir = ctx.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
+            if (dir == null) {
+                dir = new File(ctx.getFilesDir(), "pictures");
+            }
+            try (FileOutputStream fos = new FileOutputStream(new File(dir, "Spore_" + src.getName()))) {
+                return copy(src, fos);
+            }
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static boolean copy(File src, java.io.OutputStream os) throws IOException {
+        try (FileInputStream in = new FileInputStream(src)) {
+            byte[] chunk = new byte[8192];
+            int n;
+            while ((n = in.read(chunk)) > 0) {
+                os.write(chunk, 0, n);
+            }
+            return true;
+        }
+    }
+
     private static JSONObject msgToJson(Session.Msg m) throws org.json.JSONException {
         JSONObject o = new JSONObject();
         o.put("role", m.role);

@@ -10,10 +10,11 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 /**
- * 悬浮球：圆形 + 白色放大镜（第五轮拍板：「圆形里面放大镜」）。
+ * 悬浮球：圆形 + 白色放大镜（第八轮从 🔍 emoji 换回手绘并修对齐：
+ * 镜圈圆心与手柄末端关于球心沿对角对称、手柄起点正压镜圈圆周）。
  * 48dp 圆球居中、深粉→品牌粉渐变、粉色光晕；无方向性（对称，贴边朝向无视觉差异）。
  * 手势与窗口参数分离：本 View 只报「手势起点 / 总位移 / 点按 / 长按」，参数更新全在 CaptureService。
- * 点按 = 截屏；长按 = 面板开/收（handoff §9.1/§9 补充拍板）。
+ * 点按 = 截屏；长按 = 面板开/关（会话列表由面板内 💬 手动弹，不再连带）。
  */
 public class BallView extends View {
 
@@ -26,7 +27,7 @@ public class BallView extends View {
         /** 未拖动的点按（未超过 touchSlop 且时长正常）→ 截屏 */
         void onTap();
 
-        /** 长按 → 面板开/收切换（收起后唯一的唤回入口，handoff §9） */
+        /** 长按 → 会话抽屉开/关（类 MV3 alt+z；收起后唯一的唤回入口，handoff §9） */
         void onLongPress();
 
         /** 拖动开始：服务缓存当前窗口参数作基点 */
@@ -41,7 +42,7 @@ public class BallView extends View {
 
     private final Listener listener;
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    /** 放大镜（镜圈 + 45° 手柄）白色描边漆，构造期定形避免 onDraw 分配 */
+    /** 放大镜（镜圈 + 对角手柄）白色描边漆，构造期定形避免 onDraw 分配 */
     private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int wPx;
     private final int hPx;
@@ -102,14 +103,18 @@ public class BallView extends View {
         float r = Math.min(wPx, hPx) / 2f - glowPx;
         // 圆形本体（渐变 + 光晕由 bgPaint 的 shader/shadowLayer 自带）
         canvas.drawCircle(cx, cy, r, bgPaint);
-        // 白色放大镜：镜圈 + 45° 手柄，圆心略偏左上给手柄留位
-        float lensR = r * 0.40f;
-        float lcX = cx - r * 0.14f;
-        float lcY = cy - r * 0.14f;
+        // 白色放大镜（对齐修法）：沿对角单位向量 d 布置——镜圈圆心 = 球心 - g·d，
+        // 手柄从镜圈圆周（lensR·d）画到 lensR·lenK·d；g = lensR·(lenK-1)/2
+        // 使镜圈后沿与手柄端点关于球心对称 → 图标不偏心、手柄正压圆周（修「没对齐」）
+        final float d = 0.70710678f;
+        final float lensR = r * 0.40f;
+        final float lenK = 1.8f;
+        float g = lensR * (lenK - 1f) / 2f;
+        float lcX = cx - g * d;
+        float lcY = cy - g * d;
         canvas.drawCircle(lcX, lcY, lensR, lensPaint);
-        float s = 0.70710678f;
-        canvas.drawLine(lcX + lensR * s * 0.90f, lcY + lensR * s * 0.90f,
-                lcX + (lensR * 1.55f) * s, lcY + (lensR * 1.55f) * s,
+        canvas.drawLine(lcX + lensR * d, lcY + lensR * d,
+                lcX + lensR * lenK * d, lcY + lensR * lenK * d,
                 lensPaint);
     }
 

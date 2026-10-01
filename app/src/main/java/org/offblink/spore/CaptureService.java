@@ -370,7 +370,7 @@ public class CaptureService extends Service {
 
         @Override
         public void onLongPress() {
-            // 球长按 = 面板开/收（点按仍是「直接截屏」，§9.1 不破）
+            // 球长按 = 面板开/关（第八轮拍板：不再连带弹会话列表，列表由面板内 💬 手动开）
             panel.toggle();
         }
 
@@ -471,26 +471,26 @@ public class CaptureService extends Service {
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     reader.getSurface(), null, null);
 
-            Bitmap frame = awaitFrame(reader, w, h);
+            Bitmap[] seen = new Bitmap[1];
+            Bitmap frame = awaitFrame(reader, w, h, seen);
             if (frame == null) {
                 if (attempt < 2) {
                     // 首帧迟到/合成未就绪：自动重试（用户拍板——别让用户再点一次球）
                     bg.postDelayed(() -> captureFrame(w, h, attempt + 1), 600);
                     return;
                 }
-                toastRes(R.string.capture_timeout);
+                if (seen[0] != null) {
+                    // 三轮只等到近黑帧（FLAG_SECURE / 取帧失败）→ 黑屏 toast + 留样本定罪
+                    saveDiagFrame(seen[0]);
+                    toastRes(R.string.capture_black);
+                } else {
+                    toastRes(R.string.capture_timeout);
+                }
                 return;
             }
-            if (isNearBlack(frame)) {
-                // FLAG_SECURE 判据（handoff §9.6）：黑帧 → 对方禁止截屏
-                toastRes(R.string.capture_black);
-                return;
-            }
-            if (meanLuma(frame) < 16) {
-                // 第五轮：整屏太暗（灭屏瞬间/全黑页面）→ 裁出来必是「纯黑图」，源头拦下
-                toastRes(R.string.capture_dark);
-                return;
-            }
+            // 第七轮用户拍板：整屏 meanLuma「屏幕太暗」闸**撤掉**——屏幕没问题时它误杀。
+            // ML 识别失败也进框选（suggestFromFrame 预选整屏、用户自己拖），
+            // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
             final Bitmap show = frame;
             main.post(() -> showCropOverlay(show));
         } catch (Exception e) {
@@ -506,16 +506,22 @@ public class CaptureService extends Service {
         }
     }
 
-    /** 取首帧；首帧可能是合成前的黑帧，近黑就继续等，直到超时。 */
-    private Bitmap awaitFrame(ImageReader reader, int w, int h) {
+    /**
+     * 取首帧；首帧可能是合成前的黑帧，近黑就继续等，直到超时。
+     * {@code lastSeen[0]} 挽留最后一帧：全程没等到非黑帧时供黑屏取证留样本。
+     */
+    private Bitmap awaitFrame(ImageReader reader, int w, int h, Bitmap[] lastSeen) {
         long deadline = System.currentTimeMillis() + FRAME_TIMEOUT_MS;
         while (System.currentTimeMillis() < deadline) {
             Image img = reader.acquireLatestImage();
             if (img != null) {
                 Bitmap bmp = imageToBitmap(img, w, h);
                 img.close();
-                if (bmp != null && !isNearBlack(bmp)) {
-                    return bmp;
+                if (bmp != null) {
+                    lastSeen[0] = bmp;
+                    if (!isNearBlack(bmp)) {
+                        return bmp;
+                    }
                 }
             }
             try {
@@ -572,7 +578,7 @@ public class CaptureService extends Service {
         return maxChannel < 10;
     }
 
-    /** 抽样平均亮度（0-255）：与 CropOverlayView.isDark 同判据族，帧级闸门用 */
+    /** 抽样平均亮度（0-255）：黑帧取证样本的文件名自描述用（mean<常数即暗帧定罪） */
     private int meanLuma(Bitmap bmp) {
         int w = bmp.getWidth();
         int h = bmp.getHeight();
@@ -586,6 +592,26 @@ public class CaptureService extends Service {
             n++;
         }
         return n == 0 ? 255 : (int) (sum / 1000 / n);
+    }
+
+    /**
+     * 黑帧取证样本（handoff §3 悬案「等用户真机黑图样本」）：三轮取帧全黑时落一张
+     * 到 files/diag/，文件名带亮度均值自描述（black_时间戳_meanN.jpg）。
+     * 取证失败绝不影响截屏主链路。
+     */
+    private void saveDiagFrame(Bitmap bmp) {
+        try {
+            File dir = new File(getFilesDir(), "diag");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            String name = "black_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+                    .format(new Date()) + "_mean" + meanLuma(bmp) + ".jpg";
+            try (FileOutputStream fos = new FileOutputStream(new File(dir, name))) {
+                bmp.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, fos);
+            }
+        } catch (Throwable ignored) {
+            // 落盘失败只丢样本，不打断 toast
+        }
     }
 
     // ---------- 框选 ----------
@@ -611,20 +637,29 @@ public class CaptureService extends Service {
 
     /**
      * §9.3 建议框：bundled 中文识别（无 GMS 也可用）→ Suggestor 聚类出单框 → 预填进框选层。
-     * 任何失败（模型初始化 / 识别 / 无文本）都静默退化为手动拖框，不打扰用户。
+     * 第七轮用户拍板：**ML 失败（识别器起不来 / 识别失败 / 没认出字）= 假装识别成功**，
+     * 预选框给整块屏幕——用户自己拖框，体验不差，且不再有「没建议就黑屏干等」的诡异态。
+     * setSuggestion 自带「已有选择/手势进行中不覆盖」护栏，用户先动手就以用户为准。
      */
     private void suggestFromFrame(Bitmap frame) {
         bg.post(() -> {
-            TextRecognizer recognizer = null;
+            final int frameW = frame.getWidth();
+            final int frameH = frame.getHeight();
+            // 失败兜底：整屏预选（等价「ML 建议 = 全屏」），必须回主线程碰 cropView
+            final Runnable fullSelect = () -> {
+                if (cropView != null) {
+                    cropView.setSuggestion(0, 0, frameW, frameH);
+                }
+            };
+            TextRecognizer recognizer;
             try {
                 recognizer = TextRecognition.getClient(
                         new ChineseTextRecognizerOptions.Builder().build());
             } catch (Throwable t) {
-                return; // 识别器起不来（设备不支持等）→ 手动框兜底
+                main.post(fullSelect); // 识别器起不来（设备不支持等）→ 整屏预选
+                return;
             }
             final TextRecognizer rec = recognizer;
-            final int frameW = frame.getWidth();
-            final int frameH = frame.getHeight();
             try {
                 rec.process(InputImage.fromBitmap(frame, 0))
                         .addOnSuccessListener(text -> {
@@ -639,21 +674,22 @@ public class CaptureService extends Service {
                                 }
                             }
                             final int[] suggestion = Suggestor.suggest(lines, frameW, frameH);
-                            if (suggestion != null) {
-                                main.post(() -> {
-                                    if (cropView != null) {
-                                        cropView.setSuggestion(suggestion[0], suggestion[1],
-                                                suggestion[2], suggestion[3]);
-                                    }
-                                });
+                            if (suggestion == null) {
+                                main.post(fullSelect); // 没认出字 → 整屏预选
+                                return;
                             }
+                            main.post(() -> {
+                                if (cropView != null) {
+                                    cropView.setSuggestion(suggestion[0], suggestion[1],
+                                            suggestion[2], suggestion[3]);
+                                }
+                            });
                         })
-                        .addOnFailureListener(e -> {
-                            // 识别失败 → 手动框（设计内兜底）
-                        })
+                        .addOnFailureListener(e -> main.post(fullSelect)) // 识别失败 → 整屏预选
                         .addOnCompleteListener(t -> rec.close());
             } catch (Throwable t) {
-                rec.close(); // 输入非法等 → 手动框兜底
+                rec.close();
+                main.post(fullSelect); // 输入非法等 → 整屏预选
             }
         });
     }

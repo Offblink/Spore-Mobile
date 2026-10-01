@@ -79,10 +79,6 @@ body { overflow: hidden; }
 }
 /* 图片 base64 还没取回时不塌高 */
 .msg.user .shot:not([src]) { min-width: 160px; min-height: 52px; background: #F7F8FC; }
-.msg.user .shot.zoomed {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  max-width: 94vw; max-height: 86vh; z-index: 80;
-}
 
 /* answer 行：左粉条（桌面 .msg.bot） */
 .msg.bot { position: relative; padding-left: 12px; }

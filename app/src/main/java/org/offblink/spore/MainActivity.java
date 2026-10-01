@@ -207,22 +207,32 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(MainActivity.this::startBallWithConsent);
         }
 
-        /** 搜题记录页：新页右侧滑入、主页左移淡出 */
+        /** 搜题记录页：平移进场（新页自右滑入、主页左移让位；返回原路平移出去） */
         @JavascriptInterface
         public void openRecords() {
-            runOnUiThread(() -> {
-                startActivity(new Intent(MainActivity.this, RecordActivity.class));
-                overridePendingTransition(R.anim.spore_nav_in, R.anim.spore_nav_out);
-            });
+            runOnUiThread(() -> openPaged(new Intent(MainActivity.this, RecordActivity.class)));
         }
 
         /** 设置页：同上 */
         @JavascriptInterface
         public void openSettings() {
-            runOnUiThread(() -> {
-                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-                overridePendingTransition(R.anim.spore_nav_in, R.anim.spore_nav_out);
-            });
+            runOnUiThread(() -> openPaged(new Intent(MainActivity.this, SettingsActivity.class)));
+        }
+    }
+
+    /**
+     * 平移进场统一出口（第八轮拍板：进出同一条轨道反向平移，无旋转无缩放）。
+     * 34+ 走 overrideActivityTransition（overridePendingTransition
+     * 已被官方标记弃用、在新系统上不再保证生效）；旧版保留 pending 过渡。
+     */
+    private void openPaged(Intent target) {
+        startActivity(target);
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,
+                    R.anim.spore_nav_in, R.anim.spore_nav_out);
+        } else {
+            //noinspection deprecation
+            overridePendingTransition(R.anim.spore_nav_in, R.anim.spore_nav_out);
         }
     }
 }

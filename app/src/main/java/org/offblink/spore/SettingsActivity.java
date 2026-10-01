@@ -1,5 +1,6 @@
 package org.offblink.spore;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -30,11 +31,17 @@ public class SettingsActivity extends AppCompatActivity {
         web.loadUrl("file:///android_asset/web/settings.html");
     }
 
-    /** 返回统一出口：顶栏「返回」（桥 close）与系统返回键都过这里，挂反向转场 */
+    /** 返回统一出口：顶栏「返回」（桥 close）与系统返回键都过这里，挂平移反向转场 */
     @Override
     public void finish() {
         super.finish();
-        overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,
+                    R.anim.spore_back_in, R.anim.spore_back_out);
+        } else {
+            //noinspection deprecation
+            overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
+        }
     }
 
     /**

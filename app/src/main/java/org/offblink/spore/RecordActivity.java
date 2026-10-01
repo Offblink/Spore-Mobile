@@ -1,5 +1,6 @@
 package org.offblink.spore;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
@@ -70,11 +71,17 @@ public class RecordActivity extends AppCompatActivity {
         });
     }
 
-    /** 返回统一出口（页内顶栏「‹」走桥 close → finish）：挂反向转场 */
+    /** 返回统一出口（页内顶栏「‹」走桥 close → finish）：挂平移反向转场（原路出去） */
     @Override
     public void finish() {
         super.finish();
-        overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,
+                    R.anim.spore_back_in, R.anim.spore_back_out);
+        } else {
+            //noinspection deprecation
+            overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
+        }
     }
 
     private void pushState() {
@@ -123,6 +130,12 @@ public class RecordActivity extends AppCompatActivity {
         @JavascriptInterface
         public String image(String path) {
             return SessionStore.imageDataUrl(path);
+        }
+
+        /** 「保存到相册」：全屏查看器的保存按钮（见 common.js openShot） */
+        @JavascriptInterface
+        public boolean saveImage(String path) {
+            return SessionStore.saveToGallery(RecordActivity.this, path);
         }
 
         @JavascriptInterface

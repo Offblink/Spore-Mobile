@@ -103,7 +103,8 @@
   function rowHtml(m, i) {
     if (m.role === 'user') {
       const img = (m.hasImage && m.imagePath)
-        ? '<img class="shot" src="' + imageFor(m.imagePath) + '" alt="题目截图">'
+        ? '<img class="shot" src="' + imageFor(m.imagePath) + '" data-path="' +
+          esc(m.imagePath) + '" alt="题目截图">'
         : '';
       const text = m.text ? '<div class="utext">' + esc(m.text) + '</div>' : '';
       if (!img && !text) {
@@ -598,7 +599,7 @@
     }
     const img = e.target.closest('.shot');
     if (img) {
-      img.classList.toggle('zoomed'); // 点图放大，再点收回
+      openShot(img.src, img.dataset.path || ''); // 点图 → 全屏查看（取消/保存）
     }
   });
 
@@ -620,6 +621,19 @@
       submit();
     }
   });
+
+  // 原生入口（球长按抽屉：CaptureService→AnswerPanel.eval）——显式开/关/切换
+  window.SporePanel = {
+    openList: openList,
+    closeList: closeList,
+    toggleList: function () {
+      if (listOn) {
+        closeList();
+      } else {
+        openList();
+      }
+    }
+  };
 
   // ---------------------------------------------------------------- 启动：ready 握手
 

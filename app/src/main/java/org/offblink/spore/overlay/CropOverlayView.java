@@ -14,7 +14,7 @@ import org.offblink.spore.R;
 /**
  * 冻结帧框选层 —— MV3 桌面 overlay.js 的逐字复刻：
  * 55% 暗幕 + 2dp #EC4899 选框（10% 粉填充）、框上 W×H 粉色尺寸牌、
- * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、底部粉色「搜」pill、右上 ✕。
+ * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、底部粉色「搜」pill、左下 ✕（唯一关闭键）。
  * 判定沿用桌面契约：宽高**都**小于下限才拒，有其一过线就放行。
  */
 public class CropOverlayView extends View {
@@ -49,9 +49,11 @@ public class CropOverlayView extends View {
     /** 冻结帧在本视图内的落位（fit-center）与缩放 */
     private final RectF dst = new RectF();
     private final RectF sel = new RectF();
+    /**
+     * 唯一 ✕ 在左下（第七轮用户拍板只留一个）：右上会被 SystemUI 全屏提示卡盖住
+     * （第五轮实测，b5e5206 加备用键的由来），左下永不被盖、也更好够。
+     */
     private final RectF closeRect = new RectF();
-    /** 左下备用 ✕：顶部可能被系统全屏提示窗盖住（SystemUI Viewing full screen 卡片实测压过悬浮层） */
-    private final RectF closeRectB = new RectF();
     private final RectF searchRect = new RectF();
     private final RectF searchHitRect = new RectF();
     private final RectF hintRect = new RectF();
@@ -140,15 +142,11 @@ public class CropOverlayView extends View {
         float offY = (h - bh * scale) / 2f;
         dst.set(offX, offY, offX + bw * scale, offY + bh * scale);
 
+        // 唯一 ✕ 在左下（右上会被 SystemUI 提示卡盖住 → 见 closeRect 注释）
         float r = 22 * density;
-        float cx = w - r - 12 * density;
-        float cy = r + 12 * density;
+        float cx = r + 16 * density;
+        float cy = h - r - 16 * density;
         closeRect.set(cx - r, cy - r, cx + r, cy + r);
-        // 左下备用 ✕：与顶部同尺寸，避开系统提示卡（用户第五轮实测被盖）
-        float br = 18 * density;
-        float blx = br + 16 * density;
-        float bly = h - br - 16 * density;
-        closeRectB.set(blx - br, bly - br, blx + br, bly + br);
 
         float btnW = 110 * density;
         float btnH = 46 * density;
@@ -207,9 +205,8 @@ public class CropOverlayView extends View {
             canvas.drawText(confirm, searchRect.centerX(), baseline, btnTextPaint);
         }
 
-        // 右上 ✕ + 左下备用 ✕（系统提示可能盖顶）
+        // 左下 ✕（唯一关闭键）
         drawClose(canvas, closeRect);
-        drawClose(canvas, closeRectB);
     }
 
     private void drawClose(Canvas canvas, RectF rect) {
@@ -294,7 +291,7 @@ public class CropOverlayView extends View {
                     invalidate();
                     return true;
                 }
-                closeHit = closeRect.contains(x, y) || closeRectB.contains(x, y);
+                closeHit = closeRect.contains(x, y);
                 if (closeHit) {
                     return true;
                 }
@@ -366,7 +363,7 @@ public class CropOverlayView extends View {
                 }
                 if (closeHit) {
                     closeHit = false;
-                    if (closeRect.contains(x, y) || closeRectB.contains(x, y)) {
+                    if (closeRect.contains(x, y)) {
                         listener.onClose();
                     }
                     return true;

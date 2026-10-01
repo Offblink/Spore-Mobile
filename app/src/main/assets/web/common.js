@@ -109,4 +109,70 @@
     imgCache[path] = typeof url === "string" ? url : "";
     return imgCache[path];
   };
+
+  /**
+   * 照片全屏查看器（面板消息流 + 记录详情共用，第七轮需求）：
+   * 放大显示 + 底部「取消 / 保存」。保存 = bridge("saveImage", path) 落相册。
+   * 点图外暗幕或 Esc 关闭；同一时刻只挂一个（重复 openShot 先关旧的）。
+   */
+  var shotView = null;
+  window.closeShot = function () {
+    if (shotView && shotView.parentNode) {
+      shotView.parentNode.removeChild(shotView);
+    }
+    shotView = null;
+  };
+  window.openShot = function (src, path) {
+    if (!src) {
+      return;
+    }
+    window.closeShot();
+    shotView = document.createElement("div");
+    shotView.id = "shotView";
+
+    var box = document.createElement("div");
+    box.className = "shot-img";
+    var img = document.createElement("img");
+    img.src = src;
+    img.alt = "题目截图";
+    box.appendChild(img);
+
+    var bar = document.createElement("div");
+    bar.className = "shot-bar";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn btn-ghost";
+    cancel.textContent = "取消";
+    cancel.addEventListener("click", window.closeShot);
+    var save = document.createElement("button");
+    save.type = "button";
+    save.className = "btn btn-primary";
+    save.textContent = "保存";
+    save.addEventListener("click", function () {
+      var ok = window.bridge("saveImage", path);
+      if (ok === true) {
+        window.closeShot();
+        window.toast("已保存");
+      } else {
+        window.toast("保存失败");
+      }
+    });
+    bar.appendChild(cancel);
+    bar.appendChild(save);
+
+    // 点图片/按钮以外的暗幕 = 关闭
+    shotView.addEventListener("click", function (e) {
+      if (e.target === shotView || e.target === box) {
+        window.closeShot();
+      }
+    });
+    shotView.appendChild(box);
+    shotView.appendChild(bar);
+    document.body.appendChild(shotView);
+  };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      window.closeShot();
+    }
+  });
 })();

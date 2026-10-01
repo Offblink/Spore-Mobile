@@ -1,0 +1,165 @@
+/* 记录页专属样式：列表（分页）+ 独立详情视图。组件层走 spore.css。 */
+
+body { background: var(--bg); }
+
+/* 列表整页 = 纵向 flex：行区吃满剩余高度，分页恒钉在视口底部（第四轮追加反馈） */
+#listView { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ---------------- 顶栏 ---------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 10px;
+  background: var(--surface); border-bottom: 1px solid var(--line2);
+}
+.topbar .icon {
+  flex: none; width: 36px; height: 36px; border-radius: 10px;
+  font-size: 24px; line-height: 1; color: var(--muted);
+}
+.topbar .icon:active { background: var(--chip); }
+.topbar .icon.star { font-size: 18px; color: var(--muted4); }
+.topbar .icon.star.on { color: var(--pink); }
+.ptitle {
+  flex: 1; min-width: 0; margin: 0;
+  font-size: 17px; font-weight: 700; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 全部 ⇄ 收藏：开关左右两侧都有字，激活侧高亮（第三轮定稿的原设计） */
+.scope { flex: none; display: flex; align-items: center; gap: 7px; }
+.scope-label { font-size: 13px; color: var(--muted3); font-weight: 600; transition: color var(--t-fast); }
+.scope-label.on { color: var(--pink); font-weight: 700; }
+
+/* ---------------- 列表 ---------------- */
+.rows { padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 8px; }
+.rrow {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r16); padding: 13px 12px;
+  transition: background var(--t-fast);
+}
+.rrow:active { background: var(--row-hover); }
+.rrow.is-fav { background: var(--fav-row); border-color: #F5E7C8; }
+.rrow .col { flex: 1; min-width: 0; }
+.rrow .t {
+  font-size: 15px; font-weight: 600; color: var(--row-title);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rrow .ts { margin-top: 3px; font-size: 12px; color: var(--muted3); }
+.rrow .acts { flex: none; display: flex; gap: 2px; }
+.rrow .act {
+  width: 34px; height: 34px; border-radius: 9px;
+  color: var(--row-action); font-size: 16px; line-height: 1;
+}
+.rrow .act.f { color: var(--muted4); font-size: 17px; }
+.rrow.is-fav .act.f { color: var(--pink); }
+.rrow .act.r:active { background: #EEF1FF; color: #4A5BD8; }
+.rrow .act.x:active { background: #FFEEF2; color: var(--danger); }
+
+.empty {
+  margin: 12vh auto 0; max-width: 76vw;
+  text-align: center; color: var(--muted3); font-size: 15px; line-height: 1.9;
+}
+
+/* ---------------- 分页（2③：显式分页，非无限流） ---------------- */
+.pager {
+  margin-top: auto;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--line2);
+}
+.pgbtn {
+  border: 1px solid var(--line); background: var(--surface);
+  border-radius: var(--r999); padding: 7px 16px;
+  font-size: 13.5px; font-weight: 600; color: var(--muted);
+  transition: opacity var(--t-fast);
+}
+.pgbtn:active { background: var(--chip); }
+.pgbtn:disabled { opacity: .38; pointer-events: none; }
+.pgnum { font-size: 13.5px; color: var(--muted2); min-width: 44px; text-align: center; }
+
+/* ---------------- 详情视图 ---------------- */
+#detailView {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+}
+#detailView[hidden] { display: none; }
+.dstream {
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 14px 12px; display: flex; flex-direction: column; gap: 14px;
+}
+.dfoot {
+  flex: none; background: var(--surface); border-top: 1px solid var(--line2);
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px;
+}
+.soft-action {
+  align-self: flex-start;
+  border: 1px solid var(--pink); background: var(--pink-tint); color: #C2185B;
+  border-radius: var(--r999); padding: 6px 14px;
+  font-size: 12.5px; font-weight: 600;
+}
+.soft-action:active { background: var(--pink-tint2); }
+.composer { display: flex; align-items: center; gap: 8px; }
+.composer .input { flex: 1; }
+.composer .send {
+  flex: none; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--pink); color: #fff; font-size: 16.5px; line-height: 1;
+}
+.composer .send:active { background: var(--pink-dark); }
+.composer .send:disabled { background: var(--line); color: var(--muted3); }
+
+/* ---------------- 详情消息流（与面板同款 DOM 语义） ---------------- */
+.msg { max-width: 100%; font-size: 15.5px; line-height: 1.66; word-break: break-word; }
+.msg.user { display: flex; flex-direction: column; gap: 6px; }
+.msg.user .shot {
+  align-self: flex-start; max-width: 68%;
+  border-radius: 12px; border: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(20, 24, 48, .10);
+}
+.msg.user .utext {
+  align-self: flex-start; font-size: 14.5px; color: var(--chip-text);
+  background: var(--userchip);
+  border-radius: 10px 10px 10px 3px; padding: 6px 10px; white-space: pre-wrap;
+}
+.msg.bot { position: relative; padding-left: 12px; }
+.msg.bot::before {
+  content: ''; position: absolute; left: 0; top: 3px; bottom: 3px;
+  width: 3px; border-radius: 99px; background: var(--pink);
+}
+.msg.bot .ans { font-size: 17px; font-weight: 650; color: var(--ink); white-space: pre-wrap; }
+.msg.bot .why { color: var(--chip-text); font-size: 15px; white-space: pre-wrap; margin-top: 3px; }
+.msg.bot .chat { color: var(--ink); white-space: pre-wrap; }
+.msg.bot code { font-family: Consolas, monospace; font-size: 14px; background: var(--bg);
+  border: 1px solid var(--line2); border-radius: 5px; padding: 0 4px; }
+.msg.bot strong { font-weight: 650; }
+
+.think { margin: 0 0 7px; border-left: 2px solid #E9EAF4; padding: 2px 0 3px 10px; }
+.think-h { display: flex; align-items: center; gap: 5px; border: 0; background: transparent;
+  padding: 0; color: var(--label); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; }
+.think-h::before { content: '▸'; font-size: 10px; transition: transform .18s; }
+.think.fold .think-h::before { transform: rotate(90deg); }
+.think-b { font-size: 13.5px; line-height: 1.62; color: var(--think); white-space: pre-wrap;
+  margin-top: 4px; max-height: 240px; overflow-y: auto; }
+.think.fold .think-b { display: none; }
+
+.verify { margin-top: 9px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 11px; background: #FBFCFF; }
+.verify .vhead { display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--label); margin-bottom: 5px; }
+.vnote { font-size: 15px; color: var(--vnote); white-space: pre-wrap; }
+
+.tools { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tool { font-size: 13px; color: var(--muted2); background: var(--tool);
+  border-radius: 7px; padding: 3px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool::before { content: '⌕ '; color: var(--pink); }
+
+.dempty { margin: auto; text-align: center; color: var(--muted3); }
+
+/* ---------------- 模态显隐覆写（spore.css 的 mask 默认 display:flex，不覆写会一直挂着） ---------------- */
+.modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
+.modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
+.modal-box { animation: popIn .24s var(--pop-ease); }

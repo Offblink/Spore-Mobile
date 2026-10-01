@@ -3,6 +3,9 @@ package org.offblink.spore;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /**
  * 应用设置（桌面 spore.settings 的移动版落点之一）。
  * 扁平键值存 SharedPreferences；默认值逐字对齐桌面 store.js 的 DEFAULT_SETTINGS。
@@ -54,6 +57,51 @@ public final class SporeSettings {
                 .putBoolean("fastNoThink", fastNoThink)
                 .putBoolean("autoVerify", autoVerify)
                 .apply();
+    }
+
+    /** web 设置页读取（本机 WebView；apiKey 对页面可见——红线同原生页：不进日志/仓库） */
+    public JSONObject toJson() {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("endpoint", endpoint);
+            o.put("model", model);
+            o.put("apiKey", apiKey);
+            o.put("proxy", proxy);
+            o.put("maxToolRounds", maxToolRounds);
+            o.put("historyLimit", historyLimit);
+            o.put("fastNoThink", fastNoThink);
+            o.put("autoVerify", autoVerify);
+        } catch (JSONException ignored) {
+        }
+        return o;
+    }
+
+    /**
+     * web 设置页保存：只覆盖 json 里出现的键，缺字段保持现值。
+     * 字符串走 str() 而非 optString——Android optString 把 JSON null 变字面量 "null"
+     * （LlmClient.wireStr 同款坑，第四轮反馈根因家族）。
+     */
+    public static void applyJson(Context c, String json) {
+        SporeSettings s = load(c);
+        try {
+            JSONObject o = new JSONObject(json);
+            s.endpoint = str(o, "endpoint", s.endpoint);
+            s.model = str(o, "model", s.model);
+            s.apiKey = str(o, "apiKey", s.apiKey);
+            s.proxy = str(o, "proxy", s.proxy);
+            s.maxToolRounds = o.optInt("maxToolRounds", s.maxToolRounds);
+            s.historyLimit = o.optInt("historyLimit", s.historyLimit);
+            s.fastNoThink = o.optBoolean("fastNoThink", s.fastNoThink);
+            s.autoVerify = o.optBoolean("autoVerify", s.autoVerify);
+            s.save(c);
+        } catch (JSONException ignored) {
+            // 脏入参不落盘
+        }
+    }
+
+    private static String str(JSONObject o, String key, String def) {
+        Object v = o.opt(key);
+        return v instanceof String ? (String) v : def;
     }
 
     /** 端点与 key 都填了才可发起作答；缺配置时面板给引导而不是抛异常 */

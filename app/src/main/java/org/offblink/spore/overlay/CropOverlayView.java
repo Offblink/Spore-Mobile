@@ -57,14 +57,11 @@ public class CropOverlayView extends View {
 
     private boolean hasSel;
     private boolean dragging;
-    private boolean resizing;
     private boolean moving;
     private boolean closeHit;
     private boolean searchHit;
-    private int activeCorner;
     private float startX, startY;
-    private float resizeStartX, resizeStartY, lastX, lastY;
-    private final RectF resizeBase = new RectF();
+    private float lastX, lastY;
     /** 建议框先于布局到达时暂存（帧坐标），onSizeChanged 后回放 */
     private int[] pendingSuggestion;
 
@@ -183,13 +180,6 @@ public class CropOverlayView extends View {
             float ly = Math.max(4 * density, sel.top - chipH - 4 * density);
             canvas.drawRoundRect(lx, ly, lx + chipW, ly + chipH, 6 * density, 6 * density, labelBgPaint);
             canvas.drawText(size, lx + chipW / 2, ly + chipH / 2 - (labelPaint.descent() + labelPaint.ascent()) / 2f, labelPaint);
-
-            if (!dragging) {
-                drawHandle(canvas, sel.left, sel.top);
-                drawHandle(canvas, sel.right, sel.top);
-                drawHandle(canvas, sel.right, sel.bottom);
-                drawHandle(canvas, sel.left, sel.bottom);
-            }
         }
 
         // 「搜」确认 pill（有框且不在新手势中）
@@ -213,10 +203,6 @@ public class CropOverlayView extends View {
         canvas.drawLine(ccx + arm, ccy - arm, ccx - arm, ccy + arm, closePaint);
     }
 
-    private void drawHandle(Canvas canvas, float x, float y) {
-        canvas.drawCircle(x, y, 11 * density, borderPaint);
-    }
-
     /** 桌面 warn()：顶部 pill 转红 1.8s 后复位（替代 toast，出错不打断） */
     private void warn(String text) {
         removeCallbacks(warnReset);
@@ -231,7 +217,7 @@ public class CropOverlayView extends View {
      * 已有选择/新手势进行中不覆盖；建议先于布局到达则暂存，onSizeChanged 后回放。
      */
     public void setSuggestion(int left, int top, int right, int bottom) {
-        if (dragging || resizing || moving || hasSel) {
+        if (dragging || moving || hasSel) {
             return;
         }
         if (dst.isEmpty()) {
@@ -265,15 +251,6 @@ public class CropOverlayView extends View {
                     return true;
                 }
                 if (hasSel) {
-                    int corner = cornerAt(x, y);
-                    if (corner >= 0) {
-                        resizing = true;
-                        activeCorner = corner;
-                        resizeStartX = x;
-                        resizeStartY = y;
-                        resizeBase.set(sel);
-                        return true;
-                    }
                     if (sel.contains(x, y)) {
                         moving = true;
                         lastX = x;
@@ -291,40 +268,6 @@ public class CropOverlayView extends View {
 
             case MotionEvent.ACTION_MOVE:
                 if (closeHit || searchHit) {
-                    return true;
-                }
-                if (resizing) {
-                    float dx = x - resizeStartX;
-                    float dy = y - resizeStartY;
-                    sel.set(resizeBase);
-                    switch (activeCorner) {
-                        case 0: // 左上
-                            sel.left += dx;
-                            sel.top += dy;
-                            break;
-                        case 1: // 右上
-                            sel.right += dx;
-                            sel.top += dy;
-                            break;
-                        case 2: // 右下
-                            sel.right += dx;
-                            sel.bottom += dy;
-                            break;
-                        default: // 左下
-                            sel.left += dx;
-                            sel.bottom += dy;
-                            break;
-                    }
-                    // 防翻转：越过对边就钉在对边内 4px
-                    if (sel.left > sel.right - 4) {
-                        sel.left = sel.right - 4;
-                    }
-                    if (sel.top > sel.bottom - 4) {
-                        sel.top = sel.bottom - 4;
-                    }
-                    clampSel();
-                    hasSel = sel.width() > 4 && sel.height() > 4;
-                    invalidate();
                     return true;
                 }
                 if (moving) {
@@ -362,8 +305,7 @@ public class CropOverlayView extends View {
                     }
                     return true;
                 }
-                if (resizing || moving) {
-                    resizing = false;
+                if (moving) {
                     moving = false;
                     invalidate();
                     return true;
@@ -393,7 +335,6 @@ public class CropOverlayView extends View {
 
             case MotionEvent.ACTION_CANCEL:
                 dragging = false;
-                resizing = false;
                 moving = false;
                 closeHit = false;
                 searchHit = false;
@@ -418,30 +359,6 @@ public class CropOverlayView extends View {
         if (crop != null) {
             listener.onCropped(crop);
         }
-    }
-
-    /** 命中角柄（26dp 半径）→ 0=左上 1=右上 2=右下 3=左下，否则 -1 */
-    private int cornerAt(float x, float y) {
-        float hit = 11 * density + 8 * density;
-        if (dist(x, y, sel.left, sel.top) <= hit) {
-            return 0;
-        }
-        if (dist(x, y, sel.right, sel.top) <= hit) {
-            return 1;
-        }
-        if (dist(x, y, sel.right, sel.bottom) <= hit) {
-            return 2;
-        }
-        if (dist(x, y, sel.left, sel.bottom) <= hit) {
-            return 3;
-        }
-        return -1;
-    }
-
-    private static float dist(float x1, float y1, float x2, float y2) {
-        float dx = x1 - x2;
-        float dy = y1 - y2;
-        return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
     private void clampSel() {

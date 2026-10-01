@@ -52,11 +52,11 @@ dependencies {
     implementation libs.appcompat
     implementation libs.material
     implementation libs.okhttp
-    implementation libs.markwon
     implementation libs.recyclerview
     implementation libs.mlkit.chinese
 
     testImplementation libs.junit
+    testImplementation libs.json
     androidTestImplementation libs.espresso.core
     androidTestImplementation libs.ext.junit
 }

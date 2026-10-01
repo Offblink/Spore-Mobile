@@ -1,0 +1,65 @@
+/* 主页专属样式：字标 / 状态胶囊 / 主 CTA / 分组导航。令牌与组件类来自 spore.css。 */
+
+.page {
+  min-height: 100vh;
+  padding: 40px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 逐卡入场：shared .anim-fade-up 没有 fill-mode，延迟期间会先亮后跳——本页补 backwards */
+.anim-fade-up { animation-fill-mode: both; }
+
+/* ---- 品牌头 ---- */
+.brand { display: flex; flex-direction: column; gap: 14px; }
+.wordmark {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.wordmark .dot { color: var(--pink); }
+
+/* ---- 状态胶囊（长权限文案允许换行） ---- */
+.status-pill {
+  align-self: flex-start;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line4);
+  flex: none;
+}
+.status-dot.on { background: var(--pink); }
+
+/* ---- 单一主 CTA + 投影次级提示 ---- */
+.cta { display: flex; flex-direction: column; }
+#btnBall { width: 100%; padding: 14px 18px; font-size: 16px; }
+#projHint {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--pink-deep);
+  text-align: center;
+  border-radius: var(--r12);
+}
+#projHint:active { background: var(--pink-tint); }
+#projHint[hidden] { display: none; }
+
+/* ---- 分组导航卡 ---- */
+.nav { overflow: hidden; }
+.nav .row { width: 100%; text-align: left; background: transparent; }
+.nav .row:last-child { border-bottom: 0; }
+.nav .ico { flex: none; font-size: 17px; }

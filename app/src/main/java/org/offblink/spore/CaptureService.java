@@ -79,29 +79,17 @@ public class CaptureService extends Service {
     private static volatile boolean running = false;
     /** 服务单例句柄：记录页「点进去接着对话」从静态入口喊面板 */
     private static volatile CaptureService self;
-    /** 服务冷启动时补开的会话（记录页在服务未运行时点了行） */
-    private static volatile String pendingSessionId;
+    /** 服务冷启动时排队的追问（记录详情页在服务未运行时提交的追问） */
+    private static volatile String pendingFollowupId;
+    private static volatile String pendingFollowupText;
 
     public static boolean isRunning() {
         return running;
     }
 
-    /** 记录页/会话列表：打开面板并换入该会话；服务没跑就先拉起、就绪后补开 */
-    public static void openSession(Context c, String sessionId) {
-        if (!running) {
-            pendingSessionId = sessionId;
-            start(c);
-            return;
-        }
-        CaptureService s = self;
-        if (s != null) {
-            s.main.post(() -> s.panel.openSession(sessionId));
-        }
-    }
-
     /**
-     * 重命名/删除必须经服务侧：引擎内存里可能正持有该会话，直接改文件会被下一次
-     * persist() 用内存态盖回去。服务不在 → 没有内存态，直接文件操作。
+     * 改名/删除/收藏必须经服务侧桥：引擎内存态持有会话时直接改文件会被下次 persist 盖回。
+     * 服务不在 → 没有内存态，直接文件操作。
      */
     public static boolean renameSession(Context c, String id, String name) {
         CaptureService s = self;
@@ -124,6 +112,53 @@ public class CaptureService extends Service {
         }
         SessionStore.delete(c, id);
         return true;
+    }
+
+    /** 投影授权是否在手（主页状态胶囊）；服务没跑 = 没有 */
+    public static boolean hasProjection() {
+        CaptureService s = self;
+        return s != null && s.proj != null;
+    }
+
+    /** 收藏切换走服务侧（同 rename/delete 的理由：引擎内存态优先，防被下次 persist 盖回） */
+    public static boolean toggleFav(Context c, String id) {
+        CaptureService s = self;
+        if (s != null) {
+            return s.engine.toggleFav(id);
+        }
+        Session sess = SessionStore.load(c, id);
+        if (sess == null) {
+            return false;
+        }
+        sess.fav = !sess.fav;
+        SessionStore.save(c, sess);
+        return true;
+    }
+
+    /**
+     * 记录详情页追问：切到该会话再发（与面板同一引擎）；服务没跑 → 排队补发
+     * （onCreate 里的 pendingFollowup 机制）。返回 ok | busy | gone，bridge 直接把非 ok 当 toast。
+     */
+    public static String followup(Context c, String id, String text) {
+        String t = text == null ? "" : text.trim();
+        if (t.isEmpty() || id == null || id.isEmpty()) {
+            return "gone";
+        }
+        if (!running) {
+            pendingFollowupId = id;
+            pendingFollowupText = t;
+            start(c);
+            return "ok";
+        }
+        CaptureService s = self;
+        if (s == null) {
+            return "gone";
+        }
+        if (!s.engine.loadSession(id)) {
+            return "busy";
+        }
+        s.engine.sendFollowup(t);
+        return "ok";
     }
 
     public static void start(Context c) {
@@ -181,11 +216,18 @@ public class CaptureService extends Service {
 
         if (Settings.canDrawOverlays(this)) {
             addBall();
-            String pend = pendingSessionId;
-            pendingSessionId = null;
-            if (pend != null) {
-                final String sid = pend;
-                main.post(() -> panel.openSession(sid));
+            final String pfId = pendingFollowupId;
+            final String pfText = pendingFollowupText;
+            pendingFollowupId = null;
+            pendingFollowupText = null;
+            if (pfId != null && pfText != null) {
+                main.post(() -> {
+                    if (engine.loadSession(pfId)) {
+                        engine.sendFollowup(pfText);
+                    } else {
+                        toastRes(R.string.busy_wait);
+                    }
+                });
             }
         } else {
             toastRes(R.string.status_no_overlay);
@@ -207,6 +249,7 @@ public class CaptureService extends Service {
     public void onDestroy() {
         if (panel != null) {
             panel.close();
+            panel.destroy(); // WebView 是重对象：服务死了必须显式销毁，别留进程级泄漏
         }
         if (engine != null) {
             engine.shutdown();

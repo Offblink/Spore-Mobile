@@ -107,7 +107,13 @@ public final class SessionStore {
         }
     }
 
-    static JSONObject toJson(Session s) throws org.json.JSONException {
+    /**
+     * 会话完整 JSON（持久化与 web bridge 共用）。
+     * bridge 会在自己的线程调它，引擎线程同时往 session.messages 里 append →
+     * 先拷贝再序列化：会话对象内 messages 只 append 不移除，拷贝即安全快照
+     * （直连遍历在 bridge 线程上有 CME 风险，别改回去）。
+     */
+    public static JSONObject toJson(Session s) throws org.json.JSONException {
         JSONObject o = new JSONObject();
         o.put("id", s.id);
         o.put("created", s.created);
@@ -116,11 +122,65 @@ public final class SessionStore {
         o.put("title", s.title);
         o.put("status", s.status);
         JSONArray msgs = new JSONArray();
-        for (Session.Msg m : s.messages) {
+        for (Session.Msg m : new ArrayList<>(s.messages)) {
             msgs.put(msgToJson(m));
         }
         o.put("messages", msgs);
         return o;
+    }
+
+    /**
+     * web bridge 索引条目（记录页分页 / 面板 listpop）：不带 messages，
+     * 全量消息走 {@link #toJson} 按需单取，避免索引每次读盘把所有消息拼一遍。
+     */
+    public static JSONArray metaJson(Context ctx) {
+        JSONArray out = new JSONArray();
+        for (Session s : loadAll(ctx)) {
+            JSONObject o = new JSONObject();
+            try {
+                o.put("id", s.id);
+                o.put("title", s.title);
+                o.put("created", s.created);
+                o.put("updated", s.updated);
+                o.put("fav", s.fav);
+                o.put("status", s.status);
+                o.put("msgCount", s.messages.size());
+            } catch (org.json.JSONException ignored) {
+            }
+            out.put(o);
+        }
+        return out;
+    }
+
+    /**
+     * 截图 data URL（web 端按 path 只取一次并缓存；base64 几百 KB，绝不内嵌进 sessionJson
+     * 反复过桥）。文件缺失/读失败回空串。
+     */
+    public static String imageDataUrl(String path) {
+        try {
+            if (path == null || path.isEmpty()) {
+                return "";
+            }
+            File f = new File(path);
+            if (!f.isFile() || f.length() == 0) {
+                return "";
+            }
+            byte[] buf = new byte[(int) f.length()];
+            try (FileInputStream in = new FileInputStream(f)) {
+                int off = 0;
+                while (off < buf.length) {
+                    int n = in.read(buf, off, buf.length - off);
+                    if (n < 0) {
+                        break;
+                    }
+                    off += n;
+                }
+            }
+            return "data:image/jpeg;base64,"
+                    + android.util.Base64.encodeToString(buf, android.util.Base64.NO_WRAP);
+        } catch (IOException | RuntimeException e) {
+            return "";
+        }
     }
 
     private static JSONObject msgToJson(Session.Msg m) throws org.json.JSONException {

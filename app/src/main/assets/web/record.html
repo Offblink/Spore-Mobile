@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>搜题记录</title>
+<link rel="stylesheet" href="spore.css">
+<link rel="stylesheet" href="record.css">
+</head>
+<body>
+
+<!-- ============ 列表视图 ============ -->
+<div id="listView">
+  <header class="topbar">
+    <button class="icon" id="btnBack" type="button">‹</button>
+    <h1 class="ptitle">搜题记录</h1>
+    <div class="scope">
+      <span class="scope-label on" id="labelAll">全部</span>
+      <button class="switch" id="scopeSwitch" type="button" aria-label="全部/收藏筛选"></button>
+      <span class="scope-label" id="labelFav">收藏</span>
+    </div>
+  </header>
+
+  <div id="rows" class="rows"></div>
+  <div id="empty" class="empty" hidden>暂无搜题记录</div>
+
+  <footer class="pager" id="pager">
+    <button class="pgbtn" id="pgPrev" type="button">‹ 上一页</button>
+    <span class="pgnum" id="pgNum">1/1</span>
+    <button class="pgbtn" id="pgNext" type="button">下一页 ›</button>
+  </footer>
+
+  <!-- 页内模态：层级最高；成功只关模态、列表原地刷新（第四轮反馈） -->
+  <div id="confirm" class="modal-mask">
+    <div class="modal-box">
+      <div class="modal-title">删除会话</div>
+      <div class="modal-body">确定删除「<b id="confirmName"></b>」吗？<br>截图、回答与思考记录会一并删除，不可恢复。</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirmNo" type="button">取消</button>
+        <button class="btn btn-danger" id="confirmYes" type="button">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rename" class="modal-mask">
+    <div class="modal-box">
+      <div class="modal-title">重命名会话</div>
+      <input id="renameInput" class="input" type="text" maxlength="60" spellcheck="false">
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn btn-ghost" id="renameNo" type="button">取消</button>
+        <button class="btn btn-primary" id="renameYes" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 独立会话详情视图（点行进入，不再借悬浮抽屉——第四轮反馈2①） ============ -->
+<div id="detailView" hidden>
+  <header class="topbar">
+    <button class="icon" id="dBack" type="button">‹</button>
+    <div class="ptitle" id="dTitle"></div>
+    <button class="icon star" id="dFav" type="button">★</button>
+  </header>
+
+  <div id="dStream" class="dstream"></div>
+
+  <footer class="dfoot">
+    <div class="composer">
+      <input id="dInput" class="input" type="text" placeholder="追问…">
+      <button id="dSend" class="send" type="button">↑</button>
+    </div>
+  </footer>
+</div>
+
+<script src="common.js"></script>
+<script src="md.js"></script>
+<script src="record.js"></script>
+</body>
+</html>

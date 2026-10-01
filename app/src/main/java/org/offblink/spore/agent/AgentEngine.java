@@ -3,7 +3,7 @@ package org.offblink.spore.agent;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Base64;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -14,7 +14,6 @@ import org.offblink.spore.tools.SearchChain;
 import org.offblink.spore.tools.ToolSchemas;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -143,6 +142,29 @@ public final class AgentEngine {
             session = new Session();
             emit("session-new", "title", session.title);
         }
+        return true;
+    }
+
+    /** 收藏切换（面板 listpop ★ / 记录页星标）：当前会话动内存态并落盘，历史会话走文件 */
+    public boolean toggleFav(String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        boolean current = id.equals(session.id);
+        if (busy && current) {
+            return false; // 同 renameSession：在途回合不碰当前会话的落盘态
+        }
+        if (current) {
+            session.fav = !session.fav;
+            persist();
+            return true;
+        }
+        Session s = SessionStore.load(app, id);
+        if (s == null) {
+            return false;
+        }
+        s.fav = !s.fav;
+        SessionStore.save(app, s);
         return true;
     }
 
@@ -702,22 +724,11 @@ public final class AgentEngine {
     }
 
     private String imageDataUrl(String path) throws IOException {
-        File f = new File(path);
-        if (!f.isFile()) {
-            throw new IOException("截图文件缺失: " + f.getName());
+        String url = SessionStore.imageDataUrl(path);
+        if (url.isEmpty()) {
+            throw new IOException("截图文件缺失: " + new File(path).getName());
         }
-        byte[] buf = new byte[(int) f.length()];
-        try (FileInputStream in = new FileInputStream(f)) {
-            int off = 0;
-            while (off < buf.length) {
-                int n = in.read(buf, off, buf.length - off);
-                if (n < 0) {
-                    break;
-                }
-                off += n;
-            }
-        }
-        return "data:image/jpeg;base64," + Base64.encodeToString(buf, Base64.NO_WRAP);
+        return url;
     }
 
     private void checkAbort() {
@@ -744,7 +755,15 @@ public final class AgentEngine {
         }
         Listener l = listener;
         if (l != null) {
-            main.post(() -> l.onEvent(ev));
+            // 单个事件的渲染失败只记日志，不许拖垮悬浮窗（悬浮窗进程一死，球+面板全消失）。
+            // 这是兜底不是根治：线程侧根因已由 LlmClient.wireStr 修掉，此处留证据链。
+            main.post(() -> {
+                try {
+                    l.onEvent(ev);
+                } catch (Exception e) {
+                    Log.e("spore-engine", "onEvent failed: " + ev.optString("type"), e);
+                }
+            });
         }
     }
 

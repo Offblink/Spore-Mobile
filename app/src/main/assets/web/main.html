@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spore 主页</title>
+    <link rel="stylesheet" href="spore.css" />
+    <link rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <main class="page">
+      <!-- 品牌头：「Spore.」字标 + 状态胶囊 -->
+      <header class="brand anim-fade-up">
+        <h1 class="wordmark">Spore<span class="dot">.</span></h1>
+        <div class="pill status-pill">
+          <i class="status-dot" id="statusDot"></i>
+          <span id="statusText">悬浮球已停止</span>
+        </div>
+      </header>
+
+      <!-- 单一粉主 CTA：空闲 = 主粉「显示悬浮球」，运行 = 软「隐藏悬浮球」 -->
+      <section class="cta anim-fade-up" style="animation-delay: 0.07s">
+        <button type="button" class="btn btn-primary" id="btnBall">显示悬浮球</button>
+        <!-- 投影没在手时的次级提示：投影授权只在开关时过桥 → 点它同 toggleBall -->
+        <button type="button" id="projHint" hidden>截屏授权已失效 · 点此重新授权</button>
+      </section>
+
+      <!-- 分组导航卡 -->
+      <nav class="card nav anim-fade-up" style="animation-delay: 0.14s">
+        <button type="button" class="row" id="navRecords">
+          <span class="ico">💬</span>
+          <span class="row-title">搜题记录</span>
+          <span class="row-actions">›</span>
+        </button>
+        <button type="button" class="row" id="navSettings">
+          <span class="ico">⚙</span>
+          <span class="row-title">设置</span>
+          <span class="row-actions">›</span>
+        </button>
+      </nav>
+    </main>
+
+    <script src="common.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>

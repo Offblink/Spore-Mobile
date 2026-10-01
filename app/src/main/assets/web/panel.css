@@ -1,0 +1,203 @@
+/* 面板页专属样式 —— 桌面 drawer.js 的移动端下半屏复刻（颜色全走 spore.css 变量）。 */
+
+html, body { background: transparent; height: 100%; }
+body { overflow: hidden; }
+
+#root {
+  position: relative;
+  display: flex; flex-direction: column;
+  height: 100vh;
+  background: var(--surface);
+  border-radius: var(--r16) var(--r16) 0 0;
+  overflow: hidden;
+}
+
+/* ---------------- 顶栏（兼拖动条：touch-action none） ---------------- */
+#hd {
+  display: flex; align-items: center; gap: 9px;
+  padding: 13px 12px 11px;
+  min-height: 56px; flex: none;
+  border-bottom: 1px solid var(--line2);
+  touch-action: none; user-select: none;
+}
+#sessions {
+  position: relative; flex: none;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: #F7EBF3; color: #C2185B;
+  font-size: 16.5px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+#sessions:active { background: #FFE4F1; }
+#sessions .dot {
+  position: absolute; top: -2px; right: -2px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--danger); box-shadow: 0 0 6px var(--danger);
+  border: 2px solid #fff; display: none;
+}
+#sessions.has-unread .dot { display: block; }
+
+#fav { flex: none; width: 26px; font-size: 17px; line-height: 1; color: var(--muted4); transition: color var(--t-fast), transform var(--t-fast); }
+#fav.on { color: var(--pink); }
+
+#title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; letter-spacing: .01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink2); }
+#title:empty::before { content: 'Spore'; color: var(--label); font-weight: 500; }
+
+#status { font-size: 12.5px; color: #7C4DBE; background: #F4ECFF;
+  border-radius: var(--r999); padding: 3px 9px; white-space: nowrap; display: none; }
+#status.on { display: block; animation: pulse 1.4s ease-in-out infinite; }
+#status.err { display: block; background: #FFEEF1; color: var(--danger-text); }
+@keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+.mini { flex: none; color: var(--muted3); font-size: 16.5px; line-height: 1;
+  padding: 4px 6px; border-radius: 6px; }
+.mini:active { background: var(--chip); color: var(--muted); }
+#stop { visibility: hidden; }
+
+/* ---------------- 消息流 ---------------- */
+#stream {
+  flex: 1; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 14px 14px 8px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+.msg { max-width: 100%; font-size: 15.5px; line-height: 1.66; word-break: break-word; }
+
+/* user 气泡（截图 + 文字） */
+.msg.user { display: flex; flex-direction: column; gap: 6px; }
+.msg.user .shot {
+  align-self: flex-start; max-width: 65%;
+  border-radius: 12px; border: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(20, 24, 48, .10); display: block;
+}
+.msg.user .utext {
+  align-self: flex-start; font-size: 14.5px; color: var(--chip-text);
+  background: var(--userchip);
+  border-radius: 10px 10px 10px 3px;
+  padding: 6px 10px; white-space: pre-wrap;
+}
+/* 图片 base64 还没取回时不塌高 */
+.msg.user .shot:not([src]) { min-width: 160px; min-height: 52px; background: #F7F8FC; }
+.msg.user .shot.zoomed {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  max-width: 94vw; max-height: 86vh; z-index: 80;
+}
+
+/* answer 行：左粉条（桌面 .msg.bot） */
+.msg.bot { position: relative; padding-left: 12px; }
+.msg.bot::before {
+  content: ''; position: absolute; left: 0; top: 3px; bottom: 3px;
+  width: 3px; border-radius: 99px; background: var(--pink);
+}
+.msg.bot .ans { font-size: 17.5px; font-weight: 650; color: var(--ink); white-space: pre-wrap; }
+.msg.bot .why { color: var(--chip-text); font-size: 15px; white-space: pre-wrap; margin-top: 3px; }
+.msg.bot .chat { color: var(--ink); white-space: pre-wrap; }
+.msg.bot code { font-family: Consolas, monospace; font-size: 14px; background: var(--bg);
+  border: 1px solid var(--line2); border-radius: 5px; padding: 0 4px; }
+.msg.bot strong { font-weight: 650; color: var(--ink); }
+.msg.bot a { color: #C2185B; text-decoration: none; border-bottom: 1px solid #F7C8DA; }
+
+/* 思考折叠 */
+.think { margin: 0 0 7px; border-left: 2px solid #E9EAF4; padding: 2px 0 3px 10px; display: none; }
+.think.on { display: block; }
+.think-h { display: flex; align-items: center; gap: 5px; border: 0; background: transparent;
+  padding: 0; color: var(--label); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; }
+.think-h::before { content: '▸'; font-size: 10px; transition: transform .18s; }
+.think.fold .think-h::before { transform: rotate(90deg); }
+.think-b { font-size: 13.5px; line-height: 1.62; color: var(--think);
+  white-space: pre-wrap; margin-top: 4px; max-height: 240px; overflow-y: auto; }
+.think.fold .think-b { display: none; }
+
+/* 核实块：badge 行与说明文字**分行**（第四轮反馈②） */
+.verify { display: none; margin-top: 9px; border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 11px; background: #FBFCFF; }
+.verify.on { display: block; }
+.verify .vhead { display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--label); margin-bottom: 5px; }
+.chip { border-radius: var(--r999); padding: 1px 8px; font-size: 11.5px; letter-spacing: .04em; }
+.chip.ok { background: var(--ok-bg); color: var(--ok-text); }
+.chip.fix { background: #FFECED; color: var(--fix-text); }
+.chip.skip { background: #F1F2F8; color: var(--muted2); }
+.vnote { font-size: 15px; color: var(--vnote); white-space: pre-wrap; }
+
+/* 「核实一下」 */
+.vbtn { display: none; margin-top: 9px; padding: 8px 15px;
+  border: 1px solid var(--pink); border-radius: 10px;
+  background: var(--pink-tint); color: #C2185B; font-size: 13.5px; font-weight: 600; }
+.vbtn.on { display: inline-flex; align-items: center; gap: 6px; }
+.vbtn.on::before { content: '🔍'; font-size: 12.5px; }
+
+/* 检索小票 */
+.tools { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tool { font-size: 13px; color: var(--muted2); background: var(--tool);
+  border-radius: 7px; padding: 3px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool::before { content: '⌕ '; color: var(--pink); }
+
+/* 错误行 / 空态 */
+.err { font-size: 14px; color: var(--danger-text); background: var(--danger-tint);
+  border-radius: 8px; padding: 6px 9px; }
+.empty { margin: auto; text-align: center; color: var(--muted3); font-size: 15px; line-height: 1.9; }
+
+/* ---------------- composer ---------------- */
+#composer {
+  flex: none; display: flex; align-items: flex-end; gap: 9px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line2); background: var(--surface);
+}
+#input {
+  flex: 1; resize: none; min-height: 44px; max-height: 120px;
+  border: 1.5px solid var(--line); background: var(--bg2);
+  border-radius: var(--r12); padding: 9px 11px;
+  font-size: 15px; line-height: 1.5; color: var(--ink); outline: none;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+#input:focus { border-color: var(--pink); background: #fff; }
+#input::placeholder { color: var(--placeholder); }
+#input:disabled { opacity: .55; }
+#send {
+  flex: none; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--pink); color: #fff; font-size: 16.5px; line-height: 1;
+  transition: background var(--t-fast), transform .1s;
+}
+#send:active { background: var(--pink-dark); transform: scale(.95); }
+#send:disabled { background: var(--line); color: var(--muted3); }
+
+/* ---------------- listpop 会话弹层 ---------------- */
+#listpop {
+  position: absolute; left: 10px; right: 10px; top: 60px;
+  max-height: 64%; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r16); box-shadow: 0 18px 44px rgba(16, 20, 40, .20);
+  padding: 8px; display: none; z-index: 5;
+}
+#listpop.on { display: block; animation: popIn var(--t-pop) var(--pop-ease); }
+
+.srow { position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 10px 8px 10px 10px; border-radius: 12px;
+  transition: background .12s; }
+.srow:active { background: var(--row-hover); }
+.srow.fav { background: var(--fav-row); }
+.srow.active { background: var(--pink-tint); }
+.srow.active::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 3px; border-radius: 99px; background: var(--pink); }
+.srow .col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.srow .t { min-width: 0; font-size: 14.5px; color: var(--row-title);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .ts { font-size: 11.5px; color: var(--muted3); white-space: nowrap; }
+.srow.active .t { color: #C2185B; font-weight: 600; }
+/* 移动端无 hover：三个动作常显（桌面是 hover 才露） */
+.srow .act { flex: none; border: 0; background: transparent; padding: 4px 5px;
+  border-radius: 7px; color: var(--row-action); font-size: 15px; line-height: 1; opacity: .8; }
+.srow .act.f { font-size: 16px; color: var(--muted4); }
+.srow.fav .act.f { color: var(--pink); opacity: 1; }
+.srow .act.r:active { background: #EEF1FF; color: #4A5BD8; }
+.srow .act.x:active { background: #FFEEF2; color: var(--danger); }
+.listempty { padding: 18px 12px; font-size: 13.5px; color: var(--muted3); text-align: center; }
+
+/* ---------------- 模态（层级高于 listpop；mask 上的点击不算点空白） ---------------- */
+.modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
+.modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
+.modal-box { animation: popIn .24s var(--pop-ease); }

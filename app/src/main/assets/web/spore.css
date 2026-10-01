@@ -1,0 +1,144 @@
+/* Spore MV3 web 皮 —— 共享令牌与基础组件（面板/记录/主页/设置四页共用）。
+ * 颜色逐字来自 app/src/main/res/values/colors.xml（那 41 色又抽自桌面 MV3），
+ * 圆角/动效对齐桌面 drawer：12/16/999、cubic-bezier(.16,1,.3,1)、pop .26s、面板 .42s。
+ * 页面专属样式写各自的 <page>.css，别往这里塞。 */
+
+:root {
+  --pink: #EC4899; --pink-dark: #DB2777; --pink-deep: #C2185B;
+  --pink-tint: #FFF0F7; --pink-tint2: #FFE3EF;
+  --danger: #FF3B5C; --danger-dark: #EF1F45; --danger-text: #C81E45; --danger-tint: #FFF1F4;
+  --ink: #14172A; --ink2: #1A1D2E;
+  --muted: #5A5F78; --muted2: #7B81A0; --muted3: #A3A8C2; --muted4: #B3B8CD;
+  --placeholder: #A8ADC6;
+  --line: #E6E8F2; --line2: #EEF0F8; --line3: #E2E5F0; --line4: #D6D9E8;
+  --surface: #FFFFFF; --bg: #F4F6FD; --bg2: #F8F9FD;
+  --chip: #F1F3FB; --chip-text: #4A4F6B;
+  --fav-row: #FFF9EA; --fav-row-hover: #FFF3D8;
+  --label: #9AA0BB; --think: #8A90AB; --userchip: #F2F4FB; --tool: #F6F7FC;
+  --ok-bg: #E7F8EF; --ok-text: #0F9D58; --fix-text: #D02747; --vnote: #3D4260;
+  --row-title: #2B2F4A; --row-action: #C3C7DB; --row-hover: #F5F7FD;
+  --ghost-press: #E8EBF7;
+  --r12: 12px; --r16: 16px; --r999: 999px;
+  --pop-ease: cubic-bezier(.16, 1, .3, 1);
+  --t-fast: .16s; --t-pop: .26s; --t-panel: .42s;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+input, textarea, select { font: inherit; color: var(--ink); }
+img { -webkit-user-drag: none; user-select: none; }
+
+/* ---- 按钮阶（MV3：主粉 / 软 / 幽灵 / 危险） ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: var(--r999); padding: 11px 18px;
+  font-size: 15px; font-weight: 600;
+  transition: background var(--t-fast) var(--pop-ease), color var(--t-fast),
+              opacity var(--t-fast), transform .1s var(--pop-ease);
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; pointer-events: none; }
+.btn-primary { background: var(--pink); color: #fff; }
+.btn-primary:active { background: var(--pink-dark); }
+.btn-soft { background: var(--pink-tint); color: var(--pink-deep); }
+.btn-soft:active { background: var(--pink-tint2); }
+.btn-ghost { background: var(--ghost-press); color: var(--ink); }
+.btn-ghost:active { background: var(--line3); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:active { background: var(--danger-dark); }
+
+/* ---- 卡片 / 行 ---- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r16); }
+.row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); padding: 12px 14px;
+  border-bottom: 1px solid var(--line2);
+  transition: background var(--t-fast);
+}
+.row:active { background: var(--row-hover); }
+.row.is-active { background: var(--pink-tint); }
+.row.is-fav { background: var(--fav-row); }
+.row-title { color: var(--row-title); font-weight: 600; font-size: 15px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-time { color: var(--muted3); font-size: 12px; margin-top: 2px; }
+.row-actions { margin-left: auto; display: flex; gap: 4px; color: var(--row-action);
+  font-size: 16px; flex: none; }
+.fav-on { color: var(--pink); }
+.fav-off { color: var(--muted4); }
+
+/* ---- 输入 ---- */
+.input {
+  width: 100%; border: 1.5px solid var(--line); border-radius: var(--r12);
+  background: var(--surface); padding: 10px 14px; outline: none;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.input::placeholder { color: var(--placeholder); }
+.input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px var(--pink-tint); }
+
+/* ---- pill / chip ---- */
+.pill { border-radius: var(--r999); padding: 6px 14px; font-size: 13px; font-weight: 600; }
+.chip { display: inline-block; border-radius: var(--r999); padding: 2px 9px;
+  font-size: 12px; font-weight: 600; background: var(--chip); color: var(--chip-text); }
+.chip-ok { background: var(--ok-bg); color: var(--ok-text); }
+.chip-fix { background: var(--danger-tint); color: var(--fix-text); }
+
+/* ---- 页内 toast（MV3 深色 pill，与桌面同款心智） ---- */
+#toast {
+  position: fixed; left: 50%; bottom: 12vh; transform: translateX(-50%) translateY(8px);
+  background: rgba(12, 12, 18, .88); color: #fff;
+  border-radius: var(--r999); padding: 9px 18px; font-size: 14px;
+  opacity: 0; pointer-events: none; z-index: 200; max-width: 82vw;
+  transition: opacity var(--t-fast), transform var(--t-fast) var(--pop-ease);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- 模态（桌面 #confirm/#rename 同构：暗幕不动、只弹内盒） ---- */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(12, 12, 18, .42);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; opacity: 0; animation: maskIn var(--t-fast) forwards;
+}
+.modal-box {
+  width: min(316px, 86vw); background: var(--surface);
+  border-radius: var(--r16); padding: 18px;
+  animation: popIn .24s var(--pop-ease);
+}
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.modal-body { font-size: 14px; color: var(--muted); margin-bottom: 16px;
+  word-break: break-all; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ---- 开关（MV3 switch：轨道粉/灰，滑块白） ---- */
+.switch { position: relative; width: 44px; height: 26px; flex: none;
+  border-radius: var(--r999); background: var(--line4);
+  transition: background var(--t-fast); }
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(20, 23, 42, .25);
+  transition: transform var(--t-fast) var(--pop-ease);
+}
+.switch.on { background: var(--pink); }
+.switch.on::after { transform: translateX(18px); }
+
+/* ---- 动效 ---- */
+@keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes maskIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes slideInRight { from { opacity: .4; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes slideOutLeft { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-28px); } }
+.anim-pop { animation: popIn var(--t-pop) var(--pop-ease); }
+.anim-fade-up { animation: fadeUp var(--t-panel) var(--pop-ease); }
+.anim-in-right { animation: slideInRight var(--t-panel) var(--pop-ease) both; }
+.anim-out-left { animation: slideOutLeft .2s var(--pop-ease) both; }
+
+/* ---- 滚动条（细条，别抢视觉） ---- */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: var(--line4); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

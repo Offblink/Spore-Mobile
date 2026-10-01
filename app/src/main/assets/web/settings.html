@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spore 设置</title>
+    <link rel="stylesheet" href="spore.css" />
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <!-- 顶栏：‹（裸箭头，同搜题记录页；桥 close → 原生 finish + 反向转场）+ 页面标题 -->
+    <header class="topbar">
+      <button type="button" class="back-btn" id="btnBack">‹</button>
+      <span class="title">设置</span>
+    </header>
+
+    <main class="form">
+      <!-- 模型与密钥 -->
+      <section class="card group">
+        <div class="group-title">模型与密钥</div>
+
+        <div class="field">
+          <label for="endpoint">接口地址</label>
+          <input
+            id="endpoint"
+            class="input"
+            type="url"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="https://api.deepseek.com/chat/completions"
+          />
+          <div class="hint">OpenAI 兼容 endpoint</div>
+        </div>
+
+        <div class="field">
+          <label for="model">模型</label>
+          <input id="model" class="input" type="text" spellcheck="false" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="apiKey">API Key</label>
+          <div class="key-wrap">
+            <input id="apiKey" class="input" type="password" spellcheck="false" autocomplete="off" />
+            <button type="button" class="eye" id="keyEye" aria-label="显示或隐藏 Key">👁</button>
+          </div>
+          <div class="hint">仅存本机，不会进日志</div>
+        </div>
+      </section>
+
+      <!-- 检索 -->
+      <section class="card group">
+        <div class="group-title">检索</div>
+
+        <div class="field">
+          <label for="proxy">检索代理</label>
+          <input
+            id="proxy"
+            class="input"
+            type="text"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="留空=只走 bing · 如 127.0.0.1:7897"
+          />
+          <div class="hint">填了 = ddg → bing → brave；留空 = 只走 bing</div>
+        </div>
+
+        <div class="field">
+          <label for="maxToolRounds">最大工具轮数</label>
+          <input id="maxToolRounds" class="input" type="number" min="0" max="10" inputmode="numeric" />
+          <div class="hint">默认 5 · 0 = 不核实</div>
+        </div>
+      </section>
+
+      <!-- 作答 -->
+      <section class="card group">
+        <div class="group-title">作答</div>
+
+        <div class="field">
+          <label for="historyLimit">历史记录条数</label>
+          <input id="historyLimit" class="input" type="number" min="2" max="50" inputmode="numeric" />
+          <div class="hint">默认 10</div>
+        </div>
+
+        <button type="button" class="switch-row">
+          <span class="txt"
+            >初答直接作答、不写推理
+            <span class="sub">更快；核实与追问仍会显示思考过程</span></span
+          >
+          <span class="switch" id="swFastNoThink"></span>
+        </button>
+
+        <button type="button" class="switch-row">
+          <span class="txt"
+            >自动核实
+            <span class="sub">答完自动联网核实；关掉后回答里出现「核实一下」按钮，点它才核实</span></span
+          >
+          <span class="switch" id="swAutoVerify"></span>
+        </button>
+      </section>
+
+      <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
+    </main>
+
+    <script src="common.js"></script>
+    <script src="settings.js"></script>
+  </body>
+</html>

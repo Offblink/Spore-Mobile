@@ -1,0 +1,91 @@
+/* 设置页专属样式：顶栏 / 分组卡 / 字段 / 开关行。令牌与 .input/.card/.switch 来自 spore.css。 */
+
+/* ---- 顶栏（滚动时吸顶） ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.topbar .title { font-size: 17px; font-weight: 700; color: var(--ink); }
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px 6px 4px;
+  font-size: 15px;
+  color: var(--ink);
+  border-radius: var(--r12);
+}
+.back-btn:active { background: var(--ghost-press); }
+
+/* ---- 表单与分组卡 ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 44px;
+}
+.group { padding: 16px 16px 6px; }
+.group-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted2);
+  margin-bottom: 12px;
+}
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+.hint { font-size: 12px; color: var(--muted3); margin-top: 6px; line-height: 1.5; }
+
+/* 数字框不要 WebKit 上下箭头（键盘 inputmode 已够用） */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- API Key：输入 + 显隐 ---- */
+.key-wrap { display: flex; align-items: center; gap: 8px; }
+.key-wrap .input { flex: 1; min-width: 0; }
+.eye {
+  flex: none;
+  width: 44px;
+  height: 42px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r12);
+  background: var(--surface);
+  font-size: 15px;
+}
+.eye:active { background: var(--ghost-press); }
+
+/* ---- 开关行（整行可点，右侧 MV3 switch） ---- */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 0;
+  border-top: 1px solid var(--line2);
+  color: var(--ink);
+  font-size: 14px;
+}
+.switch-row:active { background: var(--row-hover); }
+.switch-row .txt { flex: 1; line-height: 1.55; }
+.switch-row .sub {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted2);
+  margin-top: 2px;
+}
+
+/* ---- 保存 ---- */
+.save { width: 100%; padding: 14px 18px; font-size: 16px; }

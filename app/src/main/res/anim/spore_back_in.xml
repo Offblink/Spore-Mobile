@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 返回（spore_nav_out 的反向）：被压住的主页从左侧右滑回位淡入 -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:interpolator/fast_out_slow_in"
+    android:shareInterpolator="true">
+    <translate
+        android:duration="280"
+        android:fromXDelta="-18%"
+        android:toXDelta="0" />
+    <alpha
+        android:duration="280"
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0" />
+</set>

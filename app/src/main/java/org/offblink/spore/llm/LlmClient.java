@@ -257,6 +257,20 @@ public final class LlmClient {
         }
     }
 
+    /**
+     * 线上帧字段读取：只有真字符串才算数，JSON null / 数字 / 缺失一律当空。
+     * <b>别改回 {@code optString}</b>——Android 的 org.json 会把 JSON null 变成字面量
+     * {@code "null"}（{@code JSON.toString} 对非 String 走 {@code String.valueOf}，
+     * 而 {@code JSONObject.NULL.toString()} = "null"），桌面 JS 的真值判断天然跳过 null。
+     * 直接用 optString 会让核实区刷满 "null"、并把垃圾文本回灌给模型
+     * （2026-10-01 第四轮反馈「核实右侧满屏 null + 崩悬浮窗」根因）。
+     * 包内可见是为 {@code LlmClientTest} 钉契约。
+     */
+    static String wireStr(JSONObject o, String key) {
+        Object v = o.opt(key);
+        return v instanceof String ? (String) v : "";
+    }
+
     private void applyDelta(String data, ChatRequest req, Result acc, Map<Integer, ToolCall> slots) {
         JSONObject delta;
         try {
@@ -273,16 +287,16 @@ public final class LlmClient {
             return;
         }
 
-        String text = delta.optString("content", "");
+        String text = wireStr(delta, "content");
         if (!text.isEmpty()) {
             acc.content += text;
             if (req.onDelta != null) {
                 req.onDelta.onDelta("text", text, acc);
             }
         }
-        String think = delta.optString("reasoning_content", "");
+        String think = wireStr(delta, "reasoning_content");
         if (think.isEmpty()) {
-            think = delta.optString("reasoning", "");
+            think = wireStr(delta, "reasoning");
         }
         if (!think.isEmpty()) {
             acc.reasoning += think;
@@ -306,17 +320,17 @@ public final class LlmClient {
                 slot = new ToolCall();
                 slots.put(index, slot);
             }
-            String id = tc.optString("id", "");
+            String id = wireStr(tc, "id");
             if (!id.isEmpty()) {
                 slot.id = id;
             }
             JSONObject fn = tc.optJSONObject("function");
             if (fn != null) {
-                String name = fn.optString("name", "");
+                String name = wireStr(fn, "name");
                 if (!name.isEmpty()) {
                     slot.name = name;
                 }
-                String args = fn.optString("arguments", "");
+                String args = wireStr(fn, "arguments");
                 if (!args.isEmpty()) {
                     slot.args = (slot.args == null ? "" : slot.args) + args;
                     if (req.onDelta != null) {

@@ -331,8 +331,8 @@ public class CaptureService extends Service {
     private void addBall() {
         Point sz = displaySize();
         int glow = dp(BallView.GLOW_DP);
-        int bw = dp(BallView.HANDLE_W_DP + 2 * BallView.GLOW_DP);
-        int bh = dp(BallView.HANDLE_H_DP + 2 * BallView.GLOW_DP);
+        int bw = dp(BallView.BALL_DP + 2 * BallView.GLOW_DP);
+        int bh = dp(BallView.BALL_DP + 2 * BallView.GLOW_DP);
         ballParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -393,9 +393,9 @@ public class CaptureService extends Service {
             Point sz = displaySize();
             int glow = dp(BallView.GLOW_DP);
             int bw = ball.getWidth() > 0 ? ball.getWidth()
-                    : dp(BallView.HANDLE_W_DP + 2 * BallView.GLOW_DP);
+                    : dp(BallView.BALL_DP + 2 * BallView.GLOW_DP);
             int bh = ball.getHeight() > 0 ? ball.getHeight()
-                    : dp(BallView.HANDLE_H_DP + 2 * BallView.GLOW_DP);
+                    : dp(BallView.BALL_DP + 2 * BallView.GLOW_DP);
             boolean left = (ballParams.x + bw / 2) < sz.x / 2;
             ballParams.x = left ? -glow : sz.x - bw + glow;
             ballParams.y = Math.max(0, Math.min(ballParams.y, sz.y - bh));
@@ -486,6 +486,11 @@ public class CaptureService extends Service {
                 toastRes(R.string.capture_black);
                 return;
             }
+            if (meanLuma(frame) < 16) {
+                // 第五轮：整屏太暗（灭屏瞬间/全黑页面）→ 裁出来必是「纯黑图」，源头拦下
+                toastRes(R.string.capture_dark);
+                return;
+            }
             final Bitmap show = frame;
             main.post(() -> showCropOverlay(show));
         } catch (Exception e) {
@@ -565,6 +570,22 @@ public class CaptureService extends Service {
             }
         }
         return maxChannel < 10;
+    }
+
+    /** 抽样平均亮度（0-255）：与 CropOverlayView.isDark 同判据族，帧级闸门用 */
+    private int meanLuma(Bitmap bmp) {
+        int w = bmp.getWidth();
+        int h = bmp.getHeight();
+        int step = Math.max(1, (w * h) / 4000);
+        long sum = 0;
+        int n = 0;
+        for (int i = 0; i < w * h; i += step) {
+            int p = bmp.getPixel(i % w, i / w);
+            sum += ((p >> 16) & 0xFF) * 299 + ((p >> 8) & 0xFF) * 587
+                    + (p & 0xFF) * 114;
+            n++;
+        }
+        return n == 0 ? 255 : (int) (sum / 1000 / n);
     }
 
     // ---------- 框选 ----------

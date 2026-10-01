@@ -72,7 +72,6 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     private boolean visible;
     /** 列表自上次打开后有没有新会话（MV3 has-unread 语义） */
     private boolean listSeen;
-    private View scrim;
 
     /** 模态操作的目标会话（确认/重命名期间暂存） */
     private Session target;
@@ -173,11 +172,11 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         // 💬 会话列表弹层 / ★ 收藏当前会话
         sessionsBtn.setOnClickListener(v -> toggleList());
         favBtn.setOnClickListener(v -> toggleFav());
-        // 点消息区收起弹层（背景行为，同桌面点外面关）
+        // 点面板「空白背景」收起弹层：消息区 / 头部背景 / 输入条背景
+        // （功能键各自消费点击不受影响；v1 全屏 scrim 会偷走头部按键，撤掉）
         list.setOnClickListener(v -> closeList());
-        // 第六轮回灌：弹层外任意空白由遮罩接住 → 关（照 web 点外面关；子视图消费的点击到不了根）
-        scrim = panel.findViewById(R.id.panel_scrim);
-        scrim.setOnClickListener(v -> closeList());
+        panel.findViewById(R.id.panel_header).setOnClickListener(v -> closeList());
+        panel.findViewById(R.id.panel_input).setOnClickListener(v -> closeList());
         wireModals();
 
         Point sz = displaySize();
@@ -246,9 +245,6 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         buildRows();
         listSeen = true;
         paintUnread();
-        if (scrim != null) {
-            scrim.setVisibility(View.VISIBLE);
-        }
     }
 
     private void closeList() {
@@ -257,9 +253,6 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         }
         if (listempty != null) {
             listempty.setVisibility(View.GONE);
-        }
-        if (scrim != null) {
-            scrim.setVisibility(View.GONE);
         }
     }
 

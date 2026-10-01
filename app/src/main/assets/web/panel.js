@@ -374,6 +374,10 @@
   });
 
   listpop.addEventListener('click', (e) => {
+    // 收藏会在当帧 refresh() 重建 innerHTML → 冒泡到 document 时 target 已脱链
+    // → closest('#listpop') 落空 → 被误判成「点空白」关掉列表（第五轮反馈）。
+    // 列表内的点击一律在源头拦住，关列表只属于行切换与真正的空白。
+    e.stopPropagation();
     const row = e.target.closest('.srow');
     if (!row) {
       return;

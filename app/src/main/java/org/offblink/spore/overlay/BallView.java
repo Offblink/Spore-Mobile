@@ -4,23 +4,22 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Shader;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 
 /**
- * 悬浮把手（MV3 桌面 #toggle 半圆小角的移动复刻）：
- * 22×46 半圆贴边、深粉→品牌粉渐变、粉色光晕；平边永远贴屏幕边（setSide 换向）。
- * 手势与窗口参数分离：本 View 只报「手势起点 / 总位移 / 点按」，参数更新全在 CaptureService。
+ * 悬浮球：圆形 + 白色放大镜（第五轮拍板：「圆形里面放大镜」）。
+ * 48dp 圆球居中、深粉→品牌粉渐变、粉色光晕；无方向性（对称，贴边朝向无视觉差异）。
+ * 手势与窗口参数分离：本 View 只报「手势起点 / 总位移 / 点按 / 长按」，参数更新全在 CaptureService。
  * 点按 = 截屏；长按 = 面板开/收（handoff §9.1/§9 补充拍板）。
  */
 public class BallView extends View {
 
-    /** 把手可视尺寸（MV3 原值 22×46）与四周光晕留白 */
-    public static final int HANDLE_W_DP = 22;
-    public static final int HANDLE_H_DP = 46;
+    /** 圆球直径（不含光晕）；窗口 = 球 + 2×光晕 */
+    public static final int BALL_DP = 48;
+    /** 四周光晕留白 */
     public static final int GLOW_DP = 8;
 
     public interface Listener {
@@ -42,19 +41,13 @@ public class BallView extends View {
 
     private final Listener listener;
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path handlePath = new Path();
-    private final android.graphics.RectF knobRect = new android.graphics.RectF();
-    /** 平边朝右（贴右缘）/ 朝左（贴左缘）的圆角序列（TL,TR,BR,BL × xy） */
-    private final float[] radiiRight = {0, 0, 0, 0, 0, 0, 0, 0};
-    private final float[] radiiLeft = {0, 0, 0, 0, 0, 0, 0, 0};
+    /** 放大镜（镜圈 + 45° 手柄）白色描边漆，构造期定形避免 onDraw 分配 */
+    private final Paint lensPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int wPx;
     private final int hPx;
     private final int glowPx;
-    private final int radiusPx;
     private final int touchSlop;
 
-    /** 贴在右缘（false）还是左缘（true）：决定平边朝向 */
-    private boolean sideLeft;
     private float downRawX, downRawY;
     private long downTime;
     private boolean dragging;
@@ -75,9 +68,8 @@ public class BallView extends View {
         this.listener = listener;
         float density = context.getResources().getDisplayMetrics().density;
         glowPx = Math.round(GLOW_DP * density);
-        wPx = Math.round((HANDLE_W_DP + 2 * GLOW_DP) * density);
-        hPx = Math.round((HANDLE_H_DP + 2 * GLOW_DP) * density);
-        radiusPx = Math.round(HANDLE_H_DP / 2f * density);
+        wPx = Math.round((BALL_DP + 2 * GLOW_DP) * density);
+        hPx = wPx;
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
 
         // 光晕要出界外 → 软件层 shadowLayer
@@ -87,14 +79,15 @@ public class BallView extends View {
         // 渐变一次成形（尺寸构造期已知，避免每次 onDraw 分配）
         bgPaint.setShader(new LinearGradient(0, glowPx, 0, hPx - glowPx,
                 0xFFDB2777, 0xFFEC4899, Shader.TileMode.CLAMP));
+        lensPaint.setStyle(Paint.Style.STROKE);
+        lensPaint.setStrokeCap(Paint.Cap.ROUND);
+        lensPaint.setStrokeWidth(Math.max(2f, density * 2.6f));
+        lensPaint.setColor(0xFFFFFFFF);
     }
 
-    /** 吸边后由服务侧告知贴哪条边：平边贴边、圆弧朝屏内 */
+    /** 圆球对称，朝向无视觉差异；服务侧吸边仍回调（接口兼容，无视觉效果） */
     public void setSide(boolean left) {
-        if (sideLeft != left) {
-            sideLeft = left;
-            invalidate();
-        }
+        // no-op
     }
 
     @Override
@@ -104,30 +97,20 @@ public class BallView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        handlePath.reset();
-        knobRect.set(glowPx, glowPx, wPx - glowPx, hPx - glowPx);
-        float[] radii;
-        if (sideLeft) {
-            // 贴左缘：平边朝左（贴屏），圆弧朝右（进屏）
-            radiiLeft[0] = 0;
-            radiiLeft[1] = 0;
-            radiiLeft[2] = radiusPx;
-            radiiLeft[3] = radiusPx;
-            radiiLeft[4] = radiusPx;
-            radiiLeft[5] = radiusPx;
-            radiiLeft[6] = 0;
-            radiiLeft[7] = 0;
-            radii = radiiLeft;
-        } else {
-            // 贴右缘：平边朝右（贴屏），圆弧朝左（进屏）
-            radiiRight[0] = radiusPx;
-            radiiRight[1] = radiusPx;
-            radiiRight[6] = radiusPx;
-            radiiRight[7] = radiusPx;
-            radii = radiiRight;
-        }
-        handlePath.addRoundRect(knobRect, radii, Path.Direction.CW);
-        canvas.drawPath(handlePath, bgPaint);
+        float cx = wPx / 2f;
+        float cy = hPx / 2f;
+        float r = Math.min(wPx, hPx) / 2f - glowPx;
+        // 圆形本体（渐变 + 光晕由 bgPaint 的 shader/shadowLayer 自带）
+        canvas.drawCircle(cx, cy, r, bgPaint);
+        // 白色放大镜：镜圈 + 45° 手柄，圆心略偏左上给手柄留位
+        float lensR = r * 0.40f;
+        float lcX = cx - r * 0.14f;
+        float lcY = cy - r * 0.14f;
+        canvas.drawCircle(lcX, lcY, lensR, lensPaint);
+        float s = 0.70710678f;
+        canvas.drawLine(lcX + lensR * s * 0.90f, lcY + lensR * s * 0.90f,
+                lcX + (lensR * 1.55f) * s, lcY + (lensR * 1.55f) * s,
+                lensPaint);
     }
 
     @Override

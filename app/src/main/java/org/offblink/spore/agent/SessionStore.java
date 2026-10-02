@@ -104,6 +104,28 @@ public final class SessionStore {
         new File(dir(ctx), id + ".json").delete();
     }
 
+    /**
+     * 删科目扫尾：把仍指向该科目的会话置回未分组（kit design/03 §三「任何一端都不允许
+     * 出现悬挂引用」）。只改字段不抬 updated——级联清引用是科目删除事件的派生动作，
+     * 不算用户活动（删除事件本身经 subjects.json 传播，会话不需要为它重排）。
+     *
+     * {@code liveIds} = 引擎内存态持有的会话 id（当前视图 + 在途回合）：**必须排除**——
+     * 它们的磁盘文件在回合期间是陈旧的（消息只在回合结束 persist），读旧写旧会把
+     * 刚 persist 的消息回滚掉；这些会话的引用由 {@code AgentEngine.deleteSubject}
+     * 在内存里清并经 live 对象落盘。
+     */
+    public static void clearSubject(Context ctx, String subjectId, java.util.Set<String> liveIds) {
+        if (subjectId == null || subjectId.isEmpty()) {
+            return;
+        }
+        for (Session s : loadAll(ctx)) {
+            if (subjectId.equals(s.subjectId) && (liveIds == null || !liveIds.contains(s.id))) {
+                s.subjectId = null;
+                save(ctx, s);
+            }
+        }
+    }
+
     private static Session loadFile(File f) {
         try (FileInputStream in = new FileInputStream(f)) {
             byte[] buf = new byte[(int) f.length()];
@@ -133,6 +155,10 @@ public final class SessionStore {
         o.put("created", s.created);
         o.put("updated", s.updated);
         o.put("fav", s.fav);
+        // 显式判空（不依赖 put 对 null 的实现差异）；键缺席 = 未分组，兼容老 JSON
+        if (s.subjectId != null) {
+            o.put("subjectId", s.subjectId);
+        }
         o.put("title", s.title);
         o.put("status", s.status);
         JSONArray msgs = new JSONArray();
@@ -161,6 +187,10 @@ public final class SessionStore {
                 o.put("created", s.created);
                 o.put("updated", s.updated);
                 o.put("fav", s.fav);
+                // 键缺席 = 未分组（与 toJson 同约定）
+                if (s.subjectId != null) {
+                    o.put("subjectId", s.subjectId);
+                }
                 o.put("status", s.status);
                 o.put("msgCount", s.messages.size());
             } catch (org.json.JSONException ignored) {
@@ -307,12 +337,18 @@ public final class SessionStore {
         return o;
     }
 
-    private static Session fromJson(JSONObject o) throws org.json.JSONException {
+    /** 包私有：subjectId 兼容契约（老 JSON 无键 → null）由 SessionStoreTest 钉住 */
+    static Session fromJson(JSONObject o) throws org.json.JSONException {
         Session s = new Session();
         s.id = o.optString("id", s.id);
         s.created = o.optLong("created", s.created);
         s.updated = o.optLong("updated", s.updated);
         s.fav = o.optBoolean("fav", false);
+        // 必须先 isNull：org.json 的 optString 会把 JSON null 变成字面量 "null"
+        s.subjectId = o.isNull("subjectId") ? null : o.optString("subjectId", "");
+        if (s.subjectId != null && s.subjectId.isEmpty()) {
+            s.subjectId = null;
+        }
         s.title = o.optString("title", "新会话");
         s.status = o.optString("status", "");
         // 回合跑一半进程死了（华为杀后台真实发生）→ 展示层按已结束处理

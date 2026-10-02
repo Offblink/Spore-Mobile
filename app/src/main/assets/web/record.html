@@ -21,6 +21,13 @@
     </div>
   </header>
 
+  <div class="chips" id="subBar">
+    <button class="fchip on" data-sub="" type="button">全部</button>
+    <!-- 科目 chips 由 JS 渲染追加；末尾两个固定入口：新建 + 管理（0 会话时也能改名/删科目） -->
+    <button class="fchip add" id="subAdd" type="button">＋ 新建科目</button>
+    <button class="fchip" id="subMgr" type="button">✎ 管理</button>
+  </div>
+
   <div id="rows" class="rows"></div>
   <div id="empty" class="empty" hidden>暂无搜题记录</div>
 
@@ -31,10 +38,23 @@
   </footer>
 
   <!-- 页内模态：层级最高；成功只关模态、列表原地刷新（第四轮反馈） -->
+  <!-- 移入科目：科目单选列表（行内菜单形态，用户拍板非拖拽）；空表时 JS 渲染「先新建」提示。
+       必须排在 #confirm/#rename 之前：三者同 z-index，靠 DOM 序层叠，删除/重命名要压在它上面 -->
+  <div id="subpick" class="modal-mask">
+    <div class="modal-box">
+      <div class="modal-title" id="pickTitle">移入科目</div>
+      <div class="sublist" id="subPickList"></div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn btn-ghost" id="subPickNo" type="button">取消</button>
+        <button class="btn btn-soft" id="subPickNew" type="button">＋ 新建科目</button>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm" class="modal-mask">
     <div class="modal-box">
-      <div class="modal-title">删除会话</div>
-      <div class="modal-body">确定删除「<b id="confirmName"></b>」吗？<br>截图、回答与思考记录会一并删除，不可恢复。</div>
+      <div class="modal-title" id="confirmTitle">删除会话</div>
+      <div class="modal-body" id="confirmBody">确定删除「<b id="confirmName"></b>」吗？<br>截图、回答与思考记录会一并删除，不可恢复。</div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="confirmNo" type="button">取消</button>
         <button class="btn btn-danger" id="confirmYes" type="button">删除</button>
@@ -44,7 +64,7 @@
 
   <div id="rename" class="modal-mask">
     <div class="modal-box">
-      <div class="modal-title">重命名会话</div>
+      <div class="modal-title" id="renameTitle">重命名会话</div>
       <input id="renameInput" class="input" type="text" maxlength="60" spellcheck="false">
       <div class="modal-actions" style="margin-top:16px">
         <button class="btn btn-ghost" id="renameNo" type="button">取消</button>

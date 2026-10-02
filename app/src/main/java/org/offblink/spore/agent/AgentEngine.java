@@ -17,6 +17,7 @@ import org.offblink.spore.tools.ToolSchemas;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -238,6 +239,51 @@ public final class AgentEngine {
         s.fav = !s.fav;
         SessionStore.save(app, s);
         return true;
+    }
+
+    /**
+     * 移入/移出科目：改 subjectId + <b>抬 updated</b>（handoff §2「改字段 + updated 戳」——
+     * 同步游标靠它，不抬则这次移动永远同步不出去）。与改名/收藏不抬 updated 不同，
+     * 这是同步契约不是疏漏；副作用是被移动的会话会跳到列表最前。
+     * subjectId 空 = 移出（回未分组）。目标科目存在性由 CaptureService 校验。
+     */
+    public boolean assignSubject(String id, String subjectId) {
+        Session s = resolve(id);
+        if (s == null) {
+            return false;
+        }
+        String target = (subjectId == null || subjectId.isEmpty()) ? null : subjectId;
+        if (java.util.Objects.equals(s.subjectId, target)) {
+            return true; // 已在该科目：不抬 updated、不重排（点「当前科目」是 no-op）
+        }
+        s.subjectId = target;
+        SessionStore.saveActive(app, s);
+        return true;
+    }
+
+    /**
+     * 删科目清引用：先清内存、再扫磁盘（{@link SessionStore#clearSubject} 排除活会话——
+     * 它们的文件在回合期间是陈旧的，读旧写旧会回滚刚 persist 的消息；活会话这里清完，
+     * 下次 persist 自然写回 null）。磁盘只动非活会话。顺序保证任何交错下最终都是 null。
+     */
+    public void clearSubjectRefs(String subjectId) {
+        if (subjectId == null || subjectId.isEmpty()) {
+            return;
+        }
+        Set<String> live = new HashSet<>();
+        live.add(session.id);
+        if (subjectId.equals(session.subjectId)) {
+            session.subjectId = null;
+            SessionStore.save(app, session);
+        }
+        for (Turn t : turns.values()) {
+            live.add(t.session.id);
+            if (subjectId.equals(t.session.subjectId)) {
+                t.session.subjectId = null;
+                SessionStore.save(app, t.session);
+            }
+        }
+        SessionStore.clearSubject(app, subjectId, live);
     }
 
     /**

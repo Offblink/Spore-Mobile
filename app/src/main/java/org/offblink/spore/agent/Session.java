@@ -16,6 +16,8 @@ public final class Session {
     public long updated = created;
     /** 收藏（桌面 fav 字段；记录页星标切换） */
     public boolean fav = false;
+    /** 归属科目（subjects.json 的 id）；null = 未分组（kit design/03 §三，老 JSON 无此字段 → null） */
+    public String subjectId = null;
 
     public String title = "新会话";
     /** answering / verifying / searching / done / error / aborted / "" */

@@ -1,5 +1,5 @@
-/* 记录页逻辑：列表（15/页 分页 + 收藏筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
- * 数据：ready/sessions = 索引 meta；详情按需 session(id) 单取；改名/删除/收藏/追问全走原生桥。 */
+/* 记录页逻辑：列表（15/页 分页 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
+ * 数据：ready/sessions = 索引 meta + 科目表；详情按需 session(id) 单取；改名/删除/收藏/追问/科目四 op 全走原生桥。 */
 (() => {
   const { md } = globalThis.SporeMD;
   const $ = (s) => document.querySelector(s);
@@ -7,6 +7,10 @@
   const BUSY = ["answering", "verifying", "searching"];
 
   let sessions = [];
+  let subjects = [];   // 科目表（subjects.json 全量，chips 与移入弹层共用）
+  let subFilter = "";  // 科目筛选："" = 全部
+  let pickMode = null; // 移入弹层模式："assign" | "manage"（管理=重命名/删除入口）
+  let pickTarget = null; // assign 模式下的目标会话 id
   let favOnly = false;
   let page = 0;
   let detail = null;
@@ -17,13 +21,27 @@
   // ---------------------------------------------------------------- 列表
 
   function filtered() {
-    return sessions.filter((s) => !favOnly || s.fav);
+    // 两维筛选正交（收藏 ∩ 科目）；chips 常驻，不因收藏视图隐藏（比 MV3 的「收藏平铺」更可用）
+    return sessions.filter((s) =>
+      (!favOnly || s.fav) && (!subFilter || s.subjectId === subFilter));
+  }
+
+  function subName(id) {
+    const hit = subjects.find((x) => x.id === id);
+    return hit ? hit.name : "";
   }
 
   function refreshSessions() {
     const st = bridge("sessions");
     if (st && st.sessions) {
       sessions = st.sessions;
+      subjects = st.subjects || [];
+      // 科目被删/筛选失效 → 回落「全部」，别把列表筛成空
+      if (subFilter && !subjects.some((x) => x.id === subFilter)) {
+        subFilter = "";
+        page = 0;
+      }
+      renderChips();
       renderList(false);
     }
   }
@@ -40,13 +58,17 @@
     const slice = list.slice(page * PAGE, page * PAGE + PAGE);
 
     $("#empty").hidden = list.length > 0;
-    $("#empty").textContent = favOnly ? "还没有收藏的会话" : "暂无搜题记录";
+    $("#empty").textContent = subFilter ? "这个科目下还没有会话"
+      : favOnly ? "还没有收藏的会话" : "暂无搜题记录";
     $("#rows").innerHTML = slice.map((s) =>
       '<div class="rrow' + (s.fav ? " is-fav" : "") + '" data-id="' + esc(s.id) + '">' +
       '<div class="col"><div class="t">' + esc(s.title || s.id) + "</div>" +
-      '<div class="ts">' + fmtTime(s.updated) + "</div></div>" +
+      '<div class="ts">' + fmtTime(s.updated) +
+      (s.subjectId ? '<span class="stag">' + esc(subName(s.subjectId) || "已删科目") + "</span>" : "") +
+      "</div></div>" +
       '<div class="acts">' +
       '<button class="act f" data-op="fav" type="button">★</button>' +
+      '<button class="act m" data-op="move" type="button" title="移入科目">⇥</button>' +
       '<button class="act r" data-op="rename" type="button">✎</button>' +
       '<button class="act x" data-op="del" type="button">✕</button>' +
       "</div></div>"
@@ -87,6 +109,10 @@
         askRename(id, (meta && meta.title) || id);
         return;
       }
+      if (op.dataset.op === "move") {
+        openPicker("assign", id);
+        return;
+      }
       if (op.dataset.op === "del") {
         askDelete(id, (meta && meta.title) || id);
         return;
@@ -115,16 +141,149 @@
 
   $("#btnBack").addEventListener("click", () => bridge("close"));
 
+  // ---------------------------------------------------------------- 科目 chips（按科目筛选 + 新建入口）
+
+  function renderChips() {
+    const bar = $("#subBar");
+    const add = $("#subAdd");
+    // 全部 + 每科目一个 chip，「＋/✎」两个固定入口恒在末尾（保留按钮节点，只动它前面的）
+    bar.querySelectorAll(".fchip:not(#subAdd):not(#subMgr)").forEach((n) => n.remove());
+    const frag = [];
+    frag.push('<button class="fchip' + (subFilter ? "" : " on") + '" data-sub="" type="button">全部</button>');
+    for (const s of subjects) {
+      frag.push('<button class="fchip' + (subFilter === s.id ? " on" : "") +
+        '" data-sub="' + esc(s.id) + '" type="button">' + esc(s.name) + "</button>");
+    }
+    add.insertAdjacentHTML("beforebegin", frag.join(""));
+  }
+
+  $("#subBar").addEventListener("click", (e) => {
+    const chip = e.target.closest(".fchip");
+    if (!chip || chip.dataset.sub === undefined) {
+      return; // ＋/✎ 固定按钮无 data-sub，各走自己的监听
+    }
+    subFilter = chip.dataset.sub || "";
+    page = 0;
+    renderChips();
+    renderList(true);
+  });
+
+  $("#subAdd").addEventListener("click", () => openNewSubject());
+  $("#subMgr").addEventListener("click", () => openPicker("manage"));
+
+  // ---------------------------------------------------------------- 移入/管理科目弹层（assign | manage 双模式）
+
+  function openPicker(mode, sessionId) {
+    pickMode = mode;
+    pickTarget = mode === "assign" ? sessionId : null;
+    $("#pickTitle").textContent = mode === "assign" ? "移入科目" : "管理科目";
+    renderPickList();
+    $("#subpick").classList.add("on");
+  }
+
+  function renderPickList() {
+    const cur = pickTarget
+      ? (sessions.find((x) => x.id === pickTarget) || {}).subjectId || ""
+      : "";
+    const rows = [];
+    if (pickMode === "assign") {
+      rows.push('<button class="prow' + (cur ? "" : " on") + '" data-sub="" type="button">' +
+        '<span class="pn">未分组</span>' + (cur ? "" : '<span class="pcur">当前</span>') + "</button>");
+    }
+    for (const s of subjects) {
+      rows.push('<button class="prow' + (cur === s.id ? " on" : "") + '" data-sub="' + esc(s.id) +
+        '" type="button"><span class="pn">' + esc(s.name) + '</span>' +
+        (cur === s.id ? '<span class="pcur">当前</span>' : "") +
+        '<span class="pact" data-mgr="ren" title="重命名科目">✎</span>' +
+        '<span class="pact danger" data-mgr="del" title="删除科目">✕</span></button>');
+    }
+    $("#subPickList").innerHTML = rows.length
+      ? rows.join("")
+      : '<div class="pempty">还没有科目，点下方「新建科目」先建一个</div>';
+  }
+
+  $("#subPickList").addEventListener("click", (e) => {
+    const mgr = e.target.closest("[data-mgr]");
+    const row = e.target.closest(".prow");
+    if (!row) {
+      return;
+    }
+    const subId = row.dataset.sub;
+    if (mgr && subId) {
+      if (mgr.dataset.mgr === "ren") {
+        askSubjectRename(subId, row.querySelector(".pn").textContent);
+      } else {
+        askSubjectDelete(subId, row.querySelector(".pn").textContent);
+      }
+      return;
+    }
+    if (pickMode === "assign" && pickTarget) {
+      const ok = bridge("subjAssign", pickTarget, subId);
+      if (ok === true) {
+        toast(subId ? "已移入「" + (subName(subId) || "科目") + "」" : "已移出科目");
+        closeModal("#subpick");
+        pickMode = null;
+        pickTarget = null;
+        refreshSessions();
+      } else if (ok === false) {
+        toast("找不到这条会话或科目");
+      }
+    }
+  });
+
+  $("#subPickNo").addEventListener("click", () => {
+    closeModal("#subpick");
+    pickMode = null;
+    pickTarget = null;
+  });
+  $("#subPickNew").addEventListener("click", () => openNewSubject());
+  $("#subpick").addEventListener("click", (e) => {
+    if (e.target === $("#subpick")) {
+      closeModal("#subpick");
+      pickMode = null;
+      pickTarget = null;
+    }
+  });
+
+  /** 新建科目：复用重命名输入模态（同 MV3 的「一个模态两个口径」） */
+  function openNewSubject() {
+    modalTarget = { kind: "subject-new" };
+    $("#renameTitle").textContent = "新建科目";
+    $("#renameInput").value = "";
+    $("#rename").classList.add("on");
+    $("#renameInput").focus();
+  }
+
+  function askSubjectRename(id, name) {
+    modalTarget = { kind: "subject-ren", id: id };
+    $("#renameTitle").textContent = "重命名科目";
+    $("#renameInput").value = name;
+    $("#rename").classList.add("on");
+    $("#renameInput").focus();
+    $("#renameInput").select();
+  }
+
+  function askSubjectDelete(id, name) {
+    modalTarget = { kind: "subject-del", id: id };
+    $("#confirmTitle").textContent = "删除科目";
+    $("#confirmBody").innerHTML = "删除科目「<b>" + esc(name) +
+      "</b>」？<br>科目里的会话只会移出，一个都不会删。";
+    $("#confirm").classList.add("on");
+  }
+
   // ---------------------------------------------------------------- 页内模态（层级最高；成功留列表原地）
 
   function askDelete(id, title) {
-    modalTarget = { id: id };
-    $("#confirmName").textContent = title;
+    modalTarget = { kind: "session-del", id: id };
+    $("#confirmTitle").textContent = "删除会话";
+    $("#confirmBody").innerHTML = "确定删除「<b id=\"confirmName\">" + esc(title) +
+      "</b>」吗？<br>截图、回答与思考记录会一并删除，不可恢复。";
     $("#confirm").classList.add("on");
   }
 
   function askRename(id, title) {
-    modalTarget = { id: id };
+    modalTarget = { kind: "session-ren", id: id };
+    $("#renameTitle").textContent = "重命名会话";
     $("#renameInput").value = title;
     $("#rename").classList.add("on");
     $("#renameInput").focus();
@@ -141,6 +300,19 @@
     const t = modalTarget;
     closeModal("#confirm");
     if (!t) {
+      return;
+    }
+    if (t.kind === "subject-del") {
+      const ok = bridge("subjDelete", t.id);
+      if (ok === true) {
+        toast("科目已删除，会话已移出");
+        refreshSessions();       // 先灌新数据（subjects/sessions 都变）
+        if (pickMode) {
+          renderPickList();      // 再重绘弹层，避免拿陈旧行渲染
+        }
+      } else if (ok === false) {
+        toast("找不到该科目");
+      }
       return;
     }
     const ok = bridge("delete", t.id);
@@ -170,6 +342,32 @@
     const name = ($("#renameInput").value || "").trim();
     closeModal("#rename");
     if (!t || !name) {
+      return;
+    }
+    if (t.kind === "subject-new") {
+      const created = bridge("subjCreate", name);
+      if (created && created.id) {
+        toast("已新建科目「" + (created.name || name) + "」");
+        refreshSessions();
+        if (pickMode) {
+          renderPickList();
+        }
+      } else {
+        toast("新建失败，名字不能为空");
+      }
+      return;
+    }
+    if (t.kind === "subject-ren") {
+      const ok = bridge("subjRename", t.id, name);
+      if (ok === true) {
+        toast("科目已改名");
+        refreshSessions();
+        if (pickMode) {
+          renderPickList();
+        }
+      } else {
+        toast("找不到该科目");
+      }
       return;
     }
     const ok = bridge("rename", t.id, name);
@@ -387,6 +585,8 @@
   Host.onState = function (st) {
     if (st && st.sessions) {
       sessions = st.sessions;
+      subjects = st.subjects || [];
+      renderChips();
       renderList(false);
       if (detail) {
         const fresh = sessions.find((x) => x.id === detail.id);
@@ -401,6 +601,8 @@
   const first = bridge("ready");
   if (first && first.sessions) {
     sessions = first.sessions;
+    subjects = first.subjects || [];
   }
+  renderChips();
   renderList(false);
 })();

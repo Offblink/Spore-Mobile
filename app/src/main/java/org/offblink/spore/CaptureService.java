@@ -40,6 +40,7 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 import org.offblink.spore.agent.AgentEngine;
 import org.offblink.spore.agent.Session;
 import org.offblink.spore.agent.SessionStore;
+import org.offblink.spore.agent.SubjectsStore;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
 import org.offblink.spore.overlay.Suggestor;
@@ -140,6 +141,51 @@ public class CaptureService extends Service {
         sess.fav = !sess.fav;
         SessionStore.save(c, sess);
         return true;
+    }
+
+    /**
+     * 移入/移出科目（同 rename/fav 的双路：服务在跑走引擎内存态）。subjectId 空 = 移出。
+     * 目标科目不存在 → false（防悬挂引用，kit design/03 §三）。已是该科目 → true 且不动文件。
+     */
+    public static boolean assignSubject(Context c, String id, String subjectId) {
+        String target = (subjectId == null || subjectId.isEmpty()) ? null : subjectId;
+        if (target != null && !SubjectsStore.exists(c, target)) {
+            return false;
+        }
+        CaptureService s = self;
+        if (s != null) {
+            return s.engine.assignSubject(id, target);
+        }
+        Session sess = SessionStore.load(c, id);
+        if (sess == null) {
+            return false;
+        }
+        if (java.util.Objects.equals(sess.subjectId, target)) {
+            return true;
+        }
+        sess.subjectId = target;
+        SessionStore.saveActive(c, sess);
+        return true;
+    }
+
+    /**
+     * 删科目（kit design/03 §三 语义）：<b>先清引用、再摘科目行</b>——顺序反了中途失败会留
+     * 悬挂引用；反过来则最坏留下一个空科目，用户再点一次删除即可收敛（幂等）。
+     * 清引用走引擎内存态（在途回合的 persist 不会写回旧 subjectId），服务没跑则全量扫盘。
+     * 本轮 subjects.json 物理删（本机新建、GUI 尚不存在，无墓碑可传）；同步轮接入后
+     * 此处要改成留 deleted 墓碑上行。
+     */
+    public static boolean deleteSubject(Context c, String subjectId) {
+        if (subjectId == null || subjectId.isEmpty()) {
+            return false;
+        }
+        CaptureService s = self;
+        if (s != null) {
+            s.engine.clearSubjectRefs(subjectId);
+        } else {
+            SessionStore.clearSubject(c, subjectId, null);
+        }
+        return SubjectsStore.remove(c, subjectId);
     }
 
     /**

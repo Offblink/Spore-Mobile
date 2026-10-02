@@ -30,6 +30,23 @@ body { background: var(--bg); }
 .scope-label { font-size: 13px; color: var(--muted3); font-weight: 600; transition: color var(--t-fast); }
 .scope-label.on { color: var(--pink); font-weight: 700; }
 
+/* ---------------- 科目 chips（按科目筛选 + 新建入口） ---------------- */
+.chips {
+  display: flex; gap: 8px; padding: 10px 10px 2px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; flex: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+.fchip {
+  flex: none; border: 1px solid var(--line); background: var(--surface);
+  border-radius: var(--r999); padding: 6px 14px;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  white-space: nowrap; transition: background var(--t-fast), color var(--t-fast);
+}
+.fchip:active { background: var(--chip); }
+.fchip.on { background: var(--pink-tint); border-color: var(--pink); color: var(--pink-deep); }
+.fchip.add { border-style: dashed; color: var(--pink); background: transparent; }
+
 /* ---------------- 列表 ---------------- */
 .rows { padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 8px; }
 .rrow {
@@ -46,6 +63,13 @@ body { background: var(--bg); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rrow .ts { margin-top: 3px; font-size: 12px; color: var(--muted3); }
+/* 科目标签：时间行尾随的粉色小胶囊（当前归属一眼可见） */
+.stag {
+  display: inline-block; margin-left: 6px; padding: 1px 8px;
+  background: var(--pink-tint); color: var(--pink-deep);
+  border-radius: var(--r999); font-size: 11px; font-weight: 600;
+  vertical-align: 1px;
+}
 .rrow .acts { flex: none; display: flex; gap: 2px; }
 .rrow .act {
   width: 34px; height: 34px; border-radius: 9px;
@@ -53,6 +77,8 @@ body { background: var(--bg); }
 }
 .rrow .act.f { color: var(--muted4); font-size: 17px; }
 .rrow.is-fav .act.f { color: var(--pink); }
+.rrow .act.m { color: var(--muted4); font-size: 17px; }
+.rrow .act.m:active { background: var(--pink-tint); color: var(--pink-deep); }
 .rrow .act.r:active { background: #EEF1FF; color: #4A5BD8; }
 .rrow .act.x:active { background: #FFEEF2; color: var(--danger); }
 
@@ -163,3 +189,25 @@ body { background: var(--bg); }
 .modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
 .modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
 .modal-box { animation: popIn .24s var(--pop-ease); }
+
+/* ---------------- 移入/管理科目弹层（单选行 + 行内重命名/删除） ---------------- */
+.sublist { display: flex; flex-direction: column; gap: 7px; max-height: 46vh; overflow-y: auto; }
+.prow {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line); background: var(--surface);
+  border-radius: var(--r12); padding: 10px 12px;
+  font-size: 14.5px; font-weight: 600; color: var(--row-title);
+  text-align: left; width: 100%;
+}
+.prow:active { background: var(--row-hover); }
+.prow.on { background: var(--pink-tint); border-color: var(--pink); color: var(--pink-deep); }
+.prow .pn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow .pcur { flex: none; font-size: 11px; font-weight: 700; color: var(--pink); }
+.prow .pact {
+  flex: none; width: 30px; height: 30px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--row-action); font-size: 15px;
+}
+.prow .pact:active { background: #EEF1FF; color: #4A5BD8; }
+.prow .pact.danger:active { background: #FFEEF2; color: var(--danger); }
+.pempty { padding: 14px 6px; text-align: center; color: var(--muted3); font-size: 13.5px; }

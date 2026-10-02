@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.offblink.spore.agent.Session;
 import org.offblink.spore.agent.SessionStore;
+import org.offblink.spore.agent.SubjectsStore;
 
 /**
  * 搜题记录（web 皮，第四轮「三面全进」）：
@@ -91,9 +92,10 @@ public class RecordActivity extends AppCompatActivity {
         web.evaluateJavascript("Host.onState(" + stateJson() + ")", null);
     }
 
-    /** {sessions:[…]} —— metaJson 自带异常兜底，恒可拼 */
+    /** {sessions:[…], subjects:[…]} —— metaJson/SubjectsStore 自带异常兜底，恒可拼 */
     private String stateJson() {
-        return "{\"sessions\":" + SessionStore.metaJson(this) + "}";
+        return "{\"sessions\":" + SessionStore.metaJson(this)
+                + ",\"subjects\":" + SubjectsStore.metaJson(this) + "}";
     }
 
     /**
@@ -155,6 +157,33 @@ public class RecordActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean fav(String id) {
             return CaptureService.toggleFav(RecordActivity.this, id);
+        }
+
+        // ---------------------------------------------------------------- 科目（三件套的桥）
+
+        /** 新建科目 → 返回整行 JSON（web 取 id/name）；名字非法 → null */
+        @JavascriptInterface
+        public String subjCreate(String name) {
+            org.json.JSONObject o = SubjectsStore.create(RecordActivity.this, name);
+            return o == null ? null : o.toString();
+        }
+
+        /** 重命名科目（只改名不动成员；同 Spore 远端 renameSubject） */
+        @JavascriptInterface
+        public boolean subjRename(String id, String name) {
+            return SubjectsStore.rename(RecordActivity.this, id, name);
+        }
+
+        /** 删科目：先清全部会话引用再摘行（悬挂引用防护在 CaptureService 里） */
+        @JavascriptInterface
+        public boolean subjDelete(String id) {
+            return CaptureService.deleteSubject(RecordActivity.this, id);
+        }
+
+        /** 会话移入科目；subjectId 空 = 移出（回未分组） */
+        @JavascriptInterface
+        public boolean subjAssign(String sessionId, String subjectId) {
+            return CaptureService.assignSubject(RecordActivity.this, sessionId, subjectId);
         }
 
         /** ok | busy | gone（服务没跑会排队补发，见 CaptureService.followup） */

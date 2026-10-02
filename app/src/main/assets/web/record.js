@@ -9,8 +9,7 @@
   let sessions = [];
   let subjects = [];   // 科目表（subjects.json 全量，chips 与移入弹层共用）
   let subFilter = "";  // 科目筛选："" = 全部
-  let pickMode = null; // 移入弹层模式："assign" | "manage"（管理=重命名/删除入口）
-  let pickTarget = null; // assign 模式下的目标会话 id
+  let pickTarget = null; // 移入弹层目标会话 id（非 null = 弹层开着；开/关都要维护）
   let favOnly = false;
   let page = 0;
   let detail = null;
@@ -68,7 +67,10 @@
       "</div></div>" +
       '<div class="acts">' +
       '<button class="act f" data-op="fav" type="button">★</button>' +
-      '<button class="act m" data-op="move" type="button" title="移入科目">⇥</button>' +
+      '<button class="act m" data-op="move" type="button" title="移入科目">' +
+      '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+      'stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 12h10"/><path d="M10 7l5 5-5 5"/><path d="M18 5v14"/></svg></button>' +
       '<button class="act r" data-op="rename" type="button">✎</button>' +
       '<button class="act x" data-op="del" type="button">✕</button>' +
       "</div></div>"
@@ -110,7 +112,7 @@
         return;
       }
       if (op.dataset.op === "move") {
-        openPicker("assign", id);
+        openPicker(id);
         return;
       }
       if (op.dataset.op === "del") {
@@ -141,26 +143,23 @@
 
   $("#btnBack").addEventListener("click", () => bridge("close"));
 
-  // ---------------------------------------------------------------- 科目 chips（按科目筛选 + 新建入口）
+  // ---------------------------------------------------------------- 科目 chips（按科目筛选；唯一入口，无固定按钮）
 
   function renderChips() {
-    const bar = $("#subBar");
-    const add = $("#subAdd");
-    // 全部 + 每科目一个 chip，「＋/✎」两个固定入口恒在末尾（保留按钮节点，只动它前面的）
-    bar.querySelectorAll(".fchip:not(#subAdd):not(#subMgr)").forEach((n) => n.remove());
+    // 全量重建：全部 + 每科目一个。新建/改名/删除统一在行内 ⇥ 移入弹层里做
     const frag = [];
     frag.push('<button class="fchip' + (subFilter ? "" : " on") + '" data-sub="" type="button">全部</button>');
     for (const s of subjects) {
       frag.push('<button class="fchip' + (subFilter === s.id ? " on" : "") +
         '" data-sub="' + esc(s.id) + '" type="button">' + esc(s.name) + "</button>");
     }
-    add.insertAdjacentHTML("beforebegin", frag.join(""));
+    $("#subBar").innerHTML = frag.join("");
   }
 
   $("#subBar").addEventListener("click", (e) => {
     const chip = e.target.closest(".fchip");
-    if (!chip || chip.dataset.sub === undefined) {
-      return; // ＋/✎ 固定按钮无 data-sub，各走自己的监听
+    if (!chip) {
+      return;
     }
     subFilter = chip.dataset.sub || "";
     page = 0;
@@ -168,15 +167,11 @@
     renderList(true);
   });
 
-  $("#subAdd").addEventListener("click", () => openNewSubject());
-  $("#subMgr").addEventListener("click", () => openPicker("manage"));
+  // ---------------------------------------------------------------- 移入科目弹层（会话 ⇥ 打开；新建/改名/删除都在这一个弹层）
 
-  // ---------------------------------------------------------------- 移入/管理科目弹层（assign | manage 双模式）
-
-  function openPicker(mode, sessionId) {
-    pickMode = mode;
-    pickTarget = mode === "assign" ? sessionId : null;
-    $("#pickTitle").textContent = mode === "assign" ? "移入科目" : "管理科目";
+  function openPicker(sessionId) {
+    pickTarget = sessionId;
+    $("#pickTitle").textContent = "移入科目";
     renderPickList();
     $("#subpick").classList.add("on");
   }
@@ -186,10 +181,8 @@
       ? (sessions.find((x) => x.id === pickTarget) || {}).subjectId || ""
       : "";
     const rows = [];
-    if (pickMode === "assign") {
-      rows.push('<button class="prow' + (cur ? "" : " on") + '" data-sub="" type="button">' +
-        '<span class="pn">未分组</span>' + (cur ? "" : '<span class="pcur">当前</span>') + "</button>");
-    }
+    rows.push('<button class="prow' + (cur ? "" : " on") + '" data-sub="" type="button">' +
+      '<span class="pn">未分组</span>' + (cur ? "" : '<span class="pcur">当前</span>') + "</button>");
     for (const s of subjects) {
       rows.push('<button class="prow' + (cur === s.id ? " on" : "") + '" data-sub="' + esc(s.id) +
         '" type="button"><span class="pn">' + esc(s.name) + '</span>' +
@@ -217,12 +210,11 @@
       }
       return;
     }
-    if (pickMode === "assign" && pickTarget) {
+    if (pickTarget) {
       const ok = bridge("subjAssign", pickTarget, subId);
       if (ok === true) {
         toast(subId ? "已移入「" + (subName(subId) || "科目") + "」" : "已移出科目");
         closeModal("#subpick");
-        pickMode = null;
         pickTarget = null;
         refreshSessions();
       } else if (ok === false) {
@@ -233,14 +225,12 @@
 
   $("#subPickNo").addEventListener("click", () => {
     closeModal("#subpick");
-    pickMode = null;
     pickTarget = null;
   });
   $("#subPickNew").addEventListener("click", () => openNewSubject());
   $("#subpick").addEventListener("click", (e) => {
     if (e.target === $("#subpick")) {
       closeModal("#subpick");
-      pickMode = null;
       pickTarget = null;
     }
   });
@@ -307,7 +297,7 @@
       if (ok === true) {
         toast("科目已删除，会话已移出");
         refreshSessions();       // 先灌新数据（subjects/sessions 都变）
-        if (pickMode) {
+        if (pickTarget) {
           renderPickList();      // 再重绘弹层，避免拿陈旧行渲染
         }
       } else if (ok === false) {
@@ -349,7 +339,7 @@
       if (created && created.id) {
         toast("已新建科目「" + (created.name || name) + "」");
         refreshSessions();
-        if (pickMode) {
+        if (pickTarget) {
           renderPickList();
         }
       } else {
@@ -362,7 +352,7 @@
       if (ok === true) {
         toast("科目已改名");
         refreshSessions();
-        if (pickMode) {
+        if (pickTarget) {
           renderPickList();
         }
       } else {

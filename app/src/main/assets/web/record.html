@@ -23,9 +23,7 @@
 
   <div class="chips" id="subBar">
     <button class="fchip on" data-sub="" type="button">全部</button>
-    <!-- 科目 chips 由 JS 渲染追加；末尾两个固定入口：新建 + 管理（0 会话时也能改名/删科目） -->
-    <button class="fchip add" id="subAdd" type="button">＋ 新建科目</button>
-    <button class="fchip" id="subMgr" type="button">✎ 管理</button>
+    <!-- 科目 chips 由 JS 全量重建；新建/改名/删除统一在行内 ⇥ 移入弹层里做（第三轮反馈：顶栏只留筛选 -->
   </div>
 
   <div id="rows" class="rows"></div>

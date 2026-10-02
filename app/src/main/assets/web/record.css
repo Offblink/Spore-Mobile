@@ -45,7 +45,6 @@ body { background: var(--bg); }
 }
 .fchip:active { background: var(--chip); }
 .fchip.on { background: var(--pink-tint); border-color: var(--pink); color: var(--pink-deep); }
-.fchip.add { border-style: dashed; color: var(--pink); background: transparent; }
 
 /* ---------------- 列表 ---------------- */
 .rows { padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 8px; }
@@ -190,8 +189,18 @@ body { background: var(--bg); }
 .modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
 .modal-box { animation: popIn .24s var(--pop-ease); }
 
-/* ---------------- 移入/管理科目弹层（单选行 + 行内重命名/删除） ---------------- */
-.sublist { display: flex; flex-direction: column; gap: 7px; max-height: 46vh; overflow-y: auto; }
+/* ---------------- 移入科目弹层（单选行 + 行内重命名/删除） ---------------- */
+/* 可见滚动条：科目攒多后 overflow 出 46vh 即显示（第三轮反馈）；触屏保留惯性 */
+.sublist {
+  display: flex; flex-direction: column; gap: 7px;
+  max-height: 46vh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+.sublist::-webkit-scrollbar { width: 6px; }
+.sublist::-webkit-scrollbar-track { background: transparent; }
+.sublist::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+.sublist::-webkit-scrollbar-thumb:active { background: var(--muted3); }
 .prow {
   display: flex; align-items: center; gap: 8px;
   border: 1px solid var(--line); background: var(--surface);

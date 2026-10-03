@@ -1,6 +1,7 @@
 package org.offblink.spore;
 
 import android.Manifest;
+import android.app.Dialog;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -247,38 +248,39 @@ public class PairActivity extends AppCompatActivity {
             loopbackView.setVisibility(View.VISIBLE);
         }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.pair_title)
-                .setView(body)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.pair_connect, null)
-                .create();
+        // 应用皮 Dialog（SporePairDialog 透明窗 + 布局自带暗幕）：零原生 chrome，
+        // 按钮就是布局里那对 ghost/primary——2026-10-03 用户拍板「不要原生组件」
+        Dialog dialog = new Dialog(this, R.style.SporePairDialog);
+        dialog.setContentView(body);
+        dialog.setCancelable(true); // 返回键 = 取消（与「取消」钮同路）
         dialog.setOnDismissListener(d -> {
             if (!isFinishing()) {
                 handled.set(false); // 取消/连不上 → 回取景继续扫
                 status.setText(R.string.pair_scanning);
             }
         });
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(v -> {
-                    String api2 = apiEdit.getText().toString().trim();
-                    if (api2.isEmpty()) {
-                        errorView.setText(R.string.pair_api_empty);
-                        errorView.setVisibility(View.VISIBLE);
-                        return;
-                    }
-                    TextView btn = (TextView) v;
-                    btn.setEnabled(false);
-                    btn.setText(R.string.pair_connecting);
-                    errorView.setVisibility(View.GONE);
-                    verify(api2, token, dialog, errorView, btn);
-                }));
+        TextView cancelBtn = body.findViewById(R.id.pair_cancel);
+        TextView connectBtn = body.findViewById(R.id.pair_connect);
+        cancelBtn.setOnClickListener(v -> dialog.dismiss());
+        connectBtn.setOnClickListener(v -> {
+            String api2 = apiEdit.getText().toString().trim();
+            if (api2.isEmpty()) {
+                errorView.setText(R.string.pair_api_empty);
+                errorView.setVisibility(View.VISIBLE);
+                return;
+            }
+            connectBtn.setEnabled(false);
+            connectBtn.setAlpha(0.5f);
+            connectBtn.setText(R.string.pair_connecting);
+            errorView.setVisibility(View.GONE);
+            verify(api2, token, dialog, errorView, connectBtn);
+        });
         status.setText(R.string.pair_title);
         dialog.show();
     }
 
     /** 连通校验（后台线程）：GET /users/me 通了才落配对态、关页 */
-    private void verify(String api, String token, AlertDialog dialog,
+    private void verify(String api, String token, Dialog dialog,
                         TextView errorView, TextView btn) {
         new Thread(() -> {
             try {
@@ -309,6 +311,7 @@ public class PairActivity extends AppCompatActivity {
                         errorView.setText(getString(R.string.pair_verify_failed, errMsg));
                         errorView.setVisibility(View.VISIBLE);
                         btn.setEnabled(true);
+                        btn.setAlpha(1f);
                         btn.setText(R.string.pair_connect);
                     }
                 });

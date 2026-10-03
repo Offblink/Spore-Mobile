@@ -1,13 +1,14 @@
 package org.offblink.spore;
 
 import android.content.Intent;
+import android.app.Dialog;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
@@ -115,20 +116,24 @@ public class SettingsActivity extends AppCompatActivity {
             SYNC_EXEC.execute(() -> SyncEngine.run(app));
         }
 
-        /** 取消配对：原生确认框（页面不自带模态），确认后落状态并通知页面刷新 */
+        /** 取消配对：应用皮确认框（SporePairDialog + dialog_unpair，零原生 chrome） */
         @JavascriptInterface
         public void unpair() {
-            runOnUiThread(() -> new AlertDialog.Builder(SettingsActivity.this)
-                    .setTitle(R.string.pair_unpair_title)
-                    .setMessage(R.string.pair_unpair_body)
-                    .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton(R.string.pair_unpair_yes, (d, w) -> {
-                        SporeSyncState.load(SettingsActivity.this)
-                                .unpair(SettingsActivity.this);
-                        web.evaluateJavascript(
-                                "window.__pairRefresh && window.__pairRefresh()", null);
-                    })
-                    .show());
+            runOnUiThread(() -> {
+                View body = getLayoutInflater().inflate(R.layout.dialog_unpair, null);
+                Dialog dialog = new Dialog(SettingsActivity.this, R.style.SporePairDialog);
+                dialog.setContentView(body);
+                dialog.setCancelable(true);
+                body.findViewById(R.id.unpair_no).setOnClickListener(v -> dialog.dismiss());
+                body.findViewById(R.id.unpair_yes).setOnClickListener(v -> {
+                    SporeSyncState.load(SettingsActivity.this)
+                            .unpair(SettingsActivity.this);
+                    web.evaluateJavascript(
+                            "window.__pairRefresh && window.__pairRefresh()", null);
+                    dialog.dismiss();
+                });
+                dialog.show();
+            });
         }
 
         /** 顶栏返回：finish 必须主线程，动画挂在 finish() 覆写里 */

@@ -11,4 +11,13 @@
     </style>
 
     <style name="Theme.Spore" parent="Base.Theme.Spore" />
+
+    <!-- 应用皮对话框（扫码配对 / 取消配对）：透明窗口 + 布局自带暗幕，
+         零原生 chrome——Material alert 的标题栏与系统按钮一概不出现（2026-10-03 用户拍板） -->
+    <style name="SporePairDialog" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
 </resources>

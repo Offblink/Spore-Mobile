@@ -25,9 +25,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # 不用 android-actions/setup-android：它默认装的 'tools' 包 Google 早删了，
+      # runner 镜像本来就带完整 SDK（/usr/local/lib/android/sdk），只需收许可+装平台
       - name: Install platform android-37
         run: |
           yes | sdkmanager --licenses > /dev/null || true

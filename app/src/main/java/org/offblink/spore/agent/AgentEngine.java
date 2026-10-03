@@ -287,6 +287,29 @@ public final class AgentEngine {
     }
 
     /**
+     * 同步下行回写（SyncEngine.pull → CaptureService.applyFromSync）：
+     * 不在内存里的会话直接落盘；<b>正在查看的</b>整个换成下行版本（面板下次事件即刷）；
+     * <b>在途回合的会话本轮跳过</b>（回合线程正在 append messages，换列表会互相踩——
+     * 返回 false 让同步计数如实少一条；该会话等下轮，服务端行还在游标后面不会丢）。
+     *
+     * @return 是否套用
+     */
+    public boolean applyPulled(Session incoming) {
+        if (incoming == null || incoming.id == null || incoming.id.isEmpty()) {
+            return false;
+        }
+        if (turns.containsKey(incoming.id)) {
+            return false;
+        }
+        if (incoming.id.equals(session.id)) {
+            session = incoming;
+            return true;
+        }
+        SessionStore.saveQuiet(app, incoming);
+        return true;
+    }
+
+    /**
      * 追问（纯文本）：落到**面板当前会话**上。返回 false = 该会话已有回合在跑
      * （同一会话不并行；别的会话在跑不影响这里）。
      */

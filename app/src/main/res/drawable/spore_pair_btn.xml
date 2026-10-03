@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 扫码页顶栏按钮底：半透明黑圆（相机类 UI 通用），点亮态换品牌粉 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/spore_pair_btn_bg" />
+</shape>

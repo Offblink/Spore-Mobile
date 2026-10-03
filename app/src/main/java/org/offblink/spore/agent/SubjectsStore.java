@@ -118,6 +118,7 @@ public final class SubjectsStore {
     /**
      * 只摘科目行；**成员会话的 subjectId 清扫不在这**——那要动引擎内存态，
      * 统一走 {@code CaptureService.deleteSubject}（先摘行 → 引擎清引用 → 磁盘扫尾）。
+     * 真摘成功 → 记科目墓碑（同步上行 deleted=1，kit design/03 §二）。
      */
     public static boolean remove(Context ctx, String id) {
         if (id == null || id.isEmpty()) {
@@ -134,7 +135,86 @@ public final class SubjectsStore {
             }
             next.put(o);
         }
-        return hit && save(ctx, next);
+        boolean ok = hit && save(ctx, next);
+        if (ok) {
+            org.offblink.spore.sync.SyncTombstones.add(
+                    ctx, org.offblink.spore.sync.SyncTombstones.CATEGORY, id);
+        }
+        return ok;
+    }
+
+    /**
+     * 同步下行套用一行科目（服务端权威，SyncEngine.pull 调）。规则：
+     * <ul>
+     *   <li>本地无行：deleted=1 → 无事；否则追加到尾（数组序 = 创建序，追加即置底）；</li>
+     *   <li>本地有行：服务端 updated ≤ 本地 updated → 跳过（本地新，等上行 LWW 裁决）；
+     *       deleted=1 → 摘行；否则整行原位替换（保数组位置）。</li>
+     * </ul>
+     * 字段照单全收（parentId/status 多级形不丢，kit design/03 §三）；**不走 create/rename**——
+     * 它们会盖 now 时间戳，而下行行的 updated 就是同步游标，动了会打断增量判定。
+     * 成员会话的引用清扫不在这：类别墓碑由 SyncEngine 走 CaptureService.deleteSubject 的级联。
+     *
+     * @return 本地表是否被改动
+     */
+    public static boolean applyServerRow(Context ctx, JSONObject row) {
+        if (row == null) {
+            return false;
+        }
+        String id = row.optString("id", "");
+        if (id.isEmpty()) {
+            return false;
+        }
+        boolean deleted = row.optInt("deleted", 0) == 1;
+        JSONArray arr = load(ctx);
+        int idx = -1;
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.optJSONObject(i);
+            if (o != null && id.equals(o.optString("id", ""))) {
+                idx = i;
+                break;
+            }
+        }
+        try {
+            if (idx < 0) {
+                if (deleted) {
+                    return false; // 本就没有，墓碑无需落地
+                }
+                arr.put(copyRow(row));
+                return save(ctx, arr);
+            }
+            long localUpdated = arr.getJSONObject(idx).optLong("updated", 0);
+            if (row.optLong("updated", 0) <= localUpdated) {
+                return false; // 本地新（或同刻回声）：不覆盖，等上行裁决
+            }
+            if (deleted) {
+                JSONArray next = new JSONArray();
+                for (int i = 0; i < arr.length(); i++) {
+                    if (i != idx) {
+                        next.put(arr.optJSONObject(i));
+                    }
+                }
+                return save(ctx, next);
+            }
+            arr.put(idx, copyRow(row));
+            return save(ctx, arr);
+        } catch (org.json.JSONException e) {
+            return false;
+        }
+    }
+
+    /** 服务端行 → 本机行形（字段白名单；parentId 缺失/为 null 一律落显式 NULL，同 create 口径） */
+    private static JSONObject copyRow(JSONObject row) throws org.json.JSONException {
+        JSONObject o = new JSONObject();
+        o.put("id", row.optString("id", ""));
+        o.put("name", row.optString("name", ""));
+        Object pid = row.opt("parentId");
+        o.put("parentId", (pid == null || pid == JSONObject.NULL || "".equals(pid))
+                ? JSONObject.NULL : pid);
+        o.put("sortOrder", row.optInt("sortOrder", 0));
+        o.put("status", row.optInt("status", 1));
+        o.put("created", row.optLong("created", row.optLong("updated", 0)));
+        o.put("updated", row.optLong("updated", 0));
+        return o;
     }
 
     /**

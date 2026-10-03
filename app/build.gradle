@@ -55,6 +55,12 @@ dependencies {
     implementation libs.recyclerview
     implementation libs.mlkit.chinese
     implementation libs.markwon
+    // 扫码配对：CameraX 预览+帧分析 + ML Kit QR 解码（bundled）
+    implementation libs.camera.core
+    implementation libs.camera.camera2
+    implementation libs.camera.lifecycle
+    implementation libs.camera.view
+    implementation libs.barcode.scanning
 
     testImplementation libs.junit
     testImplementation libs.json

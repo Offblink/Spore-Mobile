@@ -33,14 +33,28 @@ public final class SessionStore {
     }
 
     /**
-     * 覆盖写一个会话。
+     * 覆盖写一个会话（用户动作入口：改名/收藏/移科目/消息落盘都走这）。
      *
      * **不动 {@code updated}**（第九轮拍板）：列表按 updated 倒序，任何一次写盘都改时间戳
      * 就等于「收藏/改名/点开都把该条顶到最前」。所以：
      * 内容（消息）变了走 {@link #saveActive} 自己抬时间戳，改名/收藏这类元数据写走这里，
      * 顺序保持原位。
+     *
+     * 但 {@code touched} 每次都抬——同步上行游标看它（改名/收藏也要同步出去，
+     * 见 {@link Session#touched}）。
      */
     public static void save(Context ctx, Session s) {
+        if (s != null) {
+            s.touched = System.currentTimeMillis();
+        }
+        saveQuiet(ctx, s);
+    }
+
+    /**
+     * 原样落盘：不抬 {@code touched}、不抬 {@code updated}。同步下行回写专用——
+     * 内容以外部为权威，自抬时间戳会把这次拉取变成下一轮上行的「本地新改动」，回声打转。
+     */
+    public static void saveQuiet(Context ctx, Session s) {
         if (s == null || s.id.isEmpty()) {
             return;
         }
@@ -95,13 +109,22 @@ public final class SessionStore {
         return loadFile(new File(dir(ctx), id + ".json"));
     }
 
-    /** 删除一个会话（记录页/会话列表的删除动作）；文件不存在视为已删 */
+    /**
+     * 删除一个会话（记录页/会话列表的删除动作）；文件不存在视为已删。
+     * 文件真在 → 先记墓碑（{@link org.offblink.spore.sync.SyncTombstones}，
+     * 同步上行 deleted=1 传播到 PC，kit design/03 §二）再删。
+     */
     public static void delete(Context ctx, String id) {
         if (id == null || id.isEmpty()) {
             return;
         }
+        File f = new File(dir(ctx), id + ".json");
+        if (f.exists()) {
+            org.offblink.spore.sync.SyncTombstones.add(
+                    ctx, org.offblink.spore.sync.SyncTombstones.ARTICLE, id);
+        }
         //noinspection ResultOfMethodCallIgnored
-        new File(dir(ctx), id + ".json").delete();
+        f.delete();
     }
 
     /**
@@ -154,6 +177,7 @@ public final class SessionStore {
         o.put("id", s.id);
         o.put("created", s.created);
         o.put("updated", s.updated);
+        o.put("touched", s.touched);
         o.put("fav", s.fav);
         // 显式判空（不依赖 put 对 null 的实现差异）；键缺席 = 未分组，兼容老 JSON
         if (s.subjectId != null) {
@@ -337,12 +361,16 @@ public final class SessionStore {
         return o;
     }
 
-    /** 包私有：subjectId 兼容契约（老 JSON 无键 → null）由 SessionStoreTest 钉住 */
-    static Session fromJson(JSONObject o) throws org.json.JSONException {
+    /**
+     * 会话反序列化（本包与同步回写共用）。包私有契约由 SessionStoreTest 钉住：
+     * subjectId 无键 → null；{@code touched} 无键（老 JSON / 服务端行）→ 回落 {@code updated}。
+     */
+    public static Session fromJson(JSONObject o) throws org.json.JSONException {
         Session s = new Session();
         s.id = o.optString("id", s.id);
         s.created = o.optLong("created", s.created);
         s.updated = o.optLong("updated", s.updated);
+        s.touched = o.optLong("touched", s.updated);
         s.fav = o.optBoolean("fav", false);
         // 必须先 isNull：org.json 的 optString 会把 JSON null 变成字面量 "null"
         s.subjectId = o.isNull("subjectId") ? null : o.optString("subjectId", "");

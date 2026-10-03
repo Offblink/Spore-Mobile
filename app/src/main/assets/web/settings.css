@@ -89,3 +89,10 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 
 /* ---- 保存 ---- */
 .save { width: 100%; padding: 14px 18px; font-size: 16px; }
+
+/* ---- 配对与同步卡 ---- */
+.sync-state { font-size: 14.5px; font-weight: 650; color: var(--ink); }
+.sync-btns { display: flex; gap: 8px; padding-bottom: 14px; }
+.sync-btns .btn { flex: 1; padding: 11px 0; font-size: 14px; white-space: nowrap; }
+/* hidden 属性别被 .btn 的 display 盖掉 */
+.sync-btns .btn[hidden] { display: none; }

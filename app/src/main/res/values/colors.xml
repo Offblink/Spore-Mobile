@@ -58,4 +58,7 @@
     <color name="spore_ink_92">#EB14172A</color>       <!-- spore_ink @ 92% (screenshot pill) -->
     <color name="spore_ripple_press">#33FFFFFF</color> <!-- white 20% ripple -->
     <color name="spore_ghost_press">#E8EBF7</color>     <!-- ghost button pressed -->
+
+    <!-- 扫码页（PairActivity）顶栏按钮底 -->
+    <color name="spore_pair_btn_bg">#66000000</color>
 </resources>

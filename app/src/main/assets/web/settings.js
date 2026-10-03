@@ -71,6 +71,46 @@
     }
   }
 
+  // ---------- 配对与同步卡 ----------
+  /** 原生 SyncEngine.isRunning()（轮询用） */
+  var syncRunning = false;
+
+  function fillSync(info) {
+    info = info || {};
+    syncRunning = !!info.running;
+    var paired = !!info.paired;
+    var syncBtn = $("btnSync");
+    syncBtn.disabled = !paired || syncRunning;
+    syncBtn.textContent = syncRunning ? "同步中…" : "立即同步";
+    $("btnScan").textContent = paired ? "重新扫码" : "扫码配对";
+    $("btnUnpair").hidden = !paired;
+    if (!paired) {
+      $("syncState").textContent = "未配对";
+      $("syncHint").textContent = "扫码接入 Spore 桌面端（记录与科目双向同步）";
+      return;
+    }
+    $("syncState").textContent = "已配对 · " + (info.nick || "电脑");
+    var parts = [];
+    if (info.api) parts.push(info.api);
+    if (info.lastSyncAt > 0) parts.push("上次同步 " + fmtTime(info.lastSyncAt));
+    if (info.lastSyncMsg) parts.push(info.lastSyncMsg);
+    $("syncHint").textContent = parts.join(" · ");
+  }
+
+  function refreshSync() {
+    fillSync(bridge("pairInfo"));
+  }
+  // 原生回叫钩子（onResume 从扫码页回来、取消配对确认后都会 evaluateJavascript 到这）
+  window.__pairRefresh = refreshSync;
+
+  /** 同步进行中就继续轮（事件通道没有——页内 600ms 拉一次状态） */
+  function pollSync() {
+    refreshSync();
+    if (syncRunning) {
+      setTimeout(pollSync, 600);
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     // Key 显隐切换（password ↔ text）
     $("keyEye").addEventListener("click", function () {
@@ -89,6 +129,21 @@
 
     $("btnBack").addEventListener("click", function () { bridge("close"); });
     $("btnSave").addEventListener("click", save);
+
+    // 配对与同步：扫码进原生取景页；同步靠轮询拉状态（页内无事件通道）
+    refreshSync();
+    $("btnScan").addEventListener("click", function () {
+      bridge("scan");
+    });
+    $("btnSync").addEventListener("click", function () {
+      bridge("syncStart");
+      $("btnSync").disabled = true;
+      $("btnSync").textContent = "同步中…";
+      setTimeout(pollSync, 400);
+    });
+    $("btnUnpair").addEventListener("click", function () {
+      bridge("unpair"); // 确认框在原生（页面无模态）
+    });
 
     // 握手：调过 ready 原生才开始推；返回值就是首帧
     fill(bridge("ready"));

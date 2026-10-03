@@ -8,6 +8,10 @@
     <!-- 悬浮球/浮层 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- 扫码配对（PairActivity 取景） -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- 前台服务 + 截屏类型（Android 14+ 硬要求）；specialUse = 14+ 拿投影前的过渡类型 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
@@ -43,6 +47,12 @@
         <activity
             android:name=".RecordActivity"
             android:exported="false" />
+
+        <!-- 扫码配对（相机取景扫 Spore-GUI 主窗头像二维码 → 连通校验 → 落配对态） -->
+        <activity
+            android:name=".PairActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <!-- 悬浮球与截屏采集共用的前台服务；Android 14+ 要求 mediaProjection 类型，
              specialUse 供「授权前」的启动过渡（见 CaptureService.startAsForeground） -->

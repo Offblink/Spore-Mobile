@@ -30,6 +30,9 @@
   流式回答与「思考」块、随时可调检索工具的追问、全部/收藏筛选 + 分页的搜题记录页、点图放大并保存到相册。
 - **科目分类**（对齐桌面 Spore 整页记录）：记录页顶部 chips 按科目筛选，会话行 ⇥ 移入/移出科目，
   新建/重命名/删除科目复用页内模态；删科目只把会话移出、一个不删，`subjects.json` 原子落盘。
+- **扫码配对 · 与 Spore-GUI 双向同步**：设置页「配对与同步」→ 扫
+  [Spore-GUI](https://github.com/Offblink/Spore-GUI) 桌面端头像二维码 → 记录、收藏、科目
+  按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传（协议对齐 Spore-GUI `SyncController`）。
 - **作答内核是移植的**：阶段 A 直答 → 阶段 B 联网核实的两阶段协议、`<<ok>>` 自评跳过核实、
   「答案与解析必须同向」的极性自检 —— 逐语义移植自 MV3 版 `src/lib/agent.js`
   （本项目 `app/src/main/java/org/offblink/spore/agent/Phases.java`，两边字段与分支一一对应）。
@@ -59,6 +62,8 @@
    - 抽屉里 💬 开会话列表、★ 收藏、✎ 改名、✕ 删除；底部输入框随时追问；
    - 「搜题记录」页翻历史、按收藏筛选、点图放大 → 保存到相册（`Pictures/Spore`）；
    - 记录页也能按**科目**归档：顶部 chips 筛选、行内 ⇥ 移入（弹层里完成新建 / 改名 / 删除）。
+   - **同步到电脑**：设置页「配对与同步」→ 扫码配对 Spore-GUI → 「立即同步」。
+     扫到的接口地址可以改（桌面端二维码里给的是它自己的回环地址时，改成电脑的局域网 IP）。
 
 ## 截图
 
@@ -76,6 +81,7 @@
 | 屏幕录制（`MediaProjection`） | 点球取当前屏幕的帧 —— 这是本 App 拿到题目的唯一方式 |
 | 前台服务 + 通知 | 悬浮球常驻，被系统回收就再也截不了屏（`FGS` 类型 `mediaProjection`） |
 | 相册写入 | 「保存到相册」把截图存进 `Pictures/Spore` |
+| 相机 | 扫码配对（识别 Spore-GUI 的配对二维码） |
 
 API Key 只存在本机设置页（不进 git、不进日志）；会话、截图都留在应用私有目录里。
 
@@ -89,8 +95,9 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-01 实测：`assembleDebug testDebugUnitTest` **23/23 全绿**
-  （FrameQuality 7 · Phases 7 · Suggest 6 · LlmClient 3），APK **51,610,314 B**。
+- 2026-10-03 实测：`assembleDebug testDebugUnitTest` **42/42 全绿**
+  （FrameQuality 7 · Phases 7 · Suggest 6 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
+  SyncEngine 11），APK **75,590,703 B**（本轮起含 CameraX + ML Kit 条码模型）。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

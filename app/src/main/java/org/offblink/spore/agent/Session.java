@@ -14,6 +14,12 @@ public final class Session {
     public String id = newId();
     public long created = System.currentTimeMillis();
     public long updated = created;
+    /**
+     * 最后一次落盘变更（内容与元数据都算）。同步上行游标用它，不复用 {@code updated}——
+     * {@code updated} 只抬内容（第九轮拍板：改名/收藏不许把该条顶到列表最前），
+     * 而同步必须看见改名/收藏 → 元数据写抬 {@code touched}，列表排序照旧只看 {@code updated}。
+     */
+    public long touched = created;
     /** 收藏（桌面 fav 字段；记录页星标切换） */
     public boolean fav = false;
     /** 归属科目（subjects.json 的 id）；null = 未分组（kit design/03 §三，老 JSON 无此字段 → null） */

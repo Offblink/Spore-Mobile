@@ -122,6 +122,20 @@ public class CaptureService extends Service {
         return true;
     }
 
+    /**
+     * 同步下行套用一条会话（SyncEngine.pull 调）：引擎在场 → 内存态优先
+     * （在看的整个换、在途回合的跳过，见 {@code AgentEngine.applyPulled}）；
+     * 服务没跑 → 直接 {@link SessionStore#saveQuiet} 落盘（不抬 touched，下行是外部权威）。
+     */
+    public static boolean applyFromSync(Context c, Session pulled) {
+        CaptureService s = self;
+        if (s != null) {
+            return s.engine.applyPulled(pulled);
+        }
+        SessionStore.saveQuiet(c, pulled);
+        return true;
+    }
+
     /** 投影授权是否在手（主页状态胶囊）；服务没跑 = 没有 */
     public static boolean hasProjection() {
         CaptureService s = self;
@@ -172,8 +186,8 @@ public class CaptureService extends Service {
      * 删科目（kit design/03 §三 语义）：<b>先清引用、再摘科目行</b>——顺序反了中途失败会留
      * 悬挂引用；反过来则最坏留下一个空科目，用户再点一次删除即可收敛（幂等）。
      * 清引用走引擎内存态（在途回合的 persist 不会写回旧 subjectId），服务没跑则全量扫盘。
-     * 本轮 subjects.json 物理删（本机新建、GUI 尚不存在，无墓碑可传）；同步轮接入后
-     * 此处要改成留 deleted 墓碑上行。
+     * 摘行成功时 SubjectsStore.remove 内记科目墓碑（同步上行 deleted=1 传播到 PC）；
+     * 同步下行的墓碑也走这里（会多记一笔本地回声账，销账口径见 SyncEngine.pullPhase）。
      */
     public static boolean deleteSubject(Context c, String subjectId) {
         if (subjectId == null || subjectId.isEmpty()) {

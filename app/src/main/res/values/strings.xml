@@ -69,4 +69,26 @@
 
     <!-- 主页 -->
     <string name="btn_settings">设置</string>
+
+    <!-- 扫码配对（PairActivity） -->
+    <string name="pair_title">扫码配对</string>
+    <string name="pair_close_cd">关闭</string>
+    <string name="pair_hint">对准 Spore 桌面端左下角头像弹出的二维码</string>
+    <string name="pair_scanning">识别中…</string>
+    <string name="pair_camera_denied">未授予相机权限，无法扫码（可重新进入本页再授权）</string>
+    <string name="pair_bad_qr">这不是 Spore 配对二维码</string>
+    <string name="pair_api_label">电脑上的接口地址</string>
+    <string name="pair_api_empty">接口地址不能为空</string>
+    <string name="pair_api_hint_loopback">二维码里是电脑自己的回环地址（127.0.0.1），手机连不上——
+        请改成电脑的局域网 IP，如 192.168.1.5:8080</string>
+    <string name="pair_token_label">配对口令</string>
+    <string name="pair_token_got">已从二维码获取（%1$d 位）</string>
+    <string name="pair_connect">连接</string>
+    <string name="pair_connecting">连接中…</string>
+    <string name="pair_verify_failed">连接失败：%1$s</string>
+    <string name="pair_done">已配对：%1$s</string>
+    <string name="pair_torch">闪光灯</string>
+    <string name="pair_unpair_title">取消配对</string>
+    <string name="pair_unpair_body">取消后不再与电脑同步；本机搜题记录不受影响。</string>
+    <string name="pair_unpair_yes">取消配对</string>
 </resources>

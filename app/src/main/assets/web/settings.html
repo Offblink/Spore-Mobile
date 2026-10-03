@@ -109,6 +109,22 @@
         </div>
       </section>
 
+      <!-- 配对与同步 -->
+      <section class="card group">
+        <div class="group-title">配对与同步</div>
+
+        <div class="field">
+          <div class="sync-state" id="syncState">未配对</div>
+          <div class="hint" id="syncHint">扫码接入 Spore 桌面端（记录与科目双向同步）</div>
+        </div>
+
+        <div class="sync-btns">
+          <button type="button" class="btn btn-soft" id="btnScan">扫码配对</button>
+          <button type="button" class="btn btn-primary" id="btnSync" disabled>立即同步</button>
+          <button type="button" class="btn btn-danger" id="btnUnpair" hidden>取消配对</button>
+        </div>
+      </section>
+
       <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
     </main>
 

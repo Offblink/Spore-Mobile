@@ -32,7 +32,7 @@ jobs:
           SM=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -name sdkmanager -type f | sort | tail -1)
           echo "using $SM"
           yes | "$SM" --licenses > /dev/null || true
-          "$SM" "platforms;android-37" > /dev/null
+          "$SM" "platforms;android-37.0" > /dev/null
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

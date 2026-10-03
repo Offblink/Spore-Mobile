@@ -3,6 +3,7 @@ package org.offblink.spore;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
@@ -51,6 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PairActivity extends AppCompatActivity {
 
     private static final int REQ_CAMERA = 1001;
+    /** 连续这么久解不出任何码 = 视线离开：坏码去重作废（再对准可再提醒一次） */
+    private static final long QR_LEAVE_MS = 1500;
 
     private PreviewView preview;
     private TextView status;
@@ -62,6 +65,12 @@ public class PairActivity extends AppCompatActivity {
     private final AtomicBoolean handled = new AtomicBoolean(false);
     private final AtomicBoolean analyzing = new AtomicBoolean(false);
     private boolean torchOn;
+    /** 最近一次解出码的时刻（坏码/好码都算——视线离开判定的基准） */
+    private volatile long lastQrAt;
+    /** 最近提醒过的坏码原文：同码在视野里不重复弹（弹串根因，见 onQr） */
+    private volatile String lastBadRaw;
+    /** 单实例复用：Toast 队列一旦被灌满，移开视线后还会排队放一串 */
+    private Toast badToast;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -135,6 +144,12 @@ public class PairActivity extends AppCompatActivity {
 
     /** 帧 → QR（分析线程）。busy 闸防并发 process；关帧一律在 complete 里做 */
     private void analyzeFrame(ImageProxy image) {
+        // 视线离开判定（每帧都跑，哪怕本帧被跳过）：>QR_LEAVE_MS 没再解出任何码，
+        // 坏码去重作废——回到视野重新对准时允许再提醒一次
+        if (lastBadRaw != null
+                && SystemClock.uptimeMillis() - lastQrAt > QR_LEAVE_MS) {
+            lastBadRaw = null;
+        }
         if (handled.get() || !analyzing.compareAndSet(false, true)) {
             image.close();
             return;
@@ -175,8 +190,9 @@ public class PairActivity extends AppCompatActivity {
 
     // ---------------------------------------------------------------- 配对
 
-    /** 识别到码：受理一次 → 解析载荷 → 确认框。不是 Spore 码 → 提示后继续扫 */
+    /** 识别到码：受理一次 → 解析载荷 → 确认框。不是 Spore 码 → 提示一次（同码在视野里不重弹） */
     private void onQr(String raw) {
+        lastQrAt = SystemClock.uptimeMillis();
         if (!handled.compareAndSet(false, true)) {
             return;
         }
@@ -194,10 +210,24 @@ public class PairActivity extends AppCompatActivity {
         }
         if (payload == null) {
             handled.set(false);
-            runOnUiThread(() -> Toast.makeText(this, R.string.pair_bad_qr,
-                    Toast.LENGTH_SHORT).show());
+            // 弹串根因（用户实测）：坏码在视野里每帧都解出 → 立刻重武装 → 每帧一弹，
+            // Toast 队列被灌满，视线移开后还在排队放。同码整个视野期只提醒一次；
+            // 离开 1.5s（analyzeFrame 的 QR_LEAVE_MS）后去重作废，再对准再提醒一次。
+            if (!raw.equals(lastBadRaw)) {
+                lastBadRaw = raw;
+                runOnUiThread(() -> {
+                    if (badToast == null) {
+                        badToast = Toast.makeText(PairActivity.this,
+                                R.string.pair_bad_qr, Toast.LENGTH_SHORT);
+                    } else {
+                        badToast.cancel(); // 绝不排队：旧的没放完就先掐掉
+                    }
+                    badToast.show();
+                });
+            }
             return;
         }
+        lastBadRaw = null; // 扫到真码：坏码去重一并作废
         JSONObject finalPayload = payload;
         runOnUiThread(() -> showConfirm(finalPayload));
     }

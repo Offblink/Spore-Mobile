@@ -18,7 +18,7 @@
   let modalTarget = null;
 
   // ---------------------------------------------------------------- 多选模式状态
-  let selecting = false;      // 长按进入；取消按钮/返回键/换筛选/删空退出
+  let selecting = false;      // 长按进入；取消按钮/返回键/删空退出（切科目不退——跨科目多选，Round 17）
   let selected = new Set();   // 选中的会话 id（renderList 按它回放 .on）
   let suppressClick = false;  // 长按进模式或涂抹收笔后的那次 click 要吃掉
 
@@ -408,9 +408,8 @@
     if (!chip) {
       return;
     }
-    if (selecting) {
-      setSelecting(false); // 换筛选先退多选（同收藏开关）
-    }
+    // 多选跨科目（用户 Round 17 追加）：切 chips 不退多选——选中集按全量 sessions 裁剪
+    // （renderList 不看筛选集），跨科目选中后批量移入/删除照常生效
     subFilter = chip.dataset.sub || "";
     renderChips();
     renderList(true);

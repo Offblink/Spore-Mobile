@@ -138,8 +138,10 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 #shotView .shot-bar {
   display: flex; gap: 14px; justify-content: center;
-  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-  margin: 0 14px 14px;
+  /* 安全区放 margin 不放 padding：玻璃背景只包按钮（padding 上下对称 10px），
+     手势条区域保持透明——否则背景凭空多出 ~26px 下留白（Round 17 实测 10 vs 50） */
+  padding: 10px 14px;
+  margin: 0 14px calc(14px + env(safe-area-inset-bottom));
   align-self: center;
   /* Liquid Glass 控件层（压在暗幕上的浮层 = 玻璃合法位）：Regular 配方 + 高光边；
      不支持 backdrop-filter 时回退不透明底，可读性不塌 */

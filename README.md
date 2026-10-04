@@ -1,8 +1,11 @@
 # The Real Spore is Mobile.
 
-> **The Real Spore is Mobile.** The Android counterpart of [Spore](https://github.com/Offblink/Spore), the Chromium
+> **The Real Spore is Mobile.**
+>
+> The Android counterpart of [Spore](https://github.com/Offblink/Spore), the Chromium
 > **Manifest V3** screenshot-Q&A extension: tap the floating ball, box the question on your screen, get a fast answer
 > that verifies itself online.
+> 
 > 本项目是**移动应用开发 的课设项目**。
 
 <p align="center">

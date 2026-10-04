@@ -2,10 +2,13 @@
 
 body { background: #fff; overflow: hidden; }
 
-/* 整页舞台：字标 + 小字纵向一列居中；offset-path 坐标相对本容器原点 */
+/* 整页舞台：字标 + 小字纵向一列居中；offset-path 坐标相对本容器原点。
+   padding-bottom 上抬构图（用户：整体还是太靠下，收到 ~45% 高度处） */
 .stage {
   position: relative;
   width: 100%; height: 100vh;
+  box-sizing: border-box;
+  padding-bottom: 10vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
 }
@@ -16,6 +19,9 @@ body { background: #fff; overflow: hidden; }
   letter-spacing: -0.02em;   /* 与主界面 wordmark 同几何，只换主角色 */
   line-height: 1.1;
   color: var(--pink);
+  /* 光学居中：落点的点挂在 e 右侧 gap 处，会把「Spore.」组心拽右 (gap+r)/2；
+     字标左移这个量，组心回到屏心，下面的中文（居屏心）就正对它 */
+  transform: translateX(calc(-0.175em - 3.25px));
   animation: wordIn .18s var(--pop-ease) both;
 }
 /* 基线参照：高 0 的内联块，底边正压在基线上（js 量 S/e 尾巴用） */

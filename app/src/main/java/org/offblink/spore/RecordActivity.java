@@ -1,6 +1,5 @@
 package org.offblink.spore;
 
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
@@ -17,11 +16,13 @@ import org.offblink.spore.agent.SessionStore;
 import org.offblink.spore.agent.SubjectsStore;
 
 /**
- * 搜题记录（web 皮，第四轮「三面全进」）：
- * 列表 = 15/页 分页 + 「全部⇄收藏」筛选 + 页内模态（成功留列表原地）；
+ * 搜题记录（web 皮）：
+ * 列表 = 一滑到底的长页面 + 「全部⇄收藏」筛选 + 页内模态（成功留列表原地）；
+ * 长按卡片进多选（单选框涂抹连选，批量收藏/移入科目/删除）；
  * 点行 = <b>独立详情视图</b>（第四轮反馈 2①：不再借悬浮抽屉），详情追问经
  * {@link CaptureService#followup} 走同一引擎、轮询刷新（详情页不是引擎监听器）。
- * 转场：finish 挂反向动画；硬件返回先问页内 Host.back（详情回列表）。
+ * 转场：主题 SporeAnim 接管（进右滑入/回右滑出）；硬件返回先问页内 Host.back
+ * （详情回列表 → 退多选）。
  */
 public class RecordActivity extends AppCompatActivity {
 
@@ -58,7 +59,7 @@ public class RecordActivity extends AppCompatActivity {
         pushState(); // 回页即刷新（面板回合结束已落盘，所见即所得）
     }
 
-    /** 硬件返回：先给页内消费（详情 → 列表）；列表态才退出（挂反向转场） */
+    /** 硬件返回：先给页内消费（详情 → 列表 → 退多选）；列表态才退出 */
     @Override
     public void onBackPressed() {
         if (web == null || !webReady) {
@@ -70,19 +71,6 @@ public class RecordActivity extends AppCompatActivity {
                 runOnUiThread(() -> RecordActivity.super.onBackPressed());
             }
         });
-    }
-
-    /** 返回统一出口（页内顶栏「‹」走桥 close → finish）：挂平移反向转场（原路出去） */
-    @Override
-    public void finish() {
-        super.finish();
-        if (Build.VERSION.SDK_INT >= 34) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,
-                    R.anim.spore_back_in, R.anim.spore_back_out);
-        } else {
-            //noinspection deprecation
-            overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
-        }
     }
 
     private void pushState() {

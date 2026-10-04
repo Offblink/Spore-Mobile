@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 进场（page-transition-spec）：新页自右整屏滑入 -->
+<translate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="280"
+    android:fromXDelta="100%p"
+    android:toXDelta="0"
+    android:interpolator="@android:interpolator/fast_out_slow_in" />

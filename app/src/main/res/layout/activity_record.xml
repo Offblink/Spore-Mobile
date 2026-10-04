@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 搜题记录整页 WebView：列表（分页）/详情视图全在 assets/web/record.html -->
+<!-- 搜题记录整页 WebView：长列表（多选）/详情视图全在 assets/web/record.html -->
 <WebView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/web"
     android:layout_width="match_parent"

@@ -8,9 +8,26 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/spore_surface</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <!-- 页面平移切页（page-transition-spec）：主题一处接管，所有页面不用逐个调 -->
+        <item name="android:windowAnimationStyle">@style/SporeAnim</item>
+    </style>
+
+    <!-- 平移分页：进 = 新页右滑入/旧页左让位；回 = 底下页左归位/当前页右滑出（严格反动作） -->
+    <style name="SporeAnim" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/slide_in_right</item>
+        <item name="android:activityOpenExitAnimation">@anim/slide_out_left</item>
+        <item name="android:activityCloseEnterAnimation">@anim/slide_in_left</item>
+        <item name="android:activityCloseExitAnimation">@anim/slide_out_right</item>
     </style>
 
     <style name="Theme.Spore" parent="Base.Theme.Spore" />
+
+    <!-- 启动页：纯白窗口底（系统 splash → 本页无缝），内容见 activity_splash.xml -->
+    <style name="Theme.Spore.Splash" parent="Theme.Spore">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+    </style>
 
     <!-- 应用皮对话框（扫码配对 / 取消配对）：透明窗口 + 布局自带暗幕，
          零原生 chrome——Material alert 的标题栏与系统按钮一概不出现（2026-10-03 用户拍板） -->

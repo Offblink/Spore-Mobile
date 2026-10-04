@@ -31,15 +31,21 @@
              （design/02 Base URL 就是明文 http，桌面无 TLS）；targetSdk 28+ 默认拦明文，
              不开就报 CLEARTEXT not permitted。只放行 http，https 不受影响 -->
 
-        <!-- 搜题记录主页（后续接记录列表）；当前承载悬浮球开关与权限引导 -->
+        <!-- 启动页（白底 + 图标 + 粉字 Spore）→ 1.2s 后进主页 -->
         <activity
-            android:name=".MainActivity"
-            android:exported="true">
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Spore.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 主页（web 皮）：承载悬浮球开关与权限引导；启动页跳入，非桌面入口 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
 
         <!-- 设置页（端点/key/模型/检索代理/两阶段开关） -->
         <activity

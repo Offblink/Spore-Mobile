@@ -9,16 +9,18 @@
 </head>
 <body>
 
-<!-- ============ 列表视图 ============ -->
+<!-- ============ 列表视图（一滑到底长页面，无分页） ============ -->
 <div id="listView">
   <header class="topbar">
     <button class="icon" id="btnBack" type="button">‹</button>
-    <h1 class="ptitle">搜题记录</h1>
+    <h1 class="ptitle" id="ptitle">搜题记录</h1>
     <div class="scope">
       <span class="scope-label on" id="labelAll">全部</span>
       <button class="switch" id="scopeSwitch" type="button" aria-label="全部/收藏筛选"></button>
       <span class="scope-label" id="labelFav">收藏</span>
     </div>
+    <!-- 多选模式：顶栏右侧换成「取消」（退出多选），筛选开关让位 -->
+    <button class="selx" id="selCancel" type="button">取消</button>
   </header>
 
   <div class="chips" id="subBar">
@@ -29,10 +31,12 @@
   <div id="rows" class="rows"></div>
   <div id="empty" class="empty" hidden>暂无搜题记录</div>
 
-  <footer class="pager" id="pager">
-    <button class="pgbtn" id="pgPrev" type="button">‹ 上一页</button>
-    <span class="pgnum" id="pgNum">1/1</span>
-    <button class="pgbtn" id="pgNext" type="button">下一页 ›</button>
+  <!-- 多选底栏：长按卡片进入多选后浮出（收藏/移入科目/删除批量操作） -->
+  <footer class="batchbar" id="batchbar" hidden>
+    <span class="bcount" id="selCount">已选 0</span>
+    <button class="bbtn" id="bFav" type="button">★ 收藏</button>
+    <button class="bbtn" id="bMove" type="button">移入科目</button>
+    <button class="bbtn danger" id="bDel" type="button">删除</button>
   </footer>
 
   <!-- 页内模态：层级最高；成功只关模态、列表原地刷新（第四轮反馈） -->

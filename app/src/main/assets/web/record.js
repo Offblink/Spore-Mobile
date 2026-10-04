@@ -1,21 +1,26 @@
-/* 记录页逻辑：列表（15/页 分页 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
+/* 记录页逻辑：列表（一滑到底长页面 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
+ * 多选：长按卡片进多选模式（左边圆形单选框）；从单选框起笔涂抹连选——起笔在已选卡片上
+ *       这笔先取消，否则先选择；中途折返即换向（段起点挪到拐点）；多选下支持批量收藏/移入/删除。
  * 数据：ready/sessions = 索引 meta + 科目表；详情按需 session(id) 单取；改名/删除/收藏/追问/科目四 op 全走原生桥。 */
 (() => {
   const { md } = globalThis.SporeMD;
   const $ = (s) => document.querySelector(s);
-  const PAGE = 15;
   const BUSY = ["answering", "verifying", "searching"];
 
   let sessions = [];
   let subjects = [];   // 科目表（subjects.json 全量，chips 与移入弹层共用）
   let subFilter = "";  // 科目筛选："" = 全部
-  let pickTarget = null; // 移入弹层目标会话 id（非 null = 弹层开着；开/关都要维护）
+  let pickTargets = null; // 移入弹层目标会话 id 数组（非 null = 弹层开着；单条 = [id]）
   let favOnly = false;
-  let page = 0;
   let detail = null;
   let pollTimer = 0;
   let sentAt = 0; // 最近一次追问被接受的时间：15s 宽限（容忍服务冷启动）
   let modalTarget = null;
+
+  // ---------------------------------------------------------------- 多选模式状态
+  let selecting = false;      // 长按进入；取消按钮/返回键/换筛选/删空退出
+  let selected = new Set();   // 选中的会话 id（renderList 按它回放 .on）
+  let suppressClick = false;  // 长按进模式或涂抹收笔后的那次 click 要吃掉
 
   // ---------------------------------------------------------------- 列表
 
@@ -38,7 +43,6 @@
       // 科目被删/筛选失效 → 回落「全部」，别把列表筛成空
       if (subFilter && !subjects.some((x) => x.id === subFilter)) {
         subFilter = "";
-        page = 0;
       }
       renderChips();
       renderList(false);
@@ -47,20 +51,25 @@
 
   function renderList(animate) {
     const list = filtered();
-    const pages = Math.max(1, Math.ceil(list.length / PAGE));
-    if (page > pages - 1) {
-      page = pages - 1;
+
+    // 选中集按现有会话裁剪：删掉的/不在库里的不再算选中；裁空就直接退多选
+    if (selecting) {
+      const valid = new Set(sessions.map((s) => s.id));
+      selected.forEach((id) => { if (!valid.has(id)) selected.delete(id); });
+      if (!selected.size) {
+        setSelecting(false);
+      }
     }
-    if (page < 0) {
-      page = 0;
-    }
-    const slice = list.slice(page * PAGE, page * PAGE + PAGE);
 
     $("#empty").hidden = list.length > 0;
     $("#empty").textContent = subFilter ? "这个科目下还没有会话"
       : favOnly ? "还没有收藏的会话" : "暂无搜题记录";
-    $("#rows").innerHTML = slice.map((s) =>
-      '<div class="rrow' + (s.fav ? " is-fav" : "") + '" data-id="' + esc(s.id) + '">' +
+    $("#rows").innerHTML = list.map((s) =>
+      '<div class="rrow' + (s.fav ? " is-fav" : "") + (selected.has(s.id) ? " on" : "") +
+      '" data-id="' + esc(s.id) + '">' +
+      '<span class="ck" data-ck><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M5 13l4 4 10-10"/></svg></span>' +
       '<div class="col"><div class="t">' + esc(s.title || s.id) + "</div>" +
       '<div class="ts">' + fmtTime(s.updated) +
       (s.subjectId ? '<span class="stag">' + esc(subName(s.subjectId) || "已删科目") + "</span>" : "") +
@@ -76,9 +85,7 @@
       "</div></div>"
     ).join("");
 
-    $("#pgNum").textContent = (page + 1) + "/" + pages;
-    $("#pgPrev").disabled = page === 0;
-    $("#pgNext").disabled = page >= pages - 1;
+    syncSelChrome();
 
     if (animate) {
       const rows = $("#rows");
@@ -88,12 +95,65 @@
     }
   }
 
+  // ---------------------------------------------------------------- 多选模式（长按进入；顶栏/底栏随模式切换）
+
+  function setSelecting(on) {
+    selecting = on;
+    if (!on) {
+      selected.clear();
+    }
+    $("#listView").classList.toggle("sel", on);
+    $("#batchbar").hidden = !on;
+    syncSelChrome();
+  }
+
+  /** 顶栏标题（模式下变「已选 N 项」）+ 底栏计数与可用性，随选中集实时同步 */
+  function syncSelChrome() {
+    $("#ptitle").textContent = selecting ? "已选 " + selected.size + " 项" : "搜题记录";
+    $("#selCount").textContent = "已选 " + selected.size;
+    const none = !selected.size;
+    $("#bFav").disabled = none;
+    $("#bMove").disabled = none;
+    $("#bDel").disabled = none;
+  }
+
+  function rowEl(id) {
+    return document.querySelector('#rows .rrow[data-id="' + id + '"]');
+  }
+
+  /** 单卡勾选：改集合 + 只刷这一格的 .on（不起整列表重绘，滚动位置不丢） */
+  function setRowSel(id, on) {
+    if (on === selected.has(id)) {
+      return;
+    }
+    if (on) {
+      selected.add(id);
+    } else {
+      selected.delete(id);
+    }
+    const el = rowEl(id);
+    if (el) {
+      el.classList.toggle("on", on);
+    }
+    syncSelChrome();
+  }
+
+  // ---------------------------------------------------------------- 列表点击（模式里单击 = 勾选；否则走原单条操作）
+
   $("#rows").addEventListener("click", (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
     const row = e.target.closest(".rrow");
     if (!row) {
       return;
     }
     const id = row.dataset.id;
+    if (selecting) {
+      setRowSel(id, !selected.has(id));
+      return;
+    }
     const op = e.target.closest("[data-op]");
     const meta = sessions.find((x) => x.id === id);
     if (op) {
@@ -112,7 +172,7 @@
         return;
       }
       if (op.dataset.op === "move") {
-        openPicker(id);
+        openPicker([id]);
         return;
       }
       if (op.dataset.op === "del") {
@@ -123,25 +183,212 @@
     openDetail(id);
   });
 
-  $("#pgPrev").addEventListener("click", () => {
-    page -= 1;
-    renderList(true);
+  // ---------------------------------------------------------------- 多选手势：长按进模式；单选框起笔涂抹（可反选）
+  //
+  // 语义（用户拍板）：从某个单选框开始拖 = 涂抹，选中「当前段起点 → 笔尖所在卡」之间全部；
+  // 起笔卡已选 → 本笔先反着来（取消选择）。**中途可换向**：笔尖行号一折返，
+  // 方向立刻翻转、新段从拐点起算——1,2,3 ↘ −3,−2,−1 ↘ 1,2,3 一段一段接力。
+  // 涂抹只认单选框起笔：卡片其余区域的拖动留给滚动（长页面一滑到底）。
+  const HOLD_MS = 500;   // 长按进多选的判定时长
+  const SLOP = 10;       // px：超过就算「动了」（滚动/涂抹），不算长按/点选
+  let holdTimer = 0;     // 长按定时器（非 0 = 挂着）
+  let holdRow = null;    // 长按落点卡
+  let holdX = 0;
+  let holdY = 0;
+  let held = false;      // 本笔长按已触发（收笔的 click 要吃掉）
+  let paint = null;      // 本笔涂抹 {seg, prev, dx, dir, moved}
+
+  function rowsArr() {
+    return Array.prototype.slice.call($("#rows").children);
+  }
+
+  function rowUnder(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest(".rrow") : null;
+  }
+
+  /** 当前段起点 ↔ 笔尖卡 之间整段落选中/取消（段内重放，幂等） */
+  function paintRange(toIdx) {
+    const arr = rowsArr();
+    const a = Math.min(paint.seg, toIdx);
+    const b = Math.max(paint.seg, toIdx);
+    for (let i = a; i <= b; i++) {
+      const el = arr[i];
+      if (el) {
+        setRowSel(el.dataset.id, paint.dir);
+      }
+    }
+  }
+
+  $("#rows").addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) {
+      return; // 多指只认主指，别让第二根手指搅局
+    }
+    suppressClick = false;
+    const row = e.target.closest(".rrow");
+    if (!row) {
+      return;
+    }
+    if (e.target.closest(".ck") && selecting) {
+      // 涂抹起笔：首段方向看起笔格（起在已选上 = 本笔先取消）；seg = 起笔格
+      const idx = rowsArr().indexOf(row);
+      paint = { seg: idx, prev: idx, dx: 0, dir: !selected.has(row.dataset.id), moved: false };
+      e.preventDefault(); // 这笔不给 WebView 当滚动
+      return;
+    }
+    if (selecting) {
+      return; // 模式里卡片区域：点选交给 click，拖动留给滚动
+    }
+    // 非模式：挂长按（越过 slop 即撤，别把滚动误判成长按）
+    holdRow = row;
+    holdX = e.clientX;
+    holdY = e.clientY;
+    held = false;
+    holdTimer = setTimeout(() => {
+      holdTimer = 0;
+      held = true;
+      setSelecting(true);
+      setRowSel(holdRow.dataset.id, true);
+      holdRow = null;
+    }, HOLD_MS);
   });
-  $("#pgNext").addEventListener("click", () => {
-    page += 1;
-    renderList(true);
+
+  $("#rows").addEventListener("pointermove", (e) => {
+    if (!e.isPrimary) {
+      return;
+    }
+    if (holdTimer) {
+      const dx = e.clientX - holdX;
+      const dy = e.clientY - holdY;
+      if (dx * dx + dy * dy > SLOP * SLOP) {
+        clearTimeout(holdTimer);
+        holdTimer = 0;
+        holdRow = null; // 动了 = 滚动手势，长按作废
+      }
+      return;
+    }
+    if (paint && selecting) {
+      const over = rowUnder(e.clientX, e.clientY);
+      if (over) {
+        const idx = rowsArr().indexOf(over);
+        if (idx >= 0 && idx !== paint.prev) {
+          const d = idx > paint.prev ? 1 : -1;
+          if (paint.dx && d !== paint.dx) {
+            // 中途换向：方向翻转，新段从拐点（上一格）起算
+            paint.dir = !paint.dir;
+            paint.seg = paint.prev;
+          }
+          paint.dx = d;
+          paint.prev = idx;
+          paint.moved = true;
+          paintRange(idx);
+        }
+      }
+      e.preventDefault();
+    }
+  });
+
+  function endStroke() {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = 0;
+      holdRow = null;
+    }
+    if (paint) {
+      if (paint.moved) {
+        suppressClick = true; // 涂抹收笔那下别再触发 click
+      } else {
+        // 单选框上的轻点（没动）：就地翻选，吃掉随后的 click 防双翻
+        const row = rowsArr()[paint.seg];
+        if (row) {
+          setRowSel(row.dataset.id, !selected.has(row.dataset.id));
+        }
+        suppressClick = true;
+      }
+      paint = null;
+    }
+    if (held) {
+      suppressClick = true; // 长按进模式的那笔，收尾 click 不能把刚勾上的又翻回去
+      held = false;
+    }
+  }
+
+  $("#rows").addEventListener("pointerup", (e) => {
+    if (e.isPrimary) {
+      endStroke();
+    }
+  });
+  $("#rows").addEventListener("pointercancel", (e) => {
+    if (e.isPrimary) {
+      endStroke();
+      suppressClick = false; // cancel 后没有 click，别把标志留给下一笔
+    }
+  });
+  // 长按不该弹 WebView 的文字选择/右键菜单
+  $("#rows").addEventListener("contextmenu", (e) => e.preventDefault());
+
+  $("#selCancel").addEventListener("click", () => setSelecting(false));
+
+  // ---------------------------------------------------------------- 批量操作（多选底栏）
+
+  /** 批量收藏：全已收藏 → 这次统一取消；否则把没收藏的都收上 */
+  $("#bFav").addEventListener("click", () => {
+    const sel = sessions.filter((s) => selected.has(s.id));
+    if (!sel.length) {
+      return;
+    }
+    const toFav = sel.some((s) => !s.fav);
+    let n = 0;
+    for (const s of sel) {
+      if (!!s.fav === toFav) {
+        continue; // 已是目标状态，别再翻
+      }
+      if (bridge("fav", s.id) === true) {
+        n += 1;
+      }
+    }
+    toast(n ? (toFav ? "已收藏 " + n + " 条" : "已取消收藏 " + n + " 条") : "操作失败");
+    refreshSessions();
+  });
+
+  /** 批量移入科目：整包丢给移入弹层（多目标版 openPicker） */
+  $("#bMove").addEventListener("click", () => {
+    if (selected.size) {
+      openPicker(Array.from(selected));
+    }
+  });
+
+  /** 批量删除：确认框带条数，确定后逐条走同一座桥，成功即退多选 */
+  $("#bDel").addEventListener("click", () => {
+    if (!selected.size) {
+      return;
+    }
+    modalTarget = { kind: "session-del-batch" };
+    $("#confirmTitle").textContent = "删除会话";
+    $("#confirmBody").innerHTML = "确定删除选中的 <b>" + selected.size +
+      "</b> 条会话吗？<br>截图、回答与思考记录会一并删除，不可恢复。";
+    $("#confirm").classList.add("on");
   });
 
   $("#scopeSwitch").addEventListener("click", () => {
+    if (selecting) {
+      setSelecting(false); // 换筛选前先退多选：选中集要跟着视图走
+    }
     favOnly = !favOnly;
-    page = 0;
     $("#scopeSwitch").classList.toggle("on", favOnly);
     $("#labelAll").classList.toggle("on", !favOnly);
     $("#labelFav").classList.toggle("on", favOnly);
     renderList(true);
   });
 
-  $("#btnBack").addEventListener("click", () => bridge("close"));
+  /** 顶栏「‹」：多选中先退多选（与硬件返回同一条出口），否则关页 */
+  $("#btnBack").addEventListener("click", () => {
+    if (selecting) {
+      setSelecting(false);
+      return;
+    }
+    bridge("close");
+  });
 
   // ---------------------------------------------------------------- 科目 chips（按科目筛选；唯一入口，无固定按钮）
 
@@ -161,32 +408,39 @@
     if (!chip) {
       return;
     }
+    if (selecting) {
+      setSelecting(false); // 换筛选先退多选（同收藏开关）
+    }
     subFilter = chip.dataset.sub || "";
-    page = 0;
     renderChips();
     renderList(true);
   });
 
   // ---------------------------------------------------------------- 移入科目弹层（会话 ⇥ 打开；新建/改名/删除都在这一个弹层）
 
-  function openPicker(sessionId) {
-    pickTarget = sessionId;
-    $("#pickTitle").textContent = "移入科目";
+  /** 目标可为多条（多选底栏批量移入）；单条 = [id]，与原行为等价 */
+  function openPicker(ids) {
+    pickTargets = ids;
+    $("#pickTitle").textContent = "移入科目" +
+      (ids.length > 1 ? "（" + ids.length + " 条）" : "");
     renderPickList();
     $("#subpick").classList.add("on");
   }
 
   function renderPickList() {
-    const cur = pickTarget
-      ? (sessions.find((x) => x.id === pickTarget) || {}).subjectId || ""
-      : "";
+    // 多条同科目才亮「当前」；科目不一致（mixed）则不亮任何行
+    const subs = (pickTargets || []).map(
+      (id) => (sessions.find((x) => x.id === id) || {}).subjectId || "");
+    const mixed = new Set(subs).size > 1;
+    const cur = mixed ? null : (subs[0] || "");
     const rows = [];
-    rows.push('<button class="prow' + (cur ? "" : " on") + '" data-sub="" type="button">' +
-      '<span class="pn">未分组</span>' + (cur ? "" : '<span class="pcur">当前</span>') + "</button>");
+    rows.push('<button class="prow' + (!mixed && !cur ? " on" : "") + '" data-sub="" type="button">' +
+      '<span class="pn">未分组</span>' + (!mixed && !cur ? '<span class="pcur">当前</span>' : "") + "</button>");
     for (const s of subjects) {
-      rows.push('<button class="prow' + (cur === s.id ? " on" : "") + '" data-sub="' + esc(s.id) +
+      const on = !mixed && cur === s.id;
+      rows.push('<button class="prow' + (on ? " on" : "") + '" data-sub="' + esc(s.id) +
         '" type="button"><span class="pn">' + esc(s.name) + '</span>' +
-        (cur === s.id ? '<span class="pcur">当前</span>' : "") +
+        (on ? '<span class="pcur">当前</span>' : "") +
         '<span class="pact" data-mgr="ren" title="重命名科目">✎</span>' +
         '<span class="pact danger" data-mgr="del" title="删除科目">✕</span></button>');
     }
@@ -210,14 +464,22 @@
       }
       return;
     }
-    if (pickTarget) {
-      const ok = bridge("subjAssign", pickTarget, subId);
-      if (ok === true) {
-        toast(subId ? "已移入「" + (subName(subId) || "科目") + "」" : "已移出科目");
+    if (pickTargets && pickTargets.length) {
+      let ok = 0;
+      for (const id of pickTargets) {
+        if (bridge("subjAssign", id, subId) === true) {
+          ok += 1;
+        }
+      }
+      if (ok) {
+        const msg = pickTargets.length > 1
+          ? "已将 " + ok + " 条" + (subId ? "移入「" + (subName(subId) || "科目") + "」" : "移出科目")
+          : (subId ? "已移入「" + (subName(subId) || "科目") + "」" : "已移出科目");
+        toast(msg);
         closeModal("#subpick");
-        pickTarget = null;
+        pickTargets = null;
         refreshSessions();
-      } else if (ok === false) {
+      } else {
         toast("找不到这条会话或科目");
       }
     }
@@ -225,13 +487,13 @@
 
   $("#subPickNo").addEventListener("click", () => {
     closeModal("#subpick");
-    pickTarget = null;
+    pickTargets = null;
   });
   $("#subPickNew").addEventListener("click", () => openNewSubject());
   $("#subpick").addEventListener("click", (e) => {
     if (e.target === $("#subpick")) {
       closeModal("#subpick");
-      pickTarget = null;
+      pickTargets = null;
     }
   });
 
@@ -297,12 +559,26 @@
       if (ok === true) {
         toast("科目已删除，会话已移出");
         refreshSessions();       // 先灌新数据（subjects/sessions 都变）
-        if (pickTarget) {
+        if (pickTargets) {
           renderPickList();      // 再重绘弹层，避免拿陈旧行渲染
         }
       } else if (ok === false) {
         toast("找不到该科目");
       }
+      return;
+    }
+    if (t.kind === "session-del-batch") {
+      // 批量删除：先把选中集抄出来（refresh 会裁剪 selected），逐条走同一座桥
+      const ids = Array.from(selected);
+      let n = 0;
+      for (const id of ids) {
+        if (bridge("delete", id) === true) {
+          n += 1;
+        }
+      }
+      toast(n ? "已删除 " + n + " 条" : "找不到这些会话");
+      setSelecting(false);
+      refreshSessions();
       return;
     }
     const ok = bridge("delete", t.id);
@@ -339,7 +615,7 @@
       if (created && created.id) {
         toast("已新建科目「" + (created.name || name) + "」");
         refreshSessions();
-        if (pickTarget) {
+        if (pickTargets) {
           renderPickList();
         }
       } else {
@@ -352,7 +628,7 @@
       if (ok === true) {
         toast("科目已改名");
         refreshSessions();
-        if (pickTarget) {
+        if (pickTargets) {
           renderPickList();
         }
       } else {
@@ -563,10 +839,14 @@
 
   // ---------------------------------------------------------------- 原生钩子 + 启动
 
-  /** 硬件返回键：详情态回列表（消费掉），列表态交原生 finish（挂返回转场） */
+  /** 硬件返回键：详情态回列表 → 多选态退多选（都消费掉），列表态才交原生 finish */
   Host.back = function () {
     if (detail) {
       closeDetail();
+      return true;
+    }
+    if (selecting) {
+      setSelecting(false);
       return true;
     }
     return false;

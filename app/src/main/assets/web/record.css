@@ -1,8 +1,8 @@
-/* 记录页专属样式：列表（分页）+ 独立详情视图。组件层走 spore.css。 */
+/* 记录页专属样式：长列表（多选模式 + 批量底栏）+ 独立详情视图。组件层走 spore.css。 */
 
 body { background: var(--bg); }
 
-/* 列表整页 = 纵向 flex：行区吃满剩余高度，分页恒钉在视口底部（第四轮追加反馈） */
+/* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页 */
 #listView { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* ---------------- 顶栏 ---------------- */
@@ -53,6 +53,7 @@ body { background: var(--bg); }
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r16); padding: 13px 12px;
   transition: background var(--t-fast);
+  user-select: none; -webkit-user-select: none; /* 长按进多选，不许触发文字选择 */
 }
 .rrow:active { background: var(--row-hover); }
 .rrow.is-fav { background: var(--fav-row); border-color: #F5E7C8; }
@@ -86,22 +87,55 @@ body { background: var(--bg); }
   text-align: center; color: var(--muted3); font-size: 15px; line-height: 1.9;
 }
 
-/* ---------------- 分页（2③：显式分页，非无限流） ---------------- */
-.pager {
-  margin-top: auto;
-  display: flex; align-items: center; justify-content: center; gap: 18px;
+/* ---------------- 多选模式（长按进入） ---------------- */
+/* 单选框只在模式里现身（卡片左侧圆圈，选中 = 粉底白勾）；卡片区域的拖动仍留给
+   滚动，涂抹只认单选框起笔（touch-action:none 在这儿把滚动让给涂抹） */
+.ck {
+  display: none; flex: none;
+  width: 34px; height: 34px; margin-left: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--line4); background: var(--surface);
+  color: transparent;
+  align-items: center; justify-content: center;
+  touch-action: none;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.ck svg { width: 16px; height: 16px; display: block; }
+#listView.sel .ck { display: flex; }
+.rrow.on { background: var(--pink-tint); border-color: var(--pink); }
+.rrow.on .ck { background: var(--pink); border-color: var(--pink); color: #fff; }
+/* 模式里让位：行内操作按钮与筛选开关隐藏，顶栏右侧换「取消」（文案由 JS 换成「已选 N 项」） */
+#listView.sel .rrow .acts { display: none; }
+#listView.sel .scope { display: none; }
+/* 底栏是 fixed：行区垫出高度，最后一行不被压住 */
+#listView.sel .rows { padding-bottom: 76px; }
+.selx {
+  display: none; flex: none;
+  padding: 7px 12px; border-radius: var(--r999);
+  font-size: 14px; font-weight: 600; color: var(--muted);
+}
+.selx:active { background: var(--chip); }
+#listView.sel .selx { display: block; }
+
+/* ---------------- 批量底栏（模式里浮在视口底） ---------------- */
+.batchbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: center; gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background: var(--surface); border-top: 1px solid var(--line2);
 }
-.pgbtn {
-  border: 1px solid var(--line); background: var(--surface);
-  border-radius: var(--r999); padding: 7px 16px;
-  font-size: 13.5px; font-weight: 600; color: var(--muted);
-  transition: opacity var(--t-fast);
+.batchbar[hidden] { display: none; }
+.bcount { flex: none; min-width: 54px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.bbtn {
+  flex: 1; border-radius: var(--r999); padding: 10px 0;
+  font-size: 13.5px; font-weight: 600;
+  background: var(--pink-tint); color: var(--pink-deep);
+  transition: background var(--t-fast);
 }
-.pgbtn:active { background: var(--chip); }
-.pgbtn:disabled { opacity: .38; pointer-events: none; }
-.pgnum { font-size: 13.5px; color: var(--muted2); min-width: 44px; text-align: center; }
+.bbtn:active { background: var(--pink-tint2); }
+.bbtn.danger { background: var(--danger-tint); color: var(--danger-text); }
+.bbtn.danger:active { background: #FFE4EA; }
+.bbtn:disabled { opacity: .4; pointer-events: none; }
 
 /* ---------------- 详情视图 ---------------- */
 #detailView {

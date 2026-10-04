@@ -2,7 +2,6 @@ package org.offblink.spore;
 
 import android.content.Intent;
 import android.app.Dialog;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.JavascriptInterface;
@@ -55,19 +54,6 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         web.evaluateJavascript("window.__pairRefresh && window.__pairRefresh()", null);
-    }
-
-    /** 返回统一出口：顶栏「返回」（桥 close）与系统返回键都过这里，挂平移反向转场 */
-    @Override
-    public void finish() {
-        super.finish();
-        if (Build.VERSION.SDK_INT >= 34) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,
-                    R.anim.spore_back_in, R.anim.spore_back_out);
-        } else {
-            //noinspection deprecation
-            overridePendingTransition(R.anim.spore_back_in, R.anim.spore_back_out);
-        }
     }
 
     /**

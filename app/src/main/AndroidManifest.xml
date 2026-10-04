@@ -31,7 +31,7 @@
              （design/02 Base URL 就是明文 http，桌面无 TLS）；targetSdk 28+ 默认拦明文，
              不开就报 CLEARTEXT not permitted。只放行 http，https 不受影响 -->
 
-        <!-- 启动页（白底 + 图标 + 粉字 Spore）→ 1.2s 后进主页 -->
+        <!-- 启动页（白底五字母 + 弧线飞点，见 splash.html）→ 页面起来 1.5s 后进主页 -->
         <activity
             android:name=".SplashActivity"
             android:exported="true"

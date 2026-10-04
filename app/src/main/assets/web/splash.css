@@ -1,0 +1,63 @@
+/* 启动页专属样式：五字母字标（原小字升主体，保持粉）+ 飞点。令牌来自 spore.css。 */
+
+body { background: #fff; overflow: hidden; }
+
+/* 整页舞台：字标 + 小字纵向一列居中；offset-path 坐标相对本容器原点 */
+.stage {
+  position: relative;
+  width: 100%; height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+.word {
+  font-size: 60px;
+  font-weight: 800;
+  letter-spacing: -0.02em;   /* 与主界面 wordmark 同几何，只换主角色 */
+  line-height: 1.1;
+  color: var(--pink);
+  animation: wordIn .18s var(--pop-ease) both;
+}
+/* 基线参照：高 0 的内联块，底边正压在基线上（js 量 S/e 尾巴用） */
+#bl { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+
+@keyframes wordIn {
+  /* 只淡入，不带 transform：boot 量锚点时带上位移会把路径整体量歪 */
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* 底部小字：紧贴 Spore 下方（用户拍板，不在屏幕底）；起打前只走 opacity 保占位不跳；
+   光标粉、steps 闪 */
+.tagline {
+  margin-top: 18px;
+  min-height: 1.4em;
+  text-align: center;
+  font-size: 13px; letter-spacing: .3em;
+  /* 居中补偿：text-align:center 把「字形 + 尾隙0.3em + 光标5px」整行居中，
+     字形要正对屏幕中心，左侧须补足右侧多出的全部宽度 → indent = .3em + 5px */
+  text-indent: calc(.3em + 5px);
+  color: var(--muted2);
+  opacity: 0;
+}
+.tagline.on { opacity: 1; }
+.tagline .caret {
+  display: inline-block; width: 2px; height: 1em;
+  margin-left: 3px; vertical-align: -0.15em;
+  background: var(--pink);
+  animation: caretBlink .9s steps(1) infinite;
+}
+@keyframes caretBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* 飞点：offset-path 由 js 按实测锚点生成；anchor=transform-origin=底边中心
+   （落点即「坐在基线上」），所以路径两端 y 直接取基线 */
+.fly {
+  position: absolute; left: 0; top: 0;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--pink);
+  transform-origin: 50% 100%;
+  offset-rotate: 0deg;         /* 默认沿切线自转：绕底锚点会把圆心甩偏，压扁还会变斜向 */
+  transform: scale(0);          /* 起跑前隐身，js 开跑时 pop 出 */
+  will-change: offset-distance, transform;
+}

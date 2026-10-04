@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Spore</title>
+<link rel="stylesheet" href="spore.css">
+<link rel="stylesheet" href="splash.css">
+</head>
+<body>
+
+<!-- 启动页主体：五个字母（原「图标下方的小字」升为主角）+ 一颗飞行的粉点。
+     点从 S 尾巴出发，沿一条弧线飞到 e 尾巴落地（落点 = 主界面「Spore.」那颗小粉点），
+     弹性水滴压扁回弹后全页停住；原生侧 onPageFinished + 1.5s 跳主页。 -->
+<div class="stage" id="stage">
+  <div class="word" id="word" aria-label="Spore">
+    <span id="lS">S</span><span>p</span><span>o</span><span>r</span><span id="lE">e</span><span id="bl"></span>
+  </div>
+  <span class="fly" id="fly" aria-hidden="true"></span>
+  <!-- 字标下方小字：圆点落地后才从左往右打出来，粉光标持续闪 -->
+  <div class="tagline" id="tag" aria-hidden="true">
+    <span id="tagText"></span><i class="caret" id="caret"></i>
+  </div>
+</div>
+
+<script src="splash.js"></script>
+</body>
+</html>

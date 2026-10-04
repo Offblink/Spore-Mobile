@@ -22,11 +22,14 @@
 
     <style name="Theme.Spore" parent="Base.Theme.Spore" />
 
-    <!-- 启动页：纯白窗口底（系统 splash → 本页无缝），内容见 activity_splash.xml -->
+    <!-- 启动页：纯白窗口底（系统 splash → 本页无缝），内容见 splash.html。
+         31+ 系统 splash 默认画应用图标——抹空（用户拍板：不要图标，直接五字母动画） -->
     <style name="Theme.Spore.Splash" parent="Theme.Spore">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
     </style>
 
     <!-- 应用皮对话框（扫码配对 / 取消配对）：透明窗口 + 布局自带暗幕，

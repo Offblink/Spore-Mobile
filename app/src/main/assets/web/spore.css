@@ -21,6 +21,9 @@
   --r12: 12px; --r16: 16px; --r999: 999px;
   --pop-ease: cubic-bezier(.16, 1, .3, 1);
   --t-fast: .16s; --t-pop: .26s; --t-panel: .42s;
+  /* 动效双轨（mobile-design iOS 配方）：位移/形变可回弹，颜色/透明度临界阻尼绝不回弹 */
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --damped: cubic-bezier(.25, .1, .25, 1);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -32,6 +35,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
 input, textarea, select { font: inherit; color: var(--ink); }
 img { -webkit-user-drag: none; user-select: none; }
 
@@ -40,8 +44,8 @@ img { -webkit-user-drag: none; user-select: none; }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border-radius: var(--r999); padding: 11px 18px;
   font-size: 15px; font-weight: 600;
-  transition: background var(--t-fast) var(--pop-ease), color var(--t-fast),
-              opacity var(--t-fast), transform .1s var(--pop-ease);
+  transition: background var(--t-fast) var(--damped), color var(--t-fast) var(--damped),
+              opacity var(--t-fast) var(--damped), transform .18s var(--spring);
 }
 .btn:active { transform: scale(.97); }
 .btn:disabled { opacity: .45; pointer-events: none; }
@@ -60,7 +64,7 @@ img { -webkit-user-drag: none; user-select: none; }
   display: flex; align-items: center; gap: 10px;
   background: var(--surface); padding: 12px 14px;
   border-bottom: 1px solid var(--line2);
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--damped);
 }
 .row:active { background: var(--row-hover); }
 .row.is-active { background: var(--pink-tint); }
@@ -77,7 +81,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .input {
   width: 100%; border: 1.5px solid var(--line); border-radius: var(--r12);
   background: var(--surface); padding: 10px 14px; outline: none;
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  transition: border-color var(--t-fast) var(--damped), box-shadow var(--t-fast) var(--damped);
 }
 .input::placeholder { color: var(--placeholder); }
 .input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px var(--pink-tint); }
@@ -95,7 +99,7 @@ img { -webkit-user-drag: none; user-select: none; }
   background: rgba(12, 12, 18, .88); color: #fff;
   border-radius: var(--r999); padding: 9px 18px; font-size: 14px;
   opacity: 0; pointer-events: none; z-index: 200; max-width: 82vw;
-  transition: opacity var(--t-fast), transform var(--t-fast) var(--pop-ease);
+  transition: opacity var(--t-fast) var(--damped), transform .3s var(--spring);
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -134,21 +138,34 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 #shotView .shot-bar {
   display: flex; gap: 14px; justify-content: center;
-  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  margin: 0 14px 14px;
+  align-self: center;
+  /* Liquid Glass 控件层（压在暗幕上的浮层 = 玻璃合法位）：Regular 配方 + 高光边；
+     不支持 backdrop-filter 时回退不透明底，可读性不塌 */
+  background: rgba(255, 255, 255, .58);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: .5px solid rgba(255, 255, 255, .7);
+  border-radius: 24px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 10px 34px rgba(30, 30, 60, .35);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #shotView .shot-bar { background: #F4F4F8; border-color: rgba(0, 0, 0, .09); }
 }
 #shotView .shot-bar .btn { min-width: 132px; font-size: 16px; padding: 12px 18px; }
 
-/* ---- 开关（MV3 switch：轨道粉/灰，滑块白） ---- */
-.switch { position: relative; width: 44px; height: 26px; flex: none;
+/* ---- 开关（iOS 系统开关几何 51×31：轨色走 damped 绝不回弹，knob 位移走 spring 轻回弹） ---- */
+.switch { position: relative; width: 51px; height: 31px; flex: none;
   border-radius: var(--r999); background: var(--line4);
-  transition: background var(--t-fast); }
+  transition: background .3s var(--damped); }
 .switch::after {
-  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
-  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(20, 23, 42, .25);
-  transition: transform var(--t-fast) var(--pop-ease);
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px;
+  border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(20, 23, 42, .18);
+  transition: transform .35s var(--spring);
 }
 .switch.on { background: var(--pink); }
-.switch.on::after { transform: translateX(18px); }
+.switch.on::after { transform: translateX(20px); }
 
 /* ---- 动效 ---- */
 @keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
@@ -165,3 +182,12 @@ img { -webkit-user-drag: none; user-select: none; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--line4); border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- 系统关动效 → 全站降级（无障碍；mobile-design tokens 同款纪律） ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

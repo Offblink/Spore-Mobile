@@ -416,6 +416,17 @@
     renderList(true);
   });
 
+  // ---------------------------------------------------------------- 大标题（HIG large title：34pt 随内容滚走，
+  // 滚过顶栏后紧凑标题淡入顶栏；同时点亮 scroll-edge 渐隐带）
+  const listBar = $("#listView .topbar");
+  const bigTitle = $("#bigTitle");
+  function syncTitleChrome() {
+    listBar.classList.toggle("scrolled",
+      bigTitle.getBoundingClientRect().bottom <= listBar.getBoundingClientRect().bottom);
+  }
+  window.addEventListener("scroll", syncTitleChrome, { passive: true });
+  syncTitleChrome();
+
   // ---------------------------------------------------------------- 移入科目弹层（会话 ⇥ 打开；新建/改名/删除都在这一个弹层）
 
   /** 目标可为多条（多选底栏批量移入）；单条 = [id]，与原行为等价 */
@@ -424,6 +435,7 @@
     $("#pickTitle").textContent = "移入科目" +
       (ids.length > 1 ? "（" + ids.length + " 条）" : "");
     renderPickList();
+    $("#subpick").classList.remove("out"); // 撤退中的滑下 → 取消，避免到点定时器卸掉新弹层
     $("#subpick").classList.add("on");
   }
 
@@ -543,8 +555,19 @@
   }
 
   function closeModal(sel) {
-    $(sel).classList.remove("on");
+    const el = $(sel);
     modalTarget = null;
+    if (sel === "#subpick") {
+      // 底部弹层：damped 滑下再卸（330ms > .3s 动画）；重开时 openPicker 会先撤 .out，
+      // 到点的定时器见到 .out 已不在 → 不动新弹层
+      if (!el.classList.contains("on") || el.classList.contains("out")) return;
+      el.classList.add("out");
+      setTimeout(() => {
+        if (el.classList.contains("out")) el.classList.remove("on", "out");
+      }, 330);
+      return;
+    }
+    el.classList.remove("on");
   }
 
   $("#confirmNo").addEventListener("click", () => closeModal("#confirm"));

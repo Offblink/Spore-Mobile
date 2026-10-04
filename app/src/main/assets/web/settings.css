@@ -1,6 +1,6 @@
 /* 设置页专属样式：顶栏 / 分组卡 / 字段 / 开关行。令牌与 .input/.card/.switch 来自 spore.css。 */
 
-/* ---- 顶栏（滚动时吸顶） ---- */
+/* ---- 顶栏（滚动时吸顶；玻璃控件层，表单内容从下缘滑过） ---- */
 .topbar {
   position: sticky;
   top: 0;
@@ -9,8 +9,19 @@
   align-items: center;
   gap: 4px;
   padding: 12px 16px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  background: rgba(244, 246, 253, .58);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: .5px solid rgba(20, 23, 42, .10);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar { background: var(--bg); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topbar {
+    background: var(--bg);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
 }
 .topbar .title { font-size: 17px; font-weight: 700; color: var(--ink); }
 .back-btn {

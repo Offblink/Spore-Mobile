@@ -5,13 +5,35 @@ body { background: var(--bg); }
 /* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页 */
 #listView { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* ---------------- 顶栏 ---------------- */
+/* ---------------- 顶栏（玻璃控件层：压在滚动内容上 = Liquid Glass 合法位） ---------------- */
 .topbar {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 8px;
   padding: 12px 10px;
-  background: var(--surface); border-bottom: 1px solid var(--line2);
+  background: rgba(255, 255, 255, .58);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: .5px solid rgba(20, 23, 42, .12);
 }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar { background: var(--surface); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topbar {
+    background: var(--surface);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+/* scroll-edge 渐隐带：内容撞向玻璃条时的缓冲垫（内容层，非玻璃）。
+   大标题滚过顶栏（.scrolled）才现身——静止时不能在标题上盖一层灰 */
+.topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 34px;
+  background: linear-gradient(180deg, rgba(244, 246, 253, .55), rgba(244, 246, 253, 0));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s var(--damped);
+}
+.topbar.scrolled::after { opacity: 1; }
 .topbar .icon {
   flex: none; width: 36px; height: 36px; border-radius: 10px;
   font-size: 24px; line-height: 1; color: var(--muted);
@@ -23,6 +45,21 @@ body { background: var(--bg); }
   flex: 1; min-width: 0; margin: 0;
   font-size: 17px; font-weight: 700; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center;
+}
+/* 列表页紧凑标题：大标题在场（未滚过、非多选）时隐身，滚动越线/进多选淡入（详情视图标题不受影响） */
+#listView .topbar .ptitle {
+  opacity: 0;
+  transition: opacity .2s var(--damped), transform .25s var(--spring);
+}
+#listView .topbar.scrolled .ptitle,
+#listView.sel .topbar .ptitle { opacity: 1; }
+
+/* HIG Large Title：34pt 大标题随内容滚走，滚过后紧凑标题收进顶栏 */
+.largetitle {
+  margin: 10px 16px 2px;
+  font-size: 34px; line-height: 41px; font-weight: 700;
+  letter-spacing: .2px; color: var(--ink);
 }
 
 /* 全部 ⇄ 收藏：开关左右两侧都有字，激活侧高亮（第三轮定稿的原设计） */
@@ -117,12 +154,26 @@ body { background: var(--bg); }
 .selx:active { background: var(--chip); }
 #listView.sel .selx { display: block; }
 
-/* ---------------- 批量底栏（模式里浮在视口底） ---------------- */
+/* ---------------- 批量底栏（模式里浮在视口底；玻璃控件层，滚动内容从下缘滑过） ---------------- */
 .batchbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: var(--surface); border-top: 1px solid var(--line2);
+  background: rgba(255, 255, 255, .58);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-top: .5px solid rgba(255, 255, 255, .7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 -10px 34px rgba(30, 30, 60, .10);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .batchbar { background: var(--surface); box-shadow: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .batchbar {
+    background: var(--surface);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: none;
+  }
 }
 .batchbar[hidden] { display: none; }
 .bcount { flex: none; min-width: 54px; font-size: 13px; font-weight: 700; color: var(--muted); }
@@ -222,6 +273,26 @@ body { background: var(--bg); }
 .modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
 .modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
 .modal-box { animation: popIn .24s var(--pop-ease); }
+
+/* ---------------- 移入科目 → iOS 底部弹层（mobile-design bottom-sheet 配方） ----------------
+   遮罩纯色压暗不模糊；白面板贴底、上圆角、grabber 弱提示；spring 弹起、damped 滑下。
+   #confirm/#rename 是警报语义，保持居中不动。 */
+#subpick { align-items: flex-end; background: rgba(20, 16, 10, .32); }
+#subpick .modal-box {
+  width: 100%; max-width: none;
+  border-radius: 16px 16px 0 0;
+  padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  animation: sheetUp .5s var(--spring);
+}
+#subpick .modal-box::before {
+  content: ""; display: block; width: 36px; height: 5px; border-radius: 3px;
+  background: rgba(20, 23, 42, .18); margin: 0 auto 12px;
+}
+#subpick.out { animation: maskOut .3s var(--damped) forwards; }
+#subpick.out .modal-box { animation: sheetDown .3s var(--damped) forwards; }
+@keyframes sheetUp { from { transform: translateY(110%); } to { transform: none; } }
+@keyframes sheetDown { from { transform: none; } to { transform: translateY(110%); } }
+@keyframes maskOut { from { opacity: 1; } to { opacity: 0; } }
 
 /* ---------------- 移入科目弹层（单选行 + 行内重命名/删除） ---------------- */
 /* 可见滚动条：科目攒多后 overflow 出 46vh 即显示（第三轮反馈）；触屏保留惯性 */

@@ -45,6 +45,16 @@
     fly.style.offsetPath = 'path("M ' + x0 + ' ' + base + ' C ' + x0 + ' ' + cy +
       ', ' + x2 + ' ' + cy + ', ' + x2 + ' ' + base + '")';
 
+    // 系统关动效：直接摆终态（点在落点、小字全出），不飞不打字；原生 2.2s 跳转不变
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      fly.style.offsetDistance = "100%";
+      fly.style.transform = "scale(1)";
+      const tagR = document.getElementById("tag");
+      tagR.classList.add("on");
+      document.getElementById("tagText").textContent = TEXT;
+      return;
+    }
+
     // 一条时间线：pop 出生 → 弧线飞行 → 落地压扁 → 回弹拉伸 → 小幅余震 → 静止
     // transform-origin = 底边中心 = 路径锚点，压扁自然以基线为「地面」
     fly.animate([

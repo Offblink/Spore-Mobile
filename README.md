@@ -59,7 +59,7 @@
 ## 安装与用法
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
-   （2026-10-03 构建，73.2 MB），允许「安装未知应用」后安装。
+   （2026-10-05 构建，73.2 MB），允许「安装未知应用」后安装。
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限。
 3. 日常：
    - **点球** = 截屏取帧 → 框选题目 → 面板里看答案；
@@ -100,9 +100,9 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-03 实测：`assembleDebug testDebugUnitTest` **42/42 全绿**
+- 2026-10-05 实测：`assembleDebug testDebugUnitTest` **42/42 全绿**
   （FrameQuality 7 · Phases 7 · Suggest 6 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  SyncEngine 11），APK **75,590,703 B**（本轮起含 CameraX + ML Kit 条码模型）。
+  SyncEngine 11），APK **76,739,304 B**（自 v1.1 起含 CameraX + ML Kit 条码模型）。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

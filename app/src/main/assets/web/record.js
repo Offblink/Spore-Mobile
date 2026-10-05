@@ -189,6 +189,7 @@
   // 起笔卡已选 → 本笔先反着来（取消选择）。**中途可换向**：笔尖行号一折返，
   // 方向立刻翻转、新段从拐点起算——1,2,3 ↘ −3,−2,−1 ↘ 1,2,3 一段一段接力。
   // 涂抹只认单选框起笔：卡片其余区域的拖动留给滚动（长页面一滑到底）。
+  // 笔尖贴到上下缘（顶栏下 / 批量底栏上）→ 列表自动滚，滚过的行继续涂（见下「边界自动滚动」）。
   const HOLD_MS = 500;   // 长按进多选的判定时长
   const SLOP = 10;       // px：超过就算「动了」（滚动/涂抹），不算长按/点选
   let holdTimer = 0;     // 长按定时器（非 0 = 挂着）
@@ -217,6 +218,89 @@
       if (el) {
         setRowSel(el.dataset.id, paint.dir);
       }
+    }
+  }
+
+  /** 笔尖挪到第 idx 行：落选中/取消；中途折返（行号方向翻）即换向，新段从拐点起算 */
+  function paintTo(idx) {
+    if (idx < 0 || idx === paint.prev) {
+      return;
+    }
+    const d = idx > paint.prev ? 1 : -1;
+    if (paint.dx && d !== paint.dx) {
+      paint.dir = !paint.dir;
+      paint.seg = paint.prev;
+    }
+    paint.dx = d;
+    paint.prev = idx;
+    paint.moved = true;
+    paintRange(idx);
+  }
+
+  // ---------------------------------------------------------------- 边界自动滚动（用户 Round 18）
+  //
+  // 涂抹笔尖贴到屏幕上下缘（顶栏之下 / 批量底栏之上）时，列表自己滚起来，滚过的行继续按
+  // 当前方向涂抹——手指停在边上不用来回挪，就能把一整屏选完。笔尖不动也会滚：滚动期间没有
+  // pointermove，靠 requestAnimationFrame 拿最后笔尖位置持续取行（rowUnder）接着涂。
+  const EDGE = 90;       // px：上下各留这么高的滚动带（一行卡 ≈ 82px，留一点余量）
+  const AUTO_MIN = 3;    // px/帧：刚进带的保底速度
+  const AUTO_MAX = 16;   // px/帧：贴到最边上的上限（60fps 下 ≈ 960px/s）
+  let autoRaf = 0;
+  const lastPt = { x: 0, y: 0 }; // 笔尖最后位置（滚动中无 pointermove，靠它取行）
+
+  /** 笔尖高度 → 本帧滚动量（+ 下滚 / − 上滚 / 0 = 不在带里）；离边越近越快 */
+  function edgeDy(y) {
+    const top = document.querySelector("#listView .topbar").getBoundingClientRect().bottom;
+    const bar = $("#batchbar");
+    const bottom = bar.hidden ? window.innerHeight : bar.getBoundingClientRect().top;
+    const speed = (depth) => Math.round(AUTO_MIN + (AUTO_MAX - AUTO_MIN) * (1 - depth / EDGE));
+    if (y >= top && y < top + EDGE) {
+      return -speed(y - top);
+    }
+    if (y > bottom - EDGE && y <= bottom) {
+      return speed(bottom - y);
+    }
+    return 0;
+  }
+
+  function autoTick() {
+    autoRaf = 0;
+    if (!paint || !selecting) {
+      return;
+    }
+    const dy = edgeDy(lastPt.y);
+    if (!dy) {
+      return; // 出带了：等下一次 pointermove 再启动
+    }
+    const before = window.scrollY;
+    window.scrollBy(0, dy);
+    if (window.scrollY === before) {
+      return; // 到顶/到底滚不动就停，别空转
+    }
+    const over = rowUnder(lastPt.x, lastPt.y); // 滚了一行 → 笔尖下的行换了，接着涂
+    if (over) {
+      paintTo(rowsArr().indexOf(over));
+    }
+    autoRaf = requestAnimationFrame(autoTick);
+  }
+
+  /** 每笔 pointermove 同步一次：进带就起滚动循环，出带/收笔就停 */
+  function autoSync(e) {
+    lastPt.x = e.clientX;
+    lastPt.y = e.clientY;
+    const wanted = !!(paint && selecting && edgeDy(e.clientY));
+    if (wanted && !autoRaf) {
+      autoRaf = requestAnimationFrame(autoTick);
+    } else if (!wanted && autoRaf) {
+      cancelAnimationFrame(autoRaf);
+      autoRaf = 0;
+    }
+  }
+
+  function autoStop() {
+    if (autoRaf) {
+      cancelAnimationFrame(autoRaf);
+      autoRaf = 0;
     }
   }
 
@@ -268,27 +352,17 @@
       return;
     }
     if (paint && selecting) {
+      autoSync(e);
       const over = rowUnder(e.clientX, e.clientY);
       if (over) {
-        const idx = rowsArr().indexOf(over);
-        if (idx >= 0 && idx !== paint.prev) {
-          const d = idx > paint.prev ? 1 : -1;
-          if (paint.dx && d !== paint.dx) {
-            // 中途换向：方向翻转，新段从拐点（上一格）起算
-            paint.dir = !paint.dir;
-            paint.seg = paint.prev;
-          }
-          paint.dx = d;
-          paint.prev = idx;
-          paint.moved = true;
-          paintRange(idx);
-        }
+        paintTo(rowsArr().indexOf(over));
       }
       e.preventDefault();
     }
   });
 
   function endStroke() {
+    autoStop();
     if (holdTimer) {
       clearTimeout(holdTimer);
       holdTimer = 0;

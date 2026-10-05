@@ -8,7 +8,7 @@
   const DUR = 1100;
   const TYPE_AFTER = 700;   // 落地压扁之后起打（638ms 撞地 + 62ms 缓冲）
   const TYPE_STEP = 65;     // 每字间隔
-  const TEXT = "让答案触手可得";
+  const TEXT = "让答案触手可及";
 
   function boot() {
     const st = stage.getBoundingClientRect();

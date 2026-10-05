@@ -180,6 +180,11 @@ img { -webkit-user-drag: none; user-select: none; }
 .anim-in-right { animation: slideInRight var(--t-panel) var(--pop-ease) both; }
 .anim-out-left { animation: slideOutLeft .2s var(--pop-ease) both; }
 
+/* ---- 数学（KaTeX，随包离线；md.js 产出的公式 HTML） ---- */
+.katex { white-space: normal; font-weight: 400; }          /* 父层 .ans/.chat 是 pre-wrap + 粗体，别传导进公式 */
+.katex-display { overflow-x: auto; overflow-y: hidden; margin: .5em 0; } /* 长公式横向滚，别撑破气泡 */
+.math { font-family: "Times New Roman", serif; font-style: italic; }     /* katex 没加载时的兜底纯文本 */
+
 /* ---- 滚动条（细条，别抢视觉） ---- */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--line4); border-radius: 4px; }

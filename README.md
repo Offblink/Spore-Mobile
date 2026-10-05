@@ -32,7 +32,10 @@
 
 - **交互逐条对齐**：💬 会话列表、★ 收藏（**只标记、不置顶**）、✎ 重命名、✕ 删除确认框、
   流式回答与「思考」块、随时可调检索工具的追问、全部/收藏筛选 + 一滑到底的搜题记录页
-  （长按卡片进多选：单选框涂抹连选，批量收藏/移入科目/删除）、点图放大并保存到相册。
+  （长按卡片进多选：单选框涂抹连选，笔尖贴到上下缘列表**自动滚屏**接着涂，
+  批量收藏/移入科目/删除）、点图放大并保存到相册。
+- **公式渲染**：回答里的 LaTeX（`$…$`、`$$…$$`、`\(…\)`、`\[…\]`）用**随包离线 KaTeX**
+  （`assets/web/vendor/katex/`，不联网）排版，代码段里的 `$` 不当公式，katex 缺席时回退纯文本。
 - **科目分类**（对齐桌面 Spore 整页记录）：记录页顶部 chips 按科目筛选，会话行 ⇥ 移入/移出科目，
   新建/重命名/删除科目复用页内模态；删科目只把会话移出、一个不删，`subjects.json` 原子落盘。
 - **扫码配对 · 与 Spore-GUI 双向同步**：设置页「配对与同步」→ 扫
@@ -102,7 +105,8 @@ cd Spore-Mobile
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
 - 2026-10-05 实测：`assembleDebug testDebugUnitTest` **42/42 全绿**
   （FrameQuality 7 · Phases 7 · Suggest 6 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  SyncEngine 11），APK **76,739,304 B**（自 v1.1 起含 CameraX + ML Kit 条码模型）。
+  SyncEngine 11），APK **76,741,583 B**（自 v1.1 起含 CameraX + ML Kit 条码模型，
+  本轮起含离线 KaTeX 公式字体）。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

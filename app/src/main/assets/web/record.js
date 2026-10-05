@@ -1,4 +1,4 @@
-/* 记录页逻辑：列表（分组视图：各科目 + 未分组，一滑到底长页面 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
+/* 记录页逻辑：列表（chips 分组筛选：未分组 + 各科目，一滑到底长页面 + 收藏筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
  * 多选：长按卡片进多选模式（左边圆形单选框）；从单选框起笔涂抹连选——起笔在已选卡片上
  *       这笔先取消，否则先选择；中途折返即换向（段起点挪到拐点）；多选下支持批量收藏/移入/删除。
  * 数据：ready/sessions = 索引 meta + 科目表；详情按需 session(id) 单取；改名/删除/收藏/追问/科目四 op 全走原生桥。 */
@@ -9,7 +9,7 @@
 
   let sessions = [];
   let subjects = [];   // 科目表（subjects.json 全量，chips 与移入弹层共用）
-  let subFilter = "";  // 科目筛选："" = 全部
+  let subFilter = "";  // 分组筛选（chips）："" = 未分组；否则 = 科目 id
   let pickTargets = null; // 移入弹层目标会话 id 数组（非 null = 弹层开着；单条 = [id]）
   let favOnly = false;
   let detail = null;
@@ -25,9 +25,12 @@
   // ---------------------------------------------------------------- 列表
 
   function filtered() {
-    // 两维筛选正交（收藏 ∩ 科目）；chips 常驻，不因收藏视图隐藏（比 MV3 的「收藏平铺」更可用）
+    // chips 即分组视图（未分组 + 各科目，没有「全部」）："" = 未分组。
+    // 悬挂 subjectId（科目已删）对不上任何科目表 → 也算未分组（宁滥勿缺的兜底）。
+    // 与收藏维度正交；chips 常驻，不因收藏视图隐藏。
+    const grouped = (s) => s.subjectId && subjects.some((x) => x.id === s.subjectId);
     return sessions.filter((s) =>
-      (!favOnly || s.fav) && (!subFilter || s.subjectId === subFilter));
+      (!favOnly || s.fav) && (subFilter ? s.subjectId === subFilter : !grouped(s)));
   }
 
   function subName(id) {
@@ -40,7 +43,7 @@
     if (st && st.sessions) {
       sessions = st.sessions;
       subjects = st.subjects || [];
-      // 科目被删/筛选失效 → 回落「全部」，别把列表筛成空
+      // 科目被删/筛选失效 → 回落「未分组」，别把列表筛成空
       if (subFilter && !subjects.some((x) => x.id === subFilter)) {
         subFilter = "";
       }
@@ -84,33 +87,11 @@
 
     $("#empty").hidden = list.length > 0;
     $("#empty").textContent = subFilter ? "这个科目下还没有会话"
-      : favOnly ? "还没有收藏的会话" : "暂无搜题记录";
+      : favOnly ? "还没有收藏的会话"
+      : (sessions.length ? "未分组里还没有会话" : "暂无搜题记录");
 
-    // 分组视图（用户拍板：不再平铺全部会话）：各科目一组 +「未分组」收尾。
-    // 宁滥勿缺：会话必落且只落一组——subjectId 对得上科目表的进该组，
-    // 空/悬挂的进「未分组」兜底；分组总和 = list。空组不出头（计数照样对得上）。
-    const buckets = new Map(); // 组键（"" = 未分组）→ 行 html[]
-    for (const s of list) {
-      const key = s.subjectId && subjects.some((x) => x.id === s.subjectId)
-        ? s.subjectId : "";
-      if (!buckets.has(key)) {
-        buckets.set(key, []);
-      }
-      buckets.get(key).push(rowCardHtml(s));
-    }
-    const out = [];
-    const pushGroup = (name, rows) => {
-      if (rows && rows.length) {
-        out.push('<div class="rhead">' + esc(name) +
-          '<span class="rhn">' + rows.length + "</span></div>");
-        out.push.apply(out, rows);
-      }
-    };
-    for (const sub of subjects) {
-      pushGroup(sub.name, buckets.get(sub.id));
-    }
-    pushGroup("未分组", buckets.get(""));
-    $("#rows").innerHTML = out.join("");
+    // 平铺行卡（分组由 chips 承担：未分组 + 各科目，组内不再插组头）
+    $("#rows").innerHTML = list.map(rowCardHtml).join("");
 
     syncSelChrome();
 
@@ -232,8 +213,7 @@
   let paint = null;      // 本笔涂抹 {seg, prev, dx, dir, moved}
 
   function rowsArr() {
-    // 只收行卡：#rows 里混着分组头（.rhead），按 children 索引会把头当行（涂抹跨组会错位）
-    return Array.prototype.slice.call($("#rows").querySelectorAll(".rrow"));
+    return Array.prototype.slice.call($("#rows").children);
   }
 
   function rowUnder(x, y) {
@@ -500,9 +480,10 @@
   // ---------------------------------------------------------------- 科目 chips（按科目筛选；唯一入口，无固定按钮）
 
   function renderChips() {
-    // 全量重建：全部 + 每科目一个。新建/改名/删除统一在行内 ⇥ 移入弹层里做
+    // 全量重建：「未分组」+ 每科目一个（首 chip 即 ""，没有「全部」——分组总和就是全部会话）。
+    // 新建/改名/删除统一在行内 ⇥ 移入弹层里做
     const frag = [];
-    frag.push('<button class="fchip' + (subFilter ? "" : " on") + '" data-sub="" type="button">全部</button>');
+    frag.push('<button class="fchip' + (subFilter ? "" : " on") + '" data-sub="" type="button">未分组</button>');
     for (const s of subjects) {
       frag.push('<button class="fchip' + (subFilter === s.id ? " on" : "") +
         '" data-sub="' + esc(s.id) + '" type="button">' + esc(s.name) + "</button>");
@@ -541,8 +522,13 @@
     $("#pickTitle").textContent = "移入科目" +
       (ids.length > 1 ? "（" + ids.length + " 条）" : "");
     renderPickList();
-    $("#subpick").classList.remove("out"); // 撤退中的滑下 → 取消，避免到点定时器卸掉新弹层
-    $("#subpick").classList.add("on");
+    // 清掉上次下滑手势的内联残留（transform/transition/透明度），否则新弹层带着旧位移起跳
+    const box = $("#subpick .modal-box");
+    const mask = $("#subpick");
+    box.style.cssText = "";
+    mask.style.cssText = "";
+    mask.classList.remove("out"); // 撤退中的滑下 → 取消，避免到点定时器卸掉新弹层
+    mask.classList.add("on");
   }
 
   function renderPickList() {
@@ -614,6 +600,123 @@
       pickTargets = null;
     }
   });
+
+  // ---------------------------------------------------------------- 下滑关闭（刻痕/标题起笔——用户 Round 21 追加）
+  //
+  // 弹层从底部弹起、顶部有刻痕 → 手势必须成对：抓手区按下往下拖，松手过阈值
+  // （≥96px，或短距离快甩）就顺着指尖滑出并关掉；不够就 spring 弹回。
+  // 只认下滑（上拖不跟手、不缩小）；.sublist 照旧滚动，不参与本手势。
+  const DRAG_MIN = 96;   // px：松手位移到线就关
+  const FLING_MIN = 24;  // px：快甩的起跳距离
+  const FLING_V = 0.55;  // px/ms：快甩速度线（550px/s）
+  let sheetDrag = null;  // {el, id, y0, y, t, v, moved}
+
+  function sheetDragEnd(commit) {
+    const box = $("#subpick .modal-box");
+    const mask = $("#subpick");
+    const dy = Math.max(0, sheetDrag.y - sheetDrag.y0);
+    sheetDrag = null;
+    if (commit) {
+      // 顺指尖滑出 + 遮罩淡出；收场期间不接新点击（防双关/误开竞态）
+      mask.style.pointerEvents = "none";
+      box.style.transition = "transform .3s var(--damped)";
+      box.style.transform = "translateY(110%)";
+      mask.style.transition = "opacity .3s var(--damped)";
+      mask.style.opacity = "0";
+      pickTargets = null;
+      setTimeout(() => {
+        // 320ms 内若已被重新打开（openPicker 清了内联样式），别把新弹层拆了
+        if (box.style.transform.indexOf("110%") < 0) {
+          return;
+        }
+        mask.classList.remove("on");
+        box.style.cssText = "";
+        mask.style.cssText = "";
+      }, 320);
+      return;
+    }
+    if (dy <= 0) {
+      // 拖下去又拽回原点松手：不动弹层，但要把跟手期的内联 transition/transform 清掉
+      box.style.transition = "";
+      box.style.transform = "";
+      return;
+    }
+    box.style.transition = "transform .3s var(--damped)";
+    box.style.transform = "translateY(0)";
+    box.addEventListener("transitionend", (ev) => {
+      if (ev.propertyName !== "transform") {
+        return;
+      }
+      // 回基态：内联 transition/transform 残留会让后续 .out 的 sheetDown 起跳
+      box.style.transition = "";
+      box.style.transform = "";
+    }, { once: true });
+  }
+
+  function sheetDragStart(e) {
+    const mask = $("#subpick");
+    if (sheetDrag || !mask.classList.contains("on") || mask.classList.contains("out")) {
+      return;
+    }
+    // 弹起动画（sheetUp .5s）若还在飞先定格：动画优先级高于内联 transform，不定格拖不动
+    $("#subpick .modal-box").getAnimations().forEach((a) => a.finish());
+    sheetDrag = {
+      el: e.currentTarget, id: e.pointerId,
+      y0: e.clientY, y: e.clientY, t: performance.now(), v: 0, moved: false
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+
+  function sheetDragMove(e) {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) {
+      return;
+    }
+    const now = performance.now();
+    const dy = Math.max(0, e.clientY - sheetDrag.y0);
+    sheetDrag.v = (e.clientY - sheetDrag.y) / Math.max(1, now - sheetDrag.t);
+    sheetDrag.y = e.clientY;
+    sheetDrag.t = now;
+    if (!sheetDrag.moved) {
+      if (dy <= 2) {
+        return; // 还没真动（位移 < 2px 不算拖，点按语义保留）
+      }
+      sheetDrag.moved = true;
+      const box = $("#subpick .modal-box");
+      box.style.transition = "none"; // 拖动期 1:1 跟手，不被过渡拖泥带水
+      box.style.transform = "translateY(0)";
+    }
+    $("#subpick .modal-box").style.transform = "translateY(" + dy + "px)";
+    e.preventDefault();
+  }
+
+  function sheetDragUp(e) {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) {
+      return;
+    }
+    const dy = Math.max(0, sheetDrag.y - sheetDrag.y0);
+    const moved = sheetDrag.moved;
+    const flick = moved && dy >= FLING_MIN && sheetDrag.v > FLING_V;
+    if (!moved) {
+      sheetDrag = null;
+      return;
+    }
+    sheetDragEnd(dy >= DRAG_MIN || flick);
+  }
+
+  for (const sel of ["#pickGrab", "#pickTitle"]) {
+    const el = $(sel);
+    el.addEventListener("pointerdown", sheetDragStart);
+    el.addEventListener("pointermove", sheetDragMove);
+    el.addEventListener("pointerup", sheetDragUp);
+    el.addEventListener("pointercancel", () => {
+      if (sheetDrag && sheetDrag.moved) {
+        sheetDragEnd(false); // 系统抢走指针（来电/转屏）→ 弹回，别把半开状态留下
+      } else {
+        sheetDrag = null;
+      }
+    });
+  }
 
   /** 新建科目：复用重命名输入模态（同 MV3 的「一个模态两个口径」） */
   function openNewSubject() {

@@ -100,15 +100,6 @@ body { background: var(--bg); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rrow .ts { margin-top: 3px; font-size: 12px; color: var(--muted3); }
-/* 分组头（分组视图）：科目名 + 组内计数；行卡与组头同走 .rows 的 8px gap，
-   组与组之间再多留一档，「总和 = 全部会话」在版面上一眼可对 */
-.rhead {
-  display: flex; align-items: baseline; gap: 7px;
-  padding: 12px 6px 0;
-  font-size: 13px; font-weight: 700; color: var(--muted);
-}
-.rows > .rhead:first-child { padding-top: 2px; }
-.rhead .rhn { font-size: 12px; font-weight: 600; color: var(--muted4); }
 .rrow .acts { flex: none; display: flex; gap: 2px; }
 .rrow .act {
   width: 34px; height: 34px; border-radius: 9px;
@@ -286,9 +277,17 @@ body { background: var(--bg); }
   padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
   animation: sheetUp .5s var(--spring);
 }
-#subpick .modal-box::before {
-  content: ""; display: block; width: 36px; height: 5px; border-radius: 3px;
-  background: rgba(20, 23, 42, .18); margin: 0 auto 12px;
+/* 刻痕做成了真元素（#pickGrab，手势要命中它 + touch-action:none，原 ::before 已删）：
+   样式照抄原 ::before，视觉不变；标题带同属抓手区（刻痕 5px 太细，指头对不准） */
+#subpick .grab {
+  width: 36px; height: 5px; border-radius: 3px;
+  background: rgba(20, 23, 42, .18);
+  margin: 0 auto 12px;
+  touch-action: none; cursor: grab;
+}
+#subpick .modal-title {
+  user-select: none; -webkit-user-select: none;
+  touch-action: none; cursor: grab;
 }
 #subpick.out { animation: maskOut .3s var(--damped) forwards; }
 #subpick.out .modal-box { animation: sheetDown .3s var(--damped) forwards; }

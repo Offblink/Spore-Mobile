@@ -77,6 +77,12 @@ public final class SyncEngine {
                 return new Result(false, "未配对");
             }
             SyncClient client = new SyncClient(st.api, st.token);
+            // 换账号检测（后端 lan_token 改绑 / 重扫换人）：游标属于上一个用户，
+            // 不重置则新账号的存量行被旧水位永久跳过（同步不全的一条腿）。
+            // 首跑未记录身份（升级）也按变更处理：全量交换幂等，一轮收敛。
+            JSONObject me = client.me();
+            adoptUid(st, me == null ? -1 : me.optLong("id", -1));
+            st.save(ctx);
             int up = pushPhase(ctx, client, st);
             int down = pullPhase(ctx, client, st);
             st.lastSyncAt = System.currentTimeMillis();
@@ -174,11 +180,12 @@ public final class SyncEngine {
 
         // ---- 发送：科目一次；文章分块，块成功才推进内存游标（崩溃回退整轮重推，幂等）----
         int sent = 0;
+        Set<String> accepted = new HashSet<>();
         if (catItems.length() > 0) {
             JSONObject body = new JSONObject();
             body.put("categories", catItems);
             body.put("articles", new JSONArray());
-            client.push(body);
+            accepted.addAll(acceptedIds(client.push(body)));
             sent += catItems.length();
         }
         for (int from = 0; from < artItems.size(); from += PUSH_CHUNK) {
@@ -190,17 +197,22 @@ public final class SyncEngine {
             JSONObject body = new JSONObject();
             body.put("categories", new JSONArray());
             body.put("articles", chunk);
-            client.push(body);
+            accepted.addAll(acceptedIds(client.push(body)));
             sent += chunk.length();
         }
 
-        // ---- 游标只吃非墓碑 touched；账本按已推的销 ----
+        // ---- 游标只吃非墓碑 touched；账本只销服务端真收下的（accepted=false =
+        //      LWW 拒绝，留账下轮重推——销了 = 删除永久丢失，服务端行保持活）----
         st.pushCursor = maxUpd;
-        if (!tombedCat.isEmpty()) {
-            SyncTombstones.remove(ctx, SyncTombstones.CATEGORY, tombedCat);
+        Set<String> okCat = new HashSet<>(tombedCat);
+        okCat.retainAll(accepted);
+        if (!okCat.isEmpty()) {
+            SyncTombstones.remove(ctx, SyncTombstones.CATEGORY, okCat);
         }
-        if (!tombedArt.isEmpty()) {
-            SyncTombstones.remove(ctx, SyncTombstones.ARTICLE, tombedArt);
+        Set<String> okArt = new HashSet<>(tombedArt);
+        okArt.retainAll(accepted);
+        if (!okArt.isEmpty()) {
+            SyncTombstones.remove(ctx, SyncTombstones.ARTICLE, okArt);
         }
         return sent;
     }
@@ -220,6 +232,18 @@ public final class SyncEngine {
         item.put("updated", s.touched);
         item.put("deleted", 0);
         return item;
+    }
+
+    /** 账号身份接管：uid 变了（或首跑未知）→ 双游标清零做全量交换；墓碑账本保留 */
+    static void adoptUid(SporeSyncState st, long uid) {
+        if (uid < 0) {
+            return; // 拿不到身份不动状态
+        }
+        if (uid != st.uid) {
+            st.pullCursor = 0;
+            st.pushCursor = 0;
+        }
+        st.uid = uid;
     }
 
     /** design/03 §1：同步只推 done/error/aborted；在途/空态（进程死掉残留）一律归 done */
@@ -304,6 +328,11 @@ public final class SyncEngine {
                             CaptureService.deleteSubject(ctx, row.optString("id", ""));
                             applied++;
                         }
+                    } else if (SyncTombstones.has(ctx, SyncTombstones.CATEGORY,
+                            row.optString("id", ""))) {
+                        // 在账科目墓碑压住下行活科目：不许复活，抬账等下轮 push 裁赢
+                        SyncTombstones.raise(ctx, SyncTombstones.CATEGORY,
+                                row.optString("id", ""), row.optLong("updated", 0));
                     } else if (SubjectsStore.applyServerRow(ctx, row)) {
                         applied++;
                     }
@@ -350,6 +379,14 @@ public final class SyncEngine {
         String id = row.optString("id", "");
         long serverUpd = row.optLong("updated", 0);
         boolean deleted = row.optInt("deleted", 0) == 1;
+        if (SyncTombstones.has(ctx, SyncTombstones.ARTICLE, id)) {
+            if (!deleted) {
+                // 本地删过（在账）而服务端还是活行：不许复活；抬账到服务端之上，
+                // 下轮 push 的 updated 压过它 → LWW 裁删除赢（两轮收敛）
+                SyncTombstones.raise(ctx, SyncTombstones.ARTICLE, id, serverUpd);
+            }
+            return 0;
+        }
         Session local = SessionStore.load(ctx, id);
 
         if (local == null) {
@@ -380,6 +417,21 @@ public final class SyncEngine {
         fetchAttachment(ctx, client, id, row, s);
         fixDanglingSubject(ctx, s);
         return CaptureService.applyFromSync(ctx, s) ? 1 : -1;
+    }
+
+    /** push results → 服务端真收下的 id 集（accepted=false = LWW 拒绝，不算推成功） */
+    static Set<String> acceptedIds(JSONArray results) {
+        Set<String> out = new HashSet<>();
+        if (results == null) {
+            return out;
+        }
+        for (int i = 0; i < results.length(); i++) {
+            JSONObject r = results.optJSONObject(i);
+            if (r != null && r.optBoolean("accepted", false)) {
+                out.add(r.optString("id", ""));
+            }
+        }
+        return out;
     }
 
     /**
@@ -469,8 +521,8 @@ public final class SyncEngine {
                                         JSONObject row, Session s)
             throws IOException, SyncClient.SyncException {
         String rel = row.isNull("attachmentPath") ? "" : row.optString("attachmentPath", "");
-        if (rel.isEmpty() || "null".equals(rel)) {
-            return; // 键缺席/null（还没上过题图）；"null" 字面量兜 Jackson null 键的老坑
+        if ("null".equals(rel)) {
+            rel = ""; // "null" 字面量兜 Jackson null 键的老坑
         }
         Session.Msg target = null;
         for (Session.Msg m : s.messages) {
@@ -486,7 +538,18 @@ public final class SyncEngine {
         if (target == null) {
             return; // 图都在（回声/重拉）或这会话本来没图
         }
-        byte[] bytes = client.pullAttachment(rel);
+        byte[] bytes = null;
+        if (!rel.isEmpty()) {
+            bytes = client.pullAttachment(rel);
+        } else {
+            // 行里没带路径（历史行/服务端回写缺失）→ 按 <articleId>.<ext> 落盘约定探拉
+            for (String ext : new String[] {".jpg", ".png", ".jpeg", ".img"}) {
+                bytes = client.pullAttachment(id + ext);
+                if (bytes != null && bytes.length > 0) {
+                    break;
+                }
+            }
+        }
         if (bytes == null || bytes.length == 0) {
             return;
         }

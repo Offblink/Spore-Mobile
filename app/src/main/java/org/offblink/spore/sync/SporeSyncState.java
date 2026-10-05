@@ -26,6 +26,8 @@ public final class SporeSyncState {
     public String token = "";
     /** 连通校验拿到的昵称（配对页 /users/me），仅展示用 */
     public String nick = "";
+    /** 服务端身份（users/me 的 id）：换账号/改绑必须双游标清零，否则旧水位永久跳过新账号的存量行 */
+    public long uid = -1;
     public long pullCursor = 0;
     public long pushCursor = 0;
     /** 上次同步完成时刻；0 = 还没同步过 */
@@ -42,6 +44,7 @@ public final class SporeSyncState {
         s.api = p.getString("api", "");
         s.token = p.getString("token", "");
         s.nick = p.getString("nick", "");
+        s.uid = p.getLong("uid", -1);
         s.pullCursor = p.getLong("pullCursor", 0);
         s.pushCursor = p.getLong("pushCursor", 0);
         s.lastSyncAt = p.getLong("lastSyncAt", 0);
@@ -54,6 +57,7 @@ public final class SporeSyncState {
                 .putString("api", api)
                 .putString("token", token)
                 .putString("nick", nick)
+                .putLong("uid", uid)
                 .putLong("pullCursor", pullCursor)
                 .putLong("pushCursor", pushCursor)
                 .putLong("lastSyncAt", lastSyncAt)
@@ -74,6 +78,7 @@ public final class SporeSyncState {
         this.api = apiBase;
         this.token = lanToken;
         this.nick = nickname == null ? "" : nickname;
+        this.uid = -1;   // 身份待下轮同步 users/me 认领
         this.pullCursor = 0;
         this.pushCursor = 0;
         this.lastSyncAt = 0;
@@ -86,6 +91,7 @@ public final class SporeSyncState {
         this.api = "";
         this.token = "";
         this.nick = "";
+        this.uid = -1;   // 身份待下轮同步 users/me 认领
         this.pullCursor = 0;
         this.pushCursor = 0;
         this.lastSyncAt = 0;

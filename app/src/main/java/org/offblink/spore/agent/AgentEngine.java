@@ -302,6 +302,8 @@ public final class AgentEngine {
             return false;
         }
         if (incoming.id.equals(session.id)) {
+            // 正在看的也必须落盘：游标已推进，进程一杀不能停在旧版（永久同步不全）
+            SessionStore.saveQuiet(app, incoming);
             session = incoming;
             return true;
         }

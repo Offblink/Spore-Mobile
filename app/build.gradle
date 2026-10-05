@@ -13,6 +13,11 @@ if (secretsFile.exists()) {
 }
 
 android {
+    testOptions {
+        // 单测里 android.jar 走桩默认值（Handler/Looper 不抛）；断言全在纯 Java 逻辑上
+        unitTests.returnDefaultValues = true
+    }
+
     namespace 'org.offblink.spore'
     compileSdk {
         version = release(37)

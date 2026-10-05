@@ -28,7 +28,7 @@ import okhttp3.ResponseBody;
  * 同步只在后台线程调它（阻塞 IO）；所有调用都不做重试——重试是 SyncEngine 一轮的事，
  * 这层只负责把服务端原话（code+message）如实抛上去。
  */
-public final class SyncClient {
+public class SyncClient {
 
     /** 服务端业务错误（HTTP 401/400/500 都带 R 包装时一并解析出来） */
     public static class SyncException extends Exception {

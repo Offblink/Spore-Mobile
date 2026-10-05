@@ -387,7 +387,11 @@ public final class SessionStore {
         JSONArray msgs = o.optJSONArray("messages");
         if (msgs != null) {
             for (int i = 0; i < msgs.length(); i++) {
-                s.messages.add(msgFromJson(msgs.getJSONObject(i)));
+                JSONObject row = msgs.optJSONObject(i);
+                if (row == null) {
+                    continue; // 畸形行跳过（GUI session.py 同口径）：一条坏行不拖垮整会话
+                }
+                s.messages.add(msgFromJson(row));
             }
         }
         return s;

@@ -125,6 +125,49 @@ public final class SyncTombstones {
         }
     }
 
+    /** 账上有没有这一笔（下行套用前查：在账墓碑必须压住活行，不许复活） */
+    public static synchronized boolean has(Context ctx, String kind, String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        for (Item i : load(ctx)) {
+            if (kind.equals(i.kind) && id.equals(i.id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 把账上这笔 ts 抬到 target 之上：下行发现「本地已删但服务端行更新」时，
+     * 抬账让下一轮 push 的 updated 压过服务端 → LWW 才裁得出删除赢（两轮收敛）。
+     */
+    public static synchronized void raise(Context ctx, String kind, String id, long target) {
+        if (id == null || id.isEmpty()) {
+            return;
+        }
+        try {
+            JSONArray items = loadArray(ctx);
+            boolean changed = false;
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject o = items.optJSONObject(i);
+                if (o == null || !kind.equals(o.optString("k", ""))
+                        || !id.equals(o.optString("id", ""))) {
+                    continue;
+                }
+                if (o.optLong("ts", 0) <= target) {
+                    o.put("ts", target + 1);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                save(ctx, items);
+            }
+        } catch (org.json.JSONException ignored) {
+            // 账本次要品口径：抬失败只影响这一笔的收敛速度
+        }
+    }
+
     // ---------------------------------------------------------------- 文件
 
     private static File file(Context ctx) {

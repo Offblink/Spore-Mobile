@@ -125,6 +125,19 @@
         </div>
       </section>
 
+      <!-- 日志（三端对齐：MV3 主页日志卡 / GUI 日志页 / 这里的设置底部日志卡） -->
+      <section class="card group">
+        <div class="group-title">日志</div>
+        <div class="field">
+          <div class="hint">同步/配对的逐步时序，尾部 64KB 环形；红线：不记 token 与 key</div>
+          <pre id="logBody" class="logbody">（空）</pre>
+        </div>
+        <div class="sync-btns">
+          <button type="button" class="btn btn-soft" id="btnLogRefresh">刷新</button>
+          <button type="button" class="btn btn-danger" id="btnLogClear">清空</button>
+        </div>
+      </section>
+
       <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
     </main>
 

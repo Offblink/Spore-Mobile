@@ -3,6 +3,7 @@ package org.offblink.spore.sync;
 import android.content.Context;
 
 import org.json.JSONArray;
+import org.offblink.spore.SporeLog;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.offblink.spore.CaptureService;
@@ -69,25 +70,39 @@ public final class SyncEngine {
     /** 完整一轮（设置页「立即同步」的唯一入口） */
     public static Result run(Context ctx) {
         if (!RUNNING.compareAndSet(false, true)) {
+            SporeLog.i(ctx, "sync: 已有一轮在跑，本次点击忽略");
             return new Result(false, "同步进行中");
         }
+        String phase = "身份校验(me)";
         try {
             SporeSyncState st = SporeSyncState.load(ctx);
             if (!st.paired()) {
+                SporeLog.i(ctx, "sync: 未配对，跳过");
                 return new Result(false, "未配对");
             }
             SyncClient client = new SyncClient(st.api, st.token);
+            SporeLog.i(ctx, "sync ▶ " + st.api + " uid=" + st.uid
+                    + " pull=" + st.pullCursor + " push=" + st.pushCursor);
             // 换账号检测（后端 lan_token 改绑 / 重扫换人）：游标属于上一个用户，
             // 不重置则新账号的存量行被旧水位永久跳过（同步不全的一条腿）。
             // 首跑未记录身份（升级）也按变更处理：全量交换幂等，一轮收敛。
+            long oldUid = st.uid;
             JSONObject me = client.me();
             adoptUid(st, me == null ? -1 : me.optLong("id", -1));
             st.save(ctx);
+            if (st.uid != oldUid) {
+                SporeLog.i(ctx, "sync: 身份 " + oldUid + " → " + st.uid
+                        + "，双游标清零做全量交换");
+            }
+            phase = "上行(push)";
             int up = pushPhase(ctx, client, st);
+            phase = "下行(pull)";
             int down = pullPhase(ctx, client, st);
             st.lastSyncAt = System.currentTimeMillis();
             st.lastSyncMsg = "上行 " + up + " · 下行 " + down;
             st.save(ctx);
+            SporeLog.i(ctx, "sync ✓ 上行 " + up + " · 下行 " + down
+                    + " · pullCursor=" + st.pullCursor + " pushCursor=" + st.pushCursor);
             return new Result(true, st.lastSyncMsg);
         } catch (SyncClient.SyncException | IOException | JSONException e) {
             String msg = e.getMessage();
@@ -95,6 +110,7 @@ public final class SyncEngine {
                 msg = e.getClass().getSimpleName();
             }
             // 网络/业务失败也要落一笔（web 页靠它显示上次结果），游标保持原值 → 下轮重试
+            SporeLog.e(ctx, "sync ✗ " + phase + "失败：" + msg, e);
             SporeSyncState st = SporeSyncState.load(ctx);
             st.lastSyncAt = System.currentTimeMillis();
             st.lastSyncMsg = "失败：" + msg;
@@ -213,6 +229,12 @@ public final class SyncEngine {
         okArt.retainAll(accepted);
         if (!okArt.isEmpty()) {
             SyncTombstones.remove(ctx, SyncTombstones.ARTICLE, okArt);
+        }
+        int rejectedArt = tombedArt.size() - okArt.size();
+        int rejectedCat = tombedCat.size() - okCat.size();
+        if (rejectedArt + rejectedCat > 0) {
+            SporeLog.i(ctx, "sync: 服务端 LWW 拒绝墓碑 art=" + rejectedArt
+                    + " cat=" + rejectedCat + "（留账下轮重推）");
         }
         return sent;
     }

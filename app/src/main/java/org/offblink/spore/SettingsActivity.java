@@ -85,6 +85,18 @@ public class SettingsActivity extends AppCompatActivity {
             return o.toString();
         }
 
+        /** 操作日志尾部（spore.log ≤64KB）；红线：日志本身不含 token/apiKey */
+        @JavascriptInterface
+        public String logRead() {
+            return SporeLog.read(SettingsActivity.this);
+        }
+
+        /** 清空操作日志 */
+        @JavascriptInterface
+        public void logClear() {
+            SporeLog.clear(SettingsActivity.this);
+        }
+
         /** 扫码配对页（相机权限在 PairActivity 里要） */
         @JavascriptInterface
         public void scan() {

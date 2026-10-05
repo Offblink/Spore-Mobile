@@ -71,6 +71,18 @@
     }
   }
 
+  // ---------- 日志卡 ----------
+  function refreshLog() {
+    var s = "";
+    try {
+      s = bridge("logRead") || "";
+    } catch (e) {
+      s = "读取失败：" + e;
+    }
+    $("logBody").textContent = s || "（空）";
+    $("logBody").scrollTop = $("logBody").scrollHeight;
+  }
+
   // ---------- 配对与同步卡 ----------
   /** 原生 SyncEngine.isRunning()（轮询用） */
   var syncRunning = false;
@@ -144,6 +156,14 @@
     $("btnUnpair").addEventListener("click", function () {
       bridge("unpair"); // 确认框在原生（页面无模态）
     });
+
+    // 日志卡：开页即取尾部；刷新/清空走原生桥
+    $("btnLogRefresh").addEventListener("click", refreshLog);
+    $("btnLogClear").addEventListener("click", function () {
+      bridge("logClear");
+      refreshLog();
+    });
+    refreshLog();
 
     // 握手：调过 ready 原生才开始推；返回值就是首帧
     fill(bridge("ready"));

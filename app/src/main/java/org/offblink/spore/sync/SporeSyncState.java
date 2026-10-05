@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import org.json.JSONException;
+import org.offblink.spore.SporeLog;
 import org.json.JSONObject;
 
 /**
@@ -84,6 +85,7 @@ public final class SporeSyncState {
         this.lastSyncAt = 0;
         this.lastSyncMsg = "";
         save(c);
+        SporeLog.i(c, "配对成功 api=" + apiBase + " nick=" + this.nick);
     }
 
     /** 取消配对：清凭据与游标，账本（墓碑）留着——那是本地已删数据的传播义务 */
@@ -97,6 +99,7 @@ public final class SporeSyncState {
         this.lastSyncAt = 0;
         this.lastSyncMsg = "";
         save(c);
+        SporeLog.i(c, "取消配对（游标已清，墓碑账本保留）");
     }
 
     /** web 设置页状态帧（**无 token**） */

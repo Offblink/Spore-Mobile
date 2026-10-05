@@ -36,8 +36,10 @@
   批量收藏/移入科目/删除）、点图放大并保存到相册。
 - **公式渲染**：回答里的 LaTeX（`$…$`、`$$…$$`、`\(…\)`、`\[…\]`）用**随包离线 KaTeX**
   （`assets/web/vendor/katex/`，不联网）排版，代码段里的 `$` 不当公式，katex 缺席时回退纯文本。
-- **科目分类**（对齐桌面 Spore 整页记录）：记录页顶部 chips 按科目筛选，会话行 ⇥ 移入/移出科目，
-  新建/重命名/删除科目复用页内模态；删科目只把会话移出、一个不删，`subjects.json` 原子落盘。
+- **科目分类**（对齐桌面 Spore 整页记录）：记录页顶部 chips = 分组视图——**未分组** + 各科目
+  （没有「全部」，各组总和就是全部会话），会话行 ⇥ 移入/移出科目（iOS 底部弹层，
+  从顶部刻痕下滑可关），新建/重命名/删除科目复用页内模态；删科目只把会话移出、一个不删，
+  `subjects.json` 原子落盘。
 - **扫码配对 · 与 Spore-GUI 双向同步**：设置页「配对与同步」→ 扫
   [Spore-GUI](https://github.com/Offblink/Spore-GUI) 桌面端头像二维码 → 记录、收藏、科目
   按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传（协议对齐 Spore-GUI `SyncController`）。
@@ -62,14 +64,15 @@
 ## 安装与用法
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
-   （2026-10-05 构建，73.2 MB），允许「安装未知应用」后安装。
+   （2026-10-06 构建，72.5 MB），允许「安装未知应用」后安装。
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限。
 3. 日常：
    - **点球** = 截屏取帧 → 框选题目 → 面板里看答案；
    - **长按球** = 开 / 关面板；
    - 抽屉里 💬 开会话列表、★ 收藏、✎ 改名、✕ 删除；底部输入框随时追问；
    - 「搜题记录」页翻历史、按收藏筛选、点图放大 → 保存到相册（`Pictures/Spore`）；
-   - 记录页也能按**科目**归档：顶部 chips 筛选、行内 ⇥ 移入（弹层里完成新建 / 改名 / 删除）。
+   - 记录页按**未分组 / 科目**分组查看：顶部 chips 切组、行内 ⇥ 移入（弹层里完成新建 /
+     改名 / 删除，从顶部刻痕下滑可关）。
    - **同步到电脑**：设置页「配对与同步」→ 扫码配对 Spore-GUI → 「立即同步」。
      扫到的接口地址可以改（桌面端二维码里给的是它自己的回环地址时，改成电脑的局域网 IP）。
 
@@ -103,10 +106,10 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-05 实测：`assembleDebug testDebugUnitTest` **42/42 全绿**
-  （FrameQuality 7 · Phases 7 · Suggest 6 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  SyncEngine 11），APK **76,741,583 B**（自 v1.1 起含 CameraX + ML Kit 条码模型，
-  本轮起含离线 KaTeX 公式字体）。
+- 2026-10-06 实测：`assembleDebug testDebugUnitTest` **55/55 全绿**
+  （FrameQuality 7 · Phases 7 · Suggest 6 · SyncEngine 11 · SyncMobileBugProbe 9 · SporeLog 4 ·
+  SessionStore 4 · SubjectsStore 4 · LlmClient 3），APK **75,971,088 B**（自 v1.1 起含
+  CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

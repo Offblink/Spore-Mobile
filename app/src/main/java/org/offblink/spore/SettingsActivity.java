@@ -97,6 +97,22 @@ public class SettingsActivity extends AppCompatActivity {
             SporeLog.clear(SettingsActivity.this);
         }
 
+        /** 复制整份日志到剪贴板（剪贴板 API 必须走原生；日志本身不含 token/apiKey）。
+         * @return true = 已复制；false = 日志为空（页面据此提示） */
+        @JavascriptInterface
+        public boolean logCopy() {
+            final String text = SporeLog.read(SettingsActivity.this);
+            if (text == null || text.isEmpty()) {
+                return false;
+            }
+            runOnUiThread(() -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                        getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("spore-log", text));
+            });
+            return true;
+        }
+
         /** 扫码配对页（相机权限在 PairActivity 里要） */
         @JavascriptInterface
         public void scan() {

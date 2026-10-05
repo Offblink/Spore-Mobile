@@ -157,8 +157,16 @@
       bridge("unpair"); // 确认框在原生（页面无模态）
     });
 
-    // 日志卡：开页即取尾部；刷新/清空走原生桥
+    // 日志卡：开页即取尾部；刷新/复制/清空走原生桥（剪贴板必须原生——
+    // file:// 页里 navigator.clipboard 在 WebView 上不可靠）
     $("btnLogRefresh").addEventListener("click", refreshLog);
+    $("btnLogCopy").addEventListener("click", function () {
+      if (bridge("logCopy")) {
+        toast("日志已复制");
+      } else {
+        toast("日志是空的");
+      }
+    });
     $("btnLogClear").addEventListener("click", function () {
       bridge("logClear");
       refreshLog();

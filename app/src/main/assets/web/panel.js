@@ -173,7 +173,7 @@
       listpop.innerHTML = '<div class="listempty">还没有会话<br>截一道题就开始了</div>';
       return;
     }
-    listpop.innerHTML = list.slice(0, 60).map((e) => {
+    listpop.innerHTML = list.map((e) => {
       const running = (st.running || []).indexOf(e.id) >= 0;
       const cls = 'srow' + (e.fav ? ' fav' : '') + (e.id === cur ? ' active' : '');
       return '<div class="' + cls + '" data-id="' + esc(e.id) + '">' +

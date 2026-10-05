@@ -1,4 +1,4 @@
-/* 记录页逻辑：列表（一滑到底长页面 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
+/* 记录页逻辑：列表（分组视图：各科目 + 未分组，一滑到底长页面 + 收藏筛选 + 科目筛选 + 页内模态）→ 独立详情视图（转写 + 追问轮询）。
  * 多选：长按卡片进多选模式（左边圆形单选框）；从单选框起笔涂抹连选——起笔在已选卡片上
  *       这笔先取消，否则先选择；中途折返即换向（段起点挪到拐点）；多选下支持批量收藏/移入/删除。
  * 数据：ready/sessions = 索引 meta + 科目表；详情按需 session(id) 单取；改名/删除/收藏/追问/科目四 op 全走原生桥。 */
@@ -49,6 +49,27 @@
     }
   }
 
+  /** 单行卡 html（分组视图共用；勾选态按 selected 回放）。
+   *  注意别叫 rowHtml——详情视图有同名函数（渲染消息行），同一 IIFE 作用域会互相覆盖 */
+  function rowCardHtml(s) {
+    return '<div class="rrow' + (s.fav ? " is-fav" : "") + (selected.has(s.id) ? " on" : "") +
+      '" data-id="' + esc(s.id) + '">' +
+      '<span class="ck" data-ck><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M5 13l4 4 10-10"/></svg></span>' +
+      '<div class="col"><div class="t">' + esc(s.title || s.id) + "</div>" +
+      '<div class="ts">' + fmtTime(s.updated) + "</div></div>" +
+      '<div class="acts">' +
+      '<button class="act f" data-op="fav" type="button">★</button>' +
+      '<button class="act m" data-op="move" type="button" title="移入科目">' +
+      '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+      'stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 12h10"/><path d="M10 7l5 5-5 5"/><path d="M18 5v14"/></svg></button>' +
+      '<button class="act r" data-op="rename" type="button">✎</button>' +
+      '<button class="act x" data-op="del" type="button">✕</button>' +
+      "</div></div>";
+  }
+
   function renderList(animate) {
     const list = filtered();
 
@@ -64,26 +85,32 @@
     $("#empty").hidden = list.length > 0;
     $("#empty").textContent = subFilter ? "这个科目下还没有会话"
       : favOnly ? "还没有收藏的会话" : "暂无搜题记录";
-    $("#rows").innerHTML = list.map((s) =>
-      '<div class="rrow' + (s.fav ? " is-fav" : "") + (selected.has(s.id) ? " on" : "") +
-      '" data-id="' + esc(s.id) + '">' +
-      '<span class="ck" data-ck><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-      'stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M5 13l4 4 10-10"/></svg></span>' +
-      '<div class="col"><div class="t">' + esc(s.title || s.id) + "</div>" +
-      '<div class="ts">' + fmtTime(s.updated) +
-      (s.subjectId ? '<span class="stag">' + esc(subName(s.subjectId) || "已删科目") + "</span>" : "") +
-      "</div></div>" +
-      '<div class="acts">' +
-      '<button class="act f" data-op="fav" type="button">★</button>' +
-      '<button class="act m" data-op="move" type="button" title="移入科目">' +
-      '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
-      'stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M3 12h10"/><path d="M10 7l5 5-5 5"/><path d="M18 5v14"/></svg></button>' +
-      '<button class="act r" data-op="rename" type="button">✎</button>' +
-      '<button class="act x" data-op="del" type="button">✕</button>' +
-      "</div></div>"
-    ).join("");
+
+    // 分组视图（用户拍板：不再平铺全部会话）：各科目一组 +「未分组」收尾。
+    // 宁滥勿缺：会话必落且只落一组——subjectId 对得上科目表的进该组，
+    // 空/悬挂的进「未分组」兜底；分组总和 = list。空组不出头（计数照样对得上）。
+    const buckets = new Map(); // 组键（"" = 未分组）→ 行 html[]
+    for (const s of list) {
+      const key = s.subjectId && subjects.some((x) => x.id === s.subjectId)
+        ? s.subjectId : "";
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key).push(rowCardHtml(s));
+    }
+    const out = [];
+    const pushGroup = (name, rows) => {
+      if (rows && rows.length) {
+        out.push('<div class="rhead">' + esc(name) +
+          '<span class="rhn">' + rows.length + "</span></div>");
+        out.push.apply(out, rows);
+      }
+    };
+    for (const sub of subjects) {
+      pushGroup(sub.name, buckets.get(sub.id));
+    }
+    pushGroup("未分组", buckets.get(""));
+    $("#rows").innerHTML = out.join("");
 
     syncSelChrome();
 
@@ -101,6 +128,11 @@
     selecting = on;
     if (!on) {
       selected.clear();
+      // 行上的 .on 只在 renderList 里按 selected 回放：退多选不重绘 → 勾残留
+      // （再次进多选「上次的还在勾着」的根因）→ 就地复位所有行的勾选态
+      for (const el of $("#rows").querySelectorAll(".rrow.on")) {
+        el.classList.remove("on");
+      }
     }
     $("#listView").classList.toggle("sel", on);
     $("#batchbar").hidden = !on;
@@ -200,7 +232,8 @@
   let paint = null;      // 本笔涂抹 {seg, prev, dx, dir, moved}
 
   function rowsArr() {
-    return Array.prototype.slice.call($("#rows").children);
+    // 只收行卡：#rows 里混着分组头（.rhead），按 children 索引会把头当行（涂抹跨组会错位）
+    return Array.prototype.slice.call($("#rows").querySelectorAll(".rrow"));
   }
 
   function rowUnder(x, y) {

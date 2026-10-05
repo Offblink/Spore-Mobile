@@ -100,13 +100,15 @@ body { background: var(--bg); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rrow .ts { margin-top: 3px; font-size: 12px; color: var(--muted3); }
-/* 科目标签：时间行尾随的粉色小胶囊（当前归属一眼可见） */
-.stag {
-  display: inline-block; margin-left: 6px; padding: 1px 8px;
-  background: var(--pink-tint); color: var(--pink-deep);
-  border-radius: var(--r999); font-size: 11px; font-weight: 600;
-  vertical-align: 1px;
+/* 分组头（分组视图）：科目名 + 组内计数；行卡与组头同走 .rows 的 8px gap，
+   组与组之间再多留一档，「总和 = 全部会话」在版面上一眼可对 */
+.rhead {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 12px 6px 0;
+  font-size: 13px; font-weight: 700; color: var(--muted);
 }
+.rows > .rhead:first-child { padding-top: 2px; }
+.rhead .rhn { font-size: 12px; font-weight: 600; color: var(--muted4); }
 .rrow .acts { flex: none; display: flex; gap: 2px; }
 .rrow .act {
   width: 34px; height: 34px; border-radius: 9px;

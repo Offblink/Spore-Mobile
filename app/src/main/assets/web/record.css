@@ -276,6 +276,10 @@ body { background: var(--bg); }
   border-radius: 16px 16px 0 0;
   padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
   animation: sheetUp .5s var(--spring);
+  /* 整层起笔的前提（2026-10-08 StringPhone 实战回灌）：不设 touch-action:none，
+     浏览器会在 touch 拖动时抢手势、发 pointercancel 把拖拽腰斩（=拖不动），
+     抢走的纵向手势还会穿透去滚背后的页面。桌面鼠标测不出来，必须 touch 验。 */
+  touch-action: none;
 }
 /* 刻痕做成了真元素（#pickGrab，手势要命中它 + touch-action:none，原 ::before 已删）：
    样式照抄原 ::before，视觉不变；标题带同属抓手区（刻痕 5px 太细，指头对不准） */
@@ -302,6 +306,9 @@ body { background: var(--bg); }
   max-height: 46vh; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  /* 父级 .modal-box 是 touch-action:none（整层拖拽），这里单独放回纵向滚动：
+     实测 Chromium 子级 pan-y 可盖过父级 none，scrollTop 生效 */
+  touch-action: pan-y;
 }
 .sublist::-webkit-scrollbar { width: 6px; }
 .sublist::-webkit-scrollbar-track { background: transparent; }

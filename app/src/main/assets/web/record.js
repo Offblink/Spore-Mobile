@@ -704,19 +704,27 @@
     sheetDragEnd(dy >= DRAG_MIN || flick);
   }
 
-  for (const sel of ["#pickGrab", "#pickTitle"]) {
-    const el = $(sel);
-    el.addEventListener("pointerdown", sheetDragStart);
-    el.addEventListener("pointermove", sheetDragMove);
-    el.addEventListener("pointerup", sheetDragUp);
-    el.addEventListener("pointercancel", () => {
-      if (sheetDrag && sheetDrag.moved) {
-        sheetDragEnd(false); // 系统抢走指针（来电/转屏）→ 弹回，别把半开状态留下
-      } else {
-        sheetDrag = null;
-      }
-    });
+  // 整层起笔（2026-10-08 从 StringPhone 实战回灌）：原 grab/标题两点起笔 →
+  // 整个面板；.sublist 滚动区与按钮/输入不参与（各自职责保留）。
+  // 盒子 touch-action:none 兜底，否则浏览器抢手势发 pointercancel 腰斩拖拽。
+  function sheetDragCancel() {
+    if (sheetDrag && sheetDrag.moved) {
+      sheetDragEnd(false); // 系统抢走指针（来电/转屏）→ 弹回，别把半开状态留下
+    } else {
+      sheetDrag = null;
+    }
   }
+  const sheetZone = $("#subpick .modal-box");
+  sheetZone.addEventListener("pointerdown", (e) => {
+    if (e.target.closest && e.target.closest("button, input, .sublist")) return;
+    sheetDragStart(e);
+  });
+  sheetZone.addEventListener("pointermove", sheetDragMove);
+  sheetZone.addEventListener("pointerup", sheetDragUp);
+  sheetZone.addEventListener("pointercancel", sheetDragCancel);
+  // 收尾安全网：指针在窗外抬起也要收尾（id 判重，重复触发无害）
+  window.addEventListener("pointerup", sheetDragUp);
+  window.addEventListener("pointercancel", sheetDragCancel);
 
   /** 新建科目：复用重命名输入模态（同 MV3 的「一个模态两个口径」） */
   function openNewSubject() {

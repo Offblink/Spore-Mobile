@@ -1,4 +1,4 @@
-/* 设置页逻辑：ready 回填 8 字段 / save 落盘 / 返回关页。桥协议见 common.js 头注。 */
+/* 设置页逻辑：ready 回填 9 字段 / save 落盘 / 返回关页。桥协议见 common.js 头注。 */
 (function () {
   "use strict";
 
@@ -31,6 +31,7 @@
     $("historyLimit").value = current.historyLimit == null ? 10 : current.historyLimit;
     $("swFastNoThink").classList.toggle("on", !!current.fastNoThink);
     $("swAutoVerify").classList.toggle("on", !!current.autoVerify);
+    $("swMlSuggest").classList.toggle("on", !!current.mlSuggest);
     var pr = document.querySelector(
       'input[name="panelRender"][value="' + (current.panelRender || "web") + '"]');
     if (pr) {
@@ -55,6 +56,7 @@
         current && current.historyLimit != null ? current.historyLimit : 10),
       fastNoThink: on("swFastNoThink"),
       autoVerify: on("swAutoVerify"),
+      mlSuggest: on("swMlSuggest"),
       panelRender: (function () {
         var c = document.querySelector('input[name="panelRender"]:checked');
         return c ? c.value : "web";

@@ -594,11 +594,17 @@ public class CaptureService extends Service {
         // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
         // 第九轮：只因大片死黑多取几帧，**绝不因此拒绝进框选**（不回头加闸）。
         // 第九轮后半（用户拍板，推翻 R7）：**ML 认不出字就不进截屏界面**，直接 toast 请重试。
+        // Round 23（2026-10-09）：ML 识别改成**可选**（默认关，对齐 MV3/GUI 两端）——
+        // 关着就不建识别器、不跑 OCR，直接进框选手动拖；开着走原样（含上面那条硬门禁）。
         final Bitmap show = frame;
         final FrameQuality fq = best;
         final int dupCount = dup;
         bg.post(() -> FrameDiag.save(this, show, fq, dupCount, "frame")); // 取证不拖 UI
-        recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
+        if (SporeSettings.load(this).mlSuggest) {
+            recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
+        } else {
+            showCropOverlay(show, null); // 关着 = 无建议框、无 OCR、无门禁
+        }
     }
 
     /**

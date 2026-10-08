@@ -20,7 +20,7 @@ import java.util.concurrent.Executors;
 /**
  * 设置页（web 皮）：读写 SporeSettings（端点/key/模型/检索代理/两阶段开关），
  * 外加「配对与同步」卡的桥（pairInfo/scan/syncStart/unpair，见 settings.js）。
- * 8+7 字段经桥 ready/save 落本机 SharedPreferences；
+ * 9+7 字段经桥 ready/save 落本机 SharedPreferences；
  * apiKey 红线同 SporeSettings——只活在本机，绝不进日志/仓库。
  * isConfigured() 的判定仍归 SporeSettings，页面只做「空了会拦」的警示提示。
  * 同步状态里的 token 不出 {@link SporeSyncState#toJson()}（红线同 apiKey）。

@@ -29,6 +29,12 @@ public class CropOverlayView extends View {
 
     private final Bitmap frame;
     private final Listener listener;
+    /**
+     * 无确认按钮模式（Round 24，2026-10-09，用户拍板）：**ML 关着**时为 true ——
+     * 底部不画「搜」pill，拖完 / 调角 / 移动松手即搜（与桌面两端「松手即采纳」同口径）。
+     * ML 开着为 false：维持第六轮拍板——拖完只留选区，确认只属于「搜」按钮。
+     */
+    private final boolean autoConfirm;
     private final float minW, minH;
     private final int minWdp, minHdp;
     private final float density;
@@ -87,10 +93,12 @@ public class CropOverlayView extends View {
     };
     private String hintText;
 
-    public CropOverlayView(Context context, Bitmap frame, Listener listener) {
+    public CropOverlayView(Context context, Bitmap frame, Listener listener,
+                           boolean autoConfirm) {
         super(context);
         this.frame = frame;
         this.listener = listener;
+        this.autoConfirm = autoConfirm;
         density = context.getResources().getDisplayMetrics().density;
         minW = Math.round(60 * density);
         minH = Math.round(40 * density);
@@ -194,8 +202,8 @@ public class CropOverlayView extends View {
             canvas.drawText(size, lx + chipW / 2, ly + chipH / 2 - (labelPaint.descent() + labelPaint.ascent()) / 2f, labelPaint);
         }
 
-        // 「搜」确认 pill（有框且不在新手势中）
-        if (hasSel && !dragging) {
+        // 「搜」确认 pill（有框且不在新手势中；ML 关着的 autoConfirm 模式不画 —— 松手即搜）
+        if (hasSel && !dragging && !autoConfirm) {
             float radius = searchRect.height() / 2f;
             btnPaint.setColor(searchHit ? 0xFFDB2777 : 0xFFEC4899);
             canvas.drawRoundRect(searchRect, radius, radius, btnPaint);
@@ -286,7 +294,7 @@ public class CropOverlayView extends View {
         float y = event.getY();
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                if (hasSel && !dragging && searchHitRect.contains(x, y)) {
+                if (hasSel && !dragging && !autoConfirm && searchHitRect.contains(x, y)) {
                     searchHit = true;
                     invalidate();
                     return true;
@@ -372,12 +380,20 @@ public class CropOverlayView extends View {
                     resizing = false;
                     resizeMoved = false;
                     handle = H_NONE;
-                    // 拖完绝不自动搜：确认只属于「搜」按钮（第六轮实测：拖个框就自己搜了）
+                    if (autoConfirm && hasSel) {
+                        confirmSelection(); // ML 关：调角松手即搜（底部没有 pill）
+                        return true;
+                    }
+                    // ML 开着维持第六轮拍板：拖完绝不自动搜，确认只属于「搜」按钮
                     invalidate();
                     return true;
                 }
                 if (moving) {
                     moving = false;
+                    if (autoConfirm && hasSel) {
+                        confirmSelection(); // ML 关：挪完松手即搜
+                        return true;
+                    }
                     invalidate();
                     return true;
                 }
@@ -399,9 +415,12 @@ public class CropOverlayView extends View {
                         invalidate();
                         return true;
                     }
-                    // 第六轮更正：拖完只留选区，绝不自动搜——确认唯一入口是「搜」按钮。
+                    if (autoConfirm) {
+                        confirmSelection(); // ML 关：拖完松手即搜（Round 24 拍板，底部无 pill）
+                        return true;
+                    }
+                    // 第六轮更正（ML 开着照旧）：拖完只留选区，绝不自动搜——确认唯一入口是「搜」按钮。
                     // 由此人工与 ML 彻底同口：预选 → 点搜 → 同一个 confirmSelection/cropSelection。
-                    // （上一版误删的是「调角结束」分支里的自动搜，拖拽结束这条一直漏着）
                     invalidate();
                     return true;
                 }

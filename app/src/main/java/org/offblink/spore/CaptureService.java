@@ -603,7 +603,10 @@ public class CaptureService extends Service {
         if (SporeSettings.load(this).mlSuggest) {
             recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
         } else {
-            showCropOverlay(show, null); // 关着 = 无建议框、无 OCR、无门禁
+            // 关着 = 无建议框、无 OCR、无门禁。**必须回主线程**：captureFrame 跑在 bg 线程，
+            // wm.addView 在非 UI 线程会 CalledFromWrongThreadException —— Round 23 实装时漏了，
+            // 而默认就是关着（等于默认路径必崩，单测/CI 无 instrumentation 抓不到，Round 24 修）
+            main.post(() -> showCropOverlay(show, null));
         }
     }
 
@@ -708,7 +711,10 @@ public class CaptureService extends Service {
                 PixelFormat.TRANSLUCENT);
         cropParams.gravity = Gravity.TOP | Gravity.LEFT;
         removeCropView(); // 防重入：绝不允许第二张框选叠上去（暗幕叠加 = 全黑 + 关不掉）
-        cropView = new CropOverlayView(this, frame, cropListener);
+        // Round 24（2026-10-09）：**ML 关着时不画底部「搜」pill、松手即搜**
+        // （与桌面两端「松手即采纳」同口径，用户拍板）；开着维持第六轮：确认只属于「搜」按钮
+        cropView = new CropOverlayView(this, frame, cropListener,
+                !SporeSettings.load(this).mlSuggest);
         wm.addView(cropView, cropParams);
         // 预选框随层一起上：setSuggestion 对「布局未到位」自带暂存回放
         if (suggestion != null) {

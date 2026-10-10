@@ -32,6 +32,13 @@
         <item name="android:navigationBarColor">@android:color/white</item>
     </style>
 
+    <!-- 题图圆角：原生面板 user 行的 ShapeableImageView 用（web .msg.user .shot
+         border-radius:12px 同款）。显式 parent=""：别让它按名字隐式继承 ShapeAppearance.Spore -->
+    <style name="ShapeAppearance.Spore.Shot" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
     <!-- 应用皮对话框（扫码配对 / 取消配对）：透明窗口 + 布局自带暗幕，
          零原生 chrome——Material alert 的标题栏与系统按钮一概不出现（2026-10-03 用户拍板） -->
     <style name="SporePairDialog" parent="Theme.Material3.Light.NoActionBar">

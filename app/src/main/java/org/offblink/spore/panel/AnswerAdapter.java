@@ -1,13 +1,17 @@
 package org.offblink.spore.panel;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
+import android.util.LruCache;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -19,6 +23,8 @@ import org.offblink.spore.agent.Phases;
 import org.offblink.spore.agent.Session;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import io.noties.markwon.Markwon;
 
@@ -42,6 +48,21 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
     private static final int TYPE_USER = 0;
     private static final int TYPE_ANSWER = 1;
     private static final int TYPE_CHAT = 2;
+
+    /** 题图解码走后台单线程：面板每来一个 token 就全量重绑，同步解码会掉帧 */
+    private static final ExecutorService SHOT_EXEC = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "shot-decode");
+        t.setDaemon(true);
+        return t;
+    });
+    /** 同一张题图会被反复重绑（流式刷新 / 换会话来回切），按字节数进 LRU */
+    private static final LruCache<String, Bitmap> SHOT_CACHE =
+            new LruCache<String, Bitmap>(12 * 1024 * 1024) {
+                @Override
+                protected int sizeOf(String key, Bitmap value) {
+                    return value.getByteCount();
+                }
+            };
 
     private final Markwon markwon;
     private final Host host;
@@ -99,12 +120,73 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         h.think.setVisibility(View.GONE);
         h.verify.setVisibility(View.GONE);
         h.tools.setVisibility(View.GONE);
+
+        // 题目截图（与 web panel.js rowHtml 同口径）：文件在就画；文件不在退回
+        // 「题目截图」占位气泡，别留一块空白（同步下载没落地/图被清走就是这种）
+        if (ShotPolicy.showShot(m)) {
+            h.shot.setVisibility(View.VISIBLE);
+            loadShot(h.shot, m.imagePath);
+        } else {
+            clearShot(h.shot);
+        }
+
         String text = m.text;
-        if (text.isEmpty() && m.hasImage) {
+        if (text.isEmpty() && ShotPolicy.needsPlaceholder(m)) {
             text = h.itemView.getContext().getString(R.string.row_capture);
         }
+        if (text.isEmpty()) {
+            // 只有题图、没有补充文字：图自己就是内容，不打空气泡（web 同款）
+            h.preview.setVisibility(View.GONE);
+            return;
+        }
+        h.preview.setVisibility(View.VISIBLE);
         styleUserBubble(h.preview);
         h.preview.setText(text);
+    }
+
+    private static void clearShot(ImageView v) {
+        v.setTag(null);
+        v.setImageDrawable(null);
+        v.setVisibility(View.GONE);
+    }
+
+    /**
+     * 题图异步装载：解码走 {@link #SHOT_EXEC}（面板每来一个 token 就全量重绑，
+     * 同步解码必掉帧），视图 tag 当身份挡回收串图，LRU 挡重复解码；
+     * 解出来后拿原图宽当 maxWidth —— {@code adjustViewBounds} 会把小图放大到整行宽，
+     * 截图不该被放大。
+     */
+    private void loadShot(ImageView v, String path) {
+        if (path.equals(v.getTag())) {
+            v.setVisibility(View.VISIBLE); // 已经是这张（流式重绑不再重复解码）
+            return;
+        }
+        v.setTag(path);
+        v.setImageDrawable(null);
+        v.setVisibility(View.VISIBLE);
+        Bitmap cached = SHOT_CACHE.get(path);
+        if (cached != null && !cached.isRecycled()) {
+            v.setMaxWidth(cached.getWidth());
+            v.setImageBitmap(cached);
+            return;
+        }
+        SHOT_EXEC.execute(() -> {
+            Bitmap bmp = BitmapFactory.decodeFile(path);
+            if (bmp != null) {
+                SHOT_CACHE.put(path, bmp);
+            }
+            v.post(() -> {
+                if (!path.equals(v.getTag())) {
+                    return; // 期间视图被回收改绑了别的行 → 这张作废
+                }
+                if (bmp == null) {
+                    clearShot(v);
+                    return;
+                }
+                v.setMaxWidth(bmp.getWidth());
+                v.setImageBitmap(bmp);
+            });
+        });
     }
 
     /**
@@ -134,10 +216,12 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         h.think.setVisibility(View.GONE);
         h.verify.setVisibility(View.GONE);
         h.tools.setVisibility(View.GONE);
+        clearShot(h.shot);
         markwon.setMarkdown(h.preview, LatexDelims.normalizeForMarkwon(m.text));
     }
 
     private void bindAnswer(VH h, Session.Msg m) {
+        clearShot(h.shot); // 题图只出现在 user 行（web .msg.user 同款）
         // 思考块：可折叠（桌面抽屉同款心智）
         if (m.think.isEmpty()) {
             h.thinkToggle.setVisibility(View.GONE);
@@ -267,6 +351,7 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         final int viewType;
         final TextView thinkToggle;
         final TextView think;
+        final ImageView shot;
         final TextView preview;
         final View verify;
         final TextView badge;
@@ -279,6 +364,7 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
             this.viewType = viewType;
             thinkToggle = itemView.findViewById(R.id.row_toggle);
             think = itemView.findViewById(R.id.row_think);
+            shot = itemView.findViewById(R.id.row_shot);
             preview = itemView.findViewById(R.id.row_preview);
             verify = itemView.findViewById(R.id.row_verify);
             badge = itemView.findViewById(R.id.verify_badge);

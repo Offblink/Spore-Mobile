@@ -111,10 +111,11 @@ cd Spore-Mobile
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
 - 2026-10-11 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**，单测 **80/80 全绿**
+  lint **Error 0**，单测 **85/85 全绿**
   （FrameQuality 7 · Phases 8 · Suggest 6 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  LatexDelims 7 · UnreadDotState 9 · SporeSettingsDefaults 2），APK **76,618,961 B**
+  LatexDelims 7 · UnreadDotState 9 · ShotPolicy 5 · SporeSettingsDefaults 2），
+  APK **77,766,200 B**
   （自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

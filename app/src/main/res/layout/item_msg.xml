@@ -28,6 +28,21 @@
         android:textSize="13.5sp"
         android:visibility="gone" />
 
+    <!-- MV3 用户气泡上方的题目截图：web .msg.user .shot 同款（圆角 12 + 线色描边）。
+         adjustViewBounds 让高度按原图比例走、宽度吃满整行（面板比 web 窄，
+         65% 上限在手机上会看不清题），代码侧再用原图宽当 maxWidth 挡放大。 -->
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/row_shot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="@string/row_capture"
+        android:visibility="gone"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Spore.Shot"
+        app:strokeColor="@color/spore_line"
+        app:strokeWidth="1dp" />
+
     <TextView
         android:id="@+id/row_preview"
         android:layout_width="match_parent"

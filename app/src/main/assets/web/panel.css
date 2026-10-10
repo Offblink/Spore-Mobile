@@ -205,3 +205,26 @@ body { overflow: hidden; }
 .modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
 .modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
 .modal-box { animation: popIn .24s var(--pop-ease); }
+
+
+/* ---------------- md 行结构（md.js 产出：标题/表格/列表/分隔线） ---------------- */
+.msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
+  margin: 10px 0 6px; font-weight: 700; color: var(--ink); line-height: 1.45;
+}
+.msg h1 { font-size: 1.3em; }
+.msg h2 { font-size: 1.2em; }
+.msg h3 { font-size: 1.1em; }
+.msg h4, .msg h5, .msg h6 { font-size: 1em; }
+.msg table {
+  border-collapse: collapse; width: 100%; margin: 7px 0;
+  font-size: 14.5px; font-weight: 400; border: 1px solid var(--line);
+}
+.msg th, .msg td {
+  border: 1px solid var(--line); padding: 5px 9px;
+  text-align: left; overflow-wrap: break-word;
+}
+.msg th { background: var(--chip); color: var(--ink); font-weight: 650; }
+.msg td { color: var(--chip-text); }
+.msg ul { margin: 6px 0; padding-left: 1.4em; }
+.msg li { margin: 2px 0; }
+.msg hr { border: 0; border-top: 1px solid var(--line); margin: 9px 0; }

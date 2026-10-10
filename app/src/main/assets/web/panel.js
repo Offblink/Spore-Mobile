@@ -62,8 +62,8 @@
   function previewHtml(m) {
     const no = (m.no || '').replace(/[^\dA-Za-z]/g, '');
     const head = no ? '第' + no + '题 ' : '';
-    const ans = head + (m.ans || '');
-    return (ans ? '<div class="ans">' + md(ans) + '</div>' : '') +
+    // 题号前缀单独 esc、正文单独 md：拼在一起再 md 会让 `## 标题` 顶不掉前缀、首行块元素起不来
+    return ((head || m.ans) ? '<div class="ans">' + esc(head) + md(m.ans || '') + '</div>' : '') +
       (m.why ? '<div class="why">' + md(m.why) + '</div>' : '');
   }
 

@@ -940,7 +940,6 @@
     }
     const no = (m.no || "").replace(/[^\dA-Za-z]/g, "");
     const head = no ? "第" + no + "题 " : "";
-    const ans = head + (m.ans || "");
     const think = m.think
       ? '<div class="think on ' + (m.thinkOpen ? "" : "fold") + '" data-think="' + i + '">' +
         '<button class="think-h" type="button">思考</button>' +
@@ -950,7 +949,7 @@
       ? '<div class="tools">' + m.tools.map((t) => '<div class="tool">' + esc(t) + "</div>").join("") + "</div>"
       : "";
     return '<div class="msg bot" data-mi="' + i + '">' + think +
-      (ans ? '<div class="ans">' + md(ans) + "</div>" : "") +
+      ((head || m.ans) ? '<div class="ans">' + esc(head) + md(m.ans || "") + "</div>" : "") +
       (m.why ? '<div class="why">' + md(m.why) + "</div>" : "") +
       verifyHtml(m) + tools + "</div>";
   }

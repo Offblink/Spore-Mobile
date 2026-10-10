@@ -36,6 +36,7 @@ import java.util.Locale;
 import io.noties.markwon.Markwon;
 import io.noties.markwon.ext.latex.JLatexMathPlugin;
 import io.noties.markwon.ext.tables.TablePlugin;
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
 
 /**
  * 浮动作答面板 —— MV3 桌面抽屉的移动复刻（白抽屉语言）：
@@ -87,8 +88,14 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         this.engine = engine;
         // 原生面板的 markdown 渲染：core + 表格 + 公式（ext-latex 走 JLaTeXMath 画图）。
         // 公式字号跟正文同量级（正文 17.5sp；JLaTeXMath 按 px 画，乘 scaledDensity 换算）。
+        // MarkwonInlineParserPlugin 必须显式挂上：JLatexMathPlugin.configure 在
+        // inlinesEnabled=true 时 registry.require(MarkwonInlineParserPlugin)（4.6.2 字节码实测），
+        // 不挂就 build() 抛 IllegalStateException → CaptureService 起不来、起手连崩
+        // （2026-10-10 真机崩溃栈「Requested plugin is not added」）。它同时把行内解析换成
+        // Markwon 自己那套，$..$ 才收得到 JLatexMathInlineProcessor。
         float mathTextSizePx = ctx.getResources().getDisplayMetrics().scaledDensity * 16.5f;
         this.markwon = Markwon.builder(ctx)
+                .usePlugin(MarkwonInlineParserPlugin.create())
                 .usePlugin(TablePlugin.create(ctx))
                 .usePlugin(JLatexMathPlugin.create(mathTextSizePx,
                         builder -> builder

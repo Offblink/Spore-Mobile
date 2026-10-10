@@ -594,11 +594,20 @@ public class CaptureService extends Service {
         // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
         // 第九轮：只因大片死黑多取几帧，**绝不因此拒绝进框选**（不回头加闸）。
         // 第九轮后半（用户拍板，推翻 R7）：**ML 认不出字就不进截屏界面**，直接 toast 请重试。
+        // Round 23（2026-10-09）：ML 识别改成**可选**（默认关，对齐 MV3/GUI 两端）——
+        // 关着就不建识别器、不跑 OCR，直接进框选手动拖；开着走原样（含上面那条硬门禁）。
         final Bitmap show = frame;
         final FrameQuality fq = best;
         final int dupCount = dup;
         bg.post(() -> FrameDiag.save(this, show, fq, dupCount, "frame")); // 取证不拖 UI
-        recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
+        if (SporeSettings.load(this).mlSuggest) {
+            recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
+        } else {
+            // 关着 = 无建议框、无 OCR、无门禁。**必须回主线程**：captureFrame 跑在 bg 线程，
+            // wm.addView 在非 UI 线程会 CalledFromWrongThreadException —— Round 23 实装时漏了，
+            // 而默认就是关着（等于默认路径必崩，单测/CI 无 instrumentation 抓不到，Round 24 修）
+            main.post(() -> showCropOverlay(show, null));
+        }
     }
 
     /**
@@ -702,7 +711,10 @@ public class CaptureService extends Service {
                 PixelFormat.TRANSLUCENT);
         cropParams.gravity = Gravity.TOP | Gravity.LEFT;
         removeCropView(); // 防重入：绝不允许第二张框选叠上去（暗幕叠加 = 全黑 + 关不掉）
-        cropView = new CropOverlayView(this, frame, cropListener);
+        // Round 24（2026-10-09）：**ML 关着时不画底部「搜」pill、松手即搜**
+        // （与桌面两端「松手即采纳」同口径，用户拍板）；开着维持第六轮：确认只属于「搜」按钮
+        cropView = new CropOverlayView(this, frame, cropListener,
+                !SporeSettings.load(this).mlSuggest);
         wm.addView(cropView, cropParams);
         // 预选框随层一起上：setSuggestion 对「布局未到位」自带暂存回放
         if (suggestion != null) {

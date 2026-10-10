@@ -57,7 +57,8 @@
 - **Java + XML Views + Material Components**，不使用 Kotlin、不使用 Jetpack Compose；
 - 单模块 `app`，包名 `org.offblink.spore`，`minSdk 26` / `targetSdk 37` / Java 11；
 - 关键链路自己接，不靠框架兜底：
-  `MediaProjection` 取帧 → `ImageReader` 出位图 → ML Kit 中文文字识别（16.0.1）→
+  `MediaProjection` 取帧 → `ImageReader` 出位图 → **ML Kit 中文文字识别（16.0.1）**
+  （设置页「AI 建议框」，**默认关**：关着不建识别器、不跑 OCR，直进框选）→
   黑帧/画质自检 → 裁剪落盘（长边 1600、JPEG 0.82）→ `WebView` 面板 + `addJavascriptInterface` 桥 →
   本地 JSON 会话存档 + 前台服务悬浮球。
 
@@ -68,6 +69,8 @@
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限。
 3. 日常：
    - **点球** = 截屏取帧 → 框选题目 → 面板里看答案；
+     **默认关着「AI 建议框」**：拖完**松手就直接搜**（底部没有「搜」按钮）；设置页打开后
+     会先本机识别出建议框，此时才需要点底部粉色「搜」确认。
    - **长按球** = 开 / 关面板；
    - 抽屉里 💬 开会话列表、★ 收藏、✎ 改名、✕ 删除；底部输入框随时追问；
    - 「搜题记录」页翻历史、按收藏筛选、点图放大 → 保存到相册（`Pictures/Spore`）；
@@ -106,10 +109,10 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-06 实测：`assembleDebug testDebugUnitTest` **55/55 全绿**
+- 2026-10-09 实测：`assembleDebug testDebugUnitTest` **57/57 全绿**
   （FrameQuality 7 · Phases 7 · Suggest 6 · SyncEngine 11 · SyncMobileBugProbe 9 · SporeLog 4 ·
-  SessionStore 4 · SubjectsStore 4 · LlmClient 3），APK **75,971,088 B**（自 v1.1 起含
-  CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
+  SessionStore 4 · SubjectsStore 4 · LlmClient 3 · SporeSettingsDefaults 2），APK **75,971,820 B**
+  （自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

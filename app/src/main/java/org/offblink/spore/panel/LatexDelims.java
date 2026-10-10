@@ -44,9 +44,12 @@ public final class LatexDelims {
         s = s.replace("\\[", "$$").replace("\\]", "$$");
         s = s.replace("\\(", "$$").replace("\\)", "$$");
         // 3) 单 $…$ → $$…$$（lookaround 保证已经成对的 $$…$$ 不被二次改写）
-        //    注意：替换串里 $ 是模板元字符，必须 quoteReplacement 落地
+        //    注意：替换串里 $ 是模板元字符，必须 quoteReplacement 落地。
+        //    载体必须是 StringBuffer：Matcher 的 appendReplacement/appendTail 那套
+        //    StringBuilder 重载是新 API（minSdk 26 的机器上 NoSuchMethodError，
+        //    2026-10-10 真机崩在 appendTail），StringBuffer 那两个从 API 1 就有。
         Matcher m = INLINE_DOLLAR.matcher(s);
-        StringBuilder sb = new StringBuilder();
+        StringBuffer sb = new StringBuffer();
         while (m.find()) {
             m.appendReplacement(sb, Matcher.quoteReplacement("$$" + m.group(1) + "$$"));
         }

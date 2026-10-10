@@ -9,6 +9,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.offblink.spore.agent.Session;
@@ -30,10 +31,40 @@ public class RecordActivity extends AppCompatActivity {
     /** JS 握过 ready() 才允许推 onState / 问 Host.back；JavaBridge 线程写、主线程读 */
     private volatile boolean webReady;
 
+    /**
+     * 硬件/手势返回 → 先问页内 {@code Host.back()}（详情回列表 → 退多选），
+     * 没消费才退出。走 AndroidX {@link OnBackPressedCallback} 而**不是**覆写
+     * {@code onBackPressed()}：16 系（API 36+，本 app targetSdk 37）的预测式返回手势
+     * 根本不回调 {@code Activity.onBackPressed()}，覆写那条路对手势是死的
+     * （lint GestureBackNavigation，2026-10-11 才发现）。
+     * 页面没就绪时回调保持关着 → dispatcher 落默认兜底退出，等价旧的 {@code super.onBackPressed()}。
+     */
+    private final OnBackPressedCallback backCb = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            if (web == null || !webReady) {
+                fallThrough();
+                return;
+            }
+            web.evaluateJavascript("Host.back()", v -> runOnUiThread(() -> {
+                if (!"true".equals(v)) {
+                    fallThrough();
+                }
+            }));
+        }
+    };
+
+    /** 关掉自己再问一次 dispatcher → 落到默认兜底（退出本页） */
+    private void fallThrough() {
+        backCb.setEnabled(false);
+        getOnBackPressedDispatcher().onBackPressed();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_record);
+        getOnBackPressedDispatcher().addCallback(this, backCb);
 
         web = findViewById(R.id.web);
         WebSettings s = web.getSettings();
@@ -59,20 +90,6 @@ public class RecordActivity extends AppCompatActivity {
         pushState(); // 回页即刷新（面板回合结束已落盘，所见即所得）
     }
 
-    /** 硬件返回：先给页内消费（详情 → 列表 → 退多选）；列表态才退出 */
-    @Override
-    public void onBackPressed() {
-        if (web == null || !webReady) {
-            super.onBackPressed();
-            return;
-        }
-        web.evaluateJavascript("Host.back()", v -> {
-            if (!"true".equals(v)) {
-                runOnUiThread(() -> RecordActivity.super.onBackPressed());
-            }
-        });
-    }
-
     private void pushState() {
         if (!webReady) {
             return;
@@ -95,6 +112,7 @@ public class RecordActivity extends AppCompatActivity {
         @JavascriptInterface
         public String ready() {
             webReady = true;
+            runOnUiThread(() -> backCb.setEnabled(true)); // 页面就绪才接管返回
             return stateJson();
         }
 

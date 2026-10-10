@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动页主题的 31+ 分支：系统 splash 从 API 31 起接管启动画面，
+     windowSplashScreen* 两个属性也只在 31+ 存在。
+     样式按资源限定符**整体覆盖**，所以基线里的三条（窗口底/状态栏/导航栏）必须原样带上，
+     否则 31+ 反而丢了纯白底。16 系统 splash 默认画应用图标——抹空（用户拍板：不要图标，
+     直接五字母动画）。 -->
+<resources>
+    <style name="Theme.Spore.Splash" parent="Theme.Spore">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
+    </style>
+</resources>

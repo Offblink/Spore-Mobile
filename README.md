@@ -106,13 +106,20 @@ git clone https://github.com/Offblink/Spore-Mobile.git
 cd Spore-Mobile
 ./gradlew assembleDebug            # Windows: gradlew.bat assembleDebug
 ./gradlew testDebugUnitTest        # 单测
+./gradlew lintDebug                # 静态门禁：NewApi = 低版本机器上的 NoSuchMethodError
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-09 实测：`assembleDebug testDebugUnitTest` **57/57 全绿**
-  （FrameQuality 7 · Phases 7 · Suggest 6 · SyncEngine 11 · SyncMobileBugProbe 9 · SporeLog 4 ·
-  SessionStore 4 · SubjectsStore 4 · LlmClient 3 · SporeSettingsDefaults 2），APK **75,971,820 B**
+- 2026-10-11 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+  lint **Error 0**，单测 **80/80 全绿**
+  （FrameQuality 7 · Phases 8 · Suggest 6 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
+  SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
+  LatexDelims 7 · UnreadDotState 9 · SporeSettingsDefaults 2），APK **76,618,961 B**
   （自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
+- **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
+  （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），
+  这类坑单测跑不出来（开发机 JDK 全有），只有 lint 按 `minSdk 26` 对一遍才拦得住；
+  另有 `List.of/Set.of`（API 30）是 lint 没报的同族地雷，已一并换掉。
 - 工程自带 Gradle wrapper **9.5.0**，需要 Android SDK（`compileSdk release(37)`）。
 
 ## 已知问题

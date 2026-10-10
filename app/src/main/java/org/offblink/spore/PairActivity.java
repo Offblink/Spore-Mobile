@@ -12,10 +12,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ExperimentalGetImage;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
@@ -143,7 +145,12 @@ public class PairActivity extends AppCompatActivity {
         }, ContextCompat.getMainExecutor(this));
     }
 
-    /** 帧 → QR（分析线程）。busy 闸防并发 process；关帧一律在 complete 里做 */
+    /**
+     * 帧 → QR（分析线程）。busy 闸防并发 process；关帧一律在 complete 里做。
+     * ImageProxy.getImage() 是实验 API（{@code ExperimentalGetImage}）——显式 opt-in，
+     * 否则 lint 的 UnsafeOptInUsageError 直接红（2026-10-11 跑 lint 才发现）。
+     */
+    @OptIn(markerClass = ExperimentalGetImage.class)
     private void analyzeFrame(ImageProxy image) {
         // 视线离开判定（每帧都跑，哪怕本帧被跳过）：>QR_LEAVE_MS 没再解出任何码，
         // 坏码去重作废——回到视野重新对准时允许再提醒一次

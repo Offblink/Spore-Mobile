@@ -14,9 +14,12 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -59,9 +62,13 @@ public final class SearchChain {
     private static final int SEARCH_RETRY_PAUSE = 500;
     private static final int SEARCH_HITS = 8;
 
-    /** 查询里的短词/虚词不构成「结果属于这次查询」的证据（≥4 字符的实词才算） */
-    private static final Set<String> NOISE_WORDS = Set.of(
-            "the", "and", "for", "with", "how", "what", "does", "that", "from", "into", "about");
+    /** 查询里的短词/虚词不构成「结果属于这次查询」的证据（≥4 字符的实词才算）。
+     *  不用 Set.of/List.of：那是 API 30 的方法（minSdk 26，lint 之外的同类地雷——
+     *  和 2026-10-10 那次 Matcher.appendTail 的 NoSuchMethodError 同一族）。 */
+    private static final Set<String> NOISE_WORDS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "the", "and", "for", "with", "how", "what", "does", "that",
+                    "from", "into", "about")));
 
     /** 引擎链开关（每次核实开始前由引擎调 setProxy） */
     private static volatile String searchProxy = "";
@@ -87,9 +94,10 @@ public final class SearchChain {
 
     public static List<String> searchPlan(String proxy) {
         if (proxy == null || proxy.trim().isEmpty()) {
-            return List.of("bing");
+            return Collections.singletonList("bing");
         }
-        return List.of("duckduckgo", "bing", "brave");
+        // 同上：List.of 是 API 30，这里用 API 1 就有的不可变等价物
+        return Collections.unmodifiableList(Arrays.asList("duckduckgo", "bing", "brave"));
     }
 
     public static synchronized List<String> readLog() {
@@ -499,7 +507,9 @@ public final class SearchChain {
                 for (String part : query.split("&")) {
                     int eq = part.indexOf('=');
                     if (eq > 0 && "uddg".equals(part.substring(0, eq))) {
-                        String target = URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8);
+                        // URLDecoder.decode(String, Charset) 是 API 33 的方法
+                        // （minSdk 26 → 检索时 NoSuchMethodError）；UTF-8 那个重载是 API 1
+                        String target = URLDecoder.decode(part.substring(eq + 1), "UTF-8");
                         if (!target.isEmpty()) {
                             return target;
                         }

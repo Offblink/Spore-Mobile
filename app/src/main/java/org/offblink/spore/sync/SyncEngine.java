@@ -15,8 +15,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -32,7 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ul>
  *   <li>pushCursor 只按「本轮真实上行过的 touched」前进，tombstone 的 ts 不参与
  *       （墓碑走账本不经游标，混进来会把没推过的本地行跳过）；</li>
- *   <li>pull 永远不碰 pushCursor；</li>
+ *   <li>pull 只在<b>套用服务端行</b>时抬 pushCursor（{@link #markClean}）：套用后本地与
+ *       服务端逐字节一致，那不是本地改动，不抬则下一轮被当新改动重推、上行永不归 0；
+ *       本地未推改动一概不碰（服务端时钟超前本机时不抬，见 markClean）；</li>
  *   <li>下行 LWW 键是 {@code server.updated &gt; local.touched}（touched 见
  *       {@link Session#touched}：改名/收藏不抬 updated 但抬 touched——
  *       用 updated 比会把本地刚改的元数据盖掉）。</li>
@@ -58,7 +62,14 @@ public final class SyncEngine {
     private static final int PULL_BATCH_MAX = 50; // 10k 行还拉不完就当有毛病，防打转
     private static final int PUSH_CHUNK = 100;    // 每请求最多 100 篇文章（首配全量时别一发 10MB+）
 
+    /** 连点去重窗口：上一轮 0 变化且在此窗口内 → 本次点击短路（双击只跑一轮） */
+    private static final long DEDUP_WINDOW_MS = 1000;
+
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
+
+    /** 客户端工厂：默认按状态里的 api/token 建真客户端；单测换成假服务端替身（包内可见） */
+    static java.util.function.BiFunction<String, String, SyncClient> CLIENT_FACTORY =
+            SyncClient::new;
 
     private SyncEngine() {
     }
@@ -80,7 +91,17 @@ public final class SyncEngine {
                 SporeLog.i(ctx, "sync: 未配对，跳过");
                 return new Result(false, "未配对");
             }
-            SyncClient client = new SyncClient(st.api, st.token);
+            // 连点去重（双击只跑一轮）：上一轮刚跑完且两端都是 0 变化 → 这一次点进来
+            // 没有任何可交换的东西，直接短路不发请求。lastUp/lastDown 未知(-1)或上一轮
+            // 有变化/失败 → 照常跑（不吞掉「有新东西」的那次同步）。窗口锚在上一轮完成
+            // 时刻，短路**不刷新** lastSyncAt，连点不会无限续期。
+            if (st.lastSyncAt > 0 && st.lastUp == 0 && st.lastDown == 0
+                    && System.currentTimeMillis() - st.lastSyncAt < DEDUP_WINDOW_MS) {
+                SporeLog.i(ctx, "sync: 上一轮 0 变化且在 " + DEDUP_WINDOW_MS
+                        + "ms 内，本次连点忽略");
+                return new Result(true, "无变化（刚刚同步过，本次忽略）");
+            }
+            SyncClient client = CLIENT_FACTORY.apply(st.api, st.token);
             SporeLog.i(ctx, "sync ▶ " + st.api + " uid=" + st.uid
                     + " pull=" + st.pullCursor + " push=" + st.pushCursor);
             // 换账号检测（后端 lan_token 改绑 / 重扫换人）：游标属于上一个用户，
@@ -100,6 +121,8 @@ public final class SyncEngine {
             int down = pullPhase(ctx, client, st);
             st.lastSyncAt = System.currentTimeMillis();
             st.lastSyncMsg = "上行 " + up + " · 下行 " + down;
+            st.lastUp = up;
+            st.lastDown = down;
             st.save(ctx);
             SporeLog.i(ctx, "sync ✓ 上行 " + up + " · 下行 " + down
                     + " · pullCursor=" + st.pullCursor + " pushCursor=" + st.pushCursor);
@@ -114,6 +137,8 @@ public final class SyncEngine {
             SporeSyncState st = SporeSyncState.load(ctx);
             st.lastSyncAt = System.currentTimeMillis();
             st.lastSyncMsg = "失败：" + msg;
+            st.lastUp = -1;   // 失败一轮不可作为「连点去重」的依据（否则失败后紧接着的重试点被吞）
+            st.lastDown = -1;
             st.save(ctx);
             return new Result(false, "同步失败：" + msg);
         } finally {
@@ -144,7 +169,7 @@ public final class SyncEngine {
             }
         }
 
-        // ---- 会话（分块上行；先建全部 item 才能带着 attachmentPath 一起推）----
+        // ---- 会话（分块上行；题图单独殿后，见下方「题图殿后」）----
         List<Session> sessions = SessionStore.loadAll(ctx);
         List<JSONObject> artItems = new ArrayList<>();
         List<File> artImages = new ArrayList<>();
@@ -181,20 +206,39 @@ public final class SyncEngine {
             return 0; // 没东西可推：游标、账本原样
         }
 
-        // ---- 题图先行（push-attachment 只存文件不回写行——Spore-GUI records.py 实测在案；
-        //      路径必须先拿到、随本次 push 写进 attachmentPath，GUI 才显示得出截图）----
-        for (int i = 0; i < artItems.size(); i++) {
-            File img = artImages.get(i);
-            if (img == null) {
-                continue;
-            }
-            String path = client.pushAttachment(artItems.get(i).optString("id", ""), img);
-            if (!path.isEmpty()) {
-                artItems.get(i).put("attachmentPath", path);
+        // ---- 引用完整性兜底：本轮上行的会话引用的科目，即使 updated ≤ 游标也同批带上 ----
+        //      服务端 mergeArticle 只在 LWW 赢时才 a_setCategory，而 categoryExists 找不到
+        //      该科目行（从未上行过 / 被这道水位跳过）就**静默**把 category_id 置 NULL，
+        //      accepted:true 不报错 → 下一轮 pull 把 NULL 回灌成本地 = 已入科又回到未分组。
+        //      只补活行：本轮已上行的、以及在账墓碑的科目不碰（墓碑优先，防复活）。
+        Set<String> haveCat = new HashSet<>();
+        for (int i = 0; i < catItems.length(); i++) {
+            JSONObject o = catItems.optJSONObject(i);
+            if (o != null) {
+                haveCat.add(o.optString("id", ""));
             }
         }
+        Map<String, JSONObject> byId = new HashMap<>();
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            if (r != null) {
+                byId.put(r.optString("id", ""), r);
+            }
+        }
+        for (int i = 0; i < artItems.size(); i++) {
+            String ref = artItems.get(i).optString("categoryId", "");
+            if (ref.isEmpty() || haveCat.contains(ref) || tombedCat.contains(ref)) {
+                continue;
+            }
+            JSONObject row = byId.get(ref);
+            if (row == null) {
+                continue; // 本地也没有：悬挂引用，服务端按规则置 NULL（两端都不许悬挂）
+            }
+            catItems.put(categoryItem(row));
+            haveCat.add(ref);
+        }
 
-        // ---- 发送：科目一次；文章分块，块成功才推进内存游标（崩溃回退整轮重推，幂等）----
+        // ---- 发送：科目一次（引用完整性必须先进服务端）→ 会话分块 → **最后才推题图** ----
         int sent = 0;
         Set<String> accepted = new HashSet<>();
         if (catItems.length() > 0) {
@@ -215,6 +259,24 @@ public final class SyncEngine {
             body.put("articles", chunk);
             accepted.addAll(acceptedIds(client.push(body)));
             sent += chunk.length();
+        }
+
+        // ---- 题图殿后（2026-10-10 科目回退根因）：GUI SyncController.pushAttachment →
+        //      SyncServiceImpl.bindAttachment → articleMapper.update(只带 attachmentPath 的实体)
+        //      → MyBatis-Plus updateFill 的 strictFillStrategy（值为 null 才填）把
+        //      Article.updateTime(fill=INSERT_UPDATE) 抬成服务端时钟。题图先于行推时，
+        //      这一抬落在行 push **之前** → 行的 LWW 键（=本地 touched，编辑时刻）严格小于它
+        //      → 必被拒（accepted:false，连 categoryId 一起落不了地）→ 同一轮 pull 再把
+        //      服务端的 categoryId=NULL 回灌成未分组，且被抬高的 update_time > pushCursor
+        //      → 下一轮又上又下（回声打转）。改「行先落、图后补」：bindAttachment 只会落在
+        //      我们刚写的这行之后，服务端 update_time 抬到哪都盖不住已落地的内容；
+        //      attachmentPath 由 bindAttachment 直接回写行（桌面「行先建后推图」同路）。
+        for (int i = 0; i < artItems.size(); i++) {
+            File img = artImages.get(i);
+            if (img == null) {
+                continue;
+            }
+            client.pushAttachment(artItems.get(i).optString("id", ""), img);
         }
 
         // ---- 游标只吃非墓碑 touched；账本只销服务端真收下的（accepted=false =
@@ -357,6 +419,7 @@ public final class SyncEngine {
                                 row.optString("id", ""), row.optLong("updated", 0));
                     } else if (SubjectsStore.applyServerRow(ctx, row)) {
                         applied++;
+                        markClean(st, row.optLong("updated", 0));
                     }
                 }
             }
@@ -372,6 +435,7 @@ public final class SyncEngine {
                     int r = applyArticleRow(ctx, client, row);
                     if (r > 0) {
                         applied++;
+                        markClean(st, row.optLong("updated", 0));
                     } else if (r < 0) {
                         hold = Math.min(hold, row.optLong("updated", 0) - 1);
                     }
@@ -439,6 +503,21 @@ public final class SyncEngine {
         fetchAttachment(ctx, client, id, row, s);
         fixDanglingSubject(ctx, s);
         return CaptureService.applyFromSync(ctx, s) ? 1 : -1;
+    }
+
+    /**
+     * 套用服务端行 → 抬 pushCursor。这是铁律「pull 不碰 pushCursor」的<b>唯一</b>例外：
+     * 套用后本地与服务端逐字节一致，这行**不是本地改动**，不抬的话下一轮会被当成新改动
+     * 重推（服务端 LWW 拒绝、可 sent 照样计数 → 上行永远归不了 0，还连带把服务端
+     * update_time 抬一次 → 下行也不为 0）。
+     *
+     * <p>只在服务端时间戳不超前本机时钟时才抬：保证 pushCursor 永不越过本机墙上时间——
+     * 否则服务端时钟超前时，这道水位会把之后的本地改动（touched = 本机时钟）静默吞掉。
+     */
+    private static void markClean(SporeSyncState st, long serverUpdated) {
+        if (serverUpdated <= System.currentTimeMillis()) {
+            st.pushCursor = Math.max(st.pushCursor, serverUpdated);
+        }
     }
 
     /** push results → 服务端真收下的 id 集（accepted=false = LWW 拒绝，不算推成功） */

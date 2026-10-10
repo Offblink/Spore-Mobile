@@ -16,6 +16,8 @@ import org.json.JSONObject;
  * 游标：pullCursor = 服务端增量水位（只从 pull 的 nextCursor 前进）；
  * pushCursor = 本地上行水位（只在 push 成功后按已推过的 touched 前进）——
  * 两者分开是为了一条铁律：**pull 不许碰 pushCursor**（本地未推改动会被跳过 → 静默丢数据）。
+ * 唯一例外是「套用服务端行」那一刻（SyncEngine.markClean）：那行内容本就来自服务端、
+ * 不是本地改动，不抬游标下一轮会把它当新改动重推（回声打转，上/下行永不归 0）。
  */
 public final class SporeSyncState {
 
@@ -35,6 +37,12 @@ public final class SporeSyncState {
     public long lastSyncAt = 0;
     /** 上次同步结果一句话（成功摘要或错误），web 设置页直显 */
     public String lastSyncMsg = "";
+    /**
+     * 上一次成功同步的上/下行条数。web 只看 lastSyncMsg 这句话，这两个数只给
+     * {@link SyncEngine} 做「连点去重」判定：-1 = 未知（升级首跑 / 上一轮失败）→ 永不触发去重。
+     */
+    public long lastUp = -1;
+    public long lastDown = -1;
 
     private SporeSyncState() {
     }
@@ -50,6 +58,8 @@ public final class SporeSyncState {
         s.pushCursor = p.getLong("pushCursor", 0);
         s.lastSyncAt = p.getLong("lastSyncAt", 0);
         s.lastSyncMsg = p.getString("lastSyncMsg", "");
+        s.lastUp = p.getLong("lastUp", -1);
+        s.lastDown = p.getLong("lastDown", -1);
         return s;
     }
 
@@ -63,6 +73,8 @@ public final class SporeSyncState {
                 .putLong("pushCursor", pushCursor)
                 .putLong("lastSyncAt", lastSyncAt)
                 .putString("lastSyncMsg", lastSyncMsg)
+                .putLong("lastUp", lastUp)
+                .putLong("lastDown", lastDown)
                 .apply();
     }
 

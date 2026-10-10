@@ -10,93 +10,106 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 未读红点状态机契约（web panel.js renderUnread 的 JVM 镜像）：
- * 点亮 = 列表没打开过 && 有比当前会话更新的其它会话；
- * 清除唯一触发 = 打开列表；回合结束抬高当前会话 updated 不许清点。
+ * 未读红点状态机契约（web panel.js renderUnread 的 JVM 镜像）。
+ *
+ * <p>口径（2026-10-10 用户拍板）：点亮 = 存在「非当前会话」且比**已读水位**更新的会话；
+ * 水位只在**点开会话**时抬高 —— 打开列表不清、回合结束抬当前会话 updated 不清。
  */
 public class UnreadDotStateTest {
 
     private static Session sess(String id, long updated) {
         Session s = new Session();
         s.id = id;
-        s.created = updated;
         s.updated = updated;
-        s.touched = updated;
         return s;
     }
 
-    /** 当前会话 A 还停在旧时间戳、B 更新在后 → 未读该亮 */
-    @Test
-    public void lightsWhenOtherSessionIsNewer() {
-        UnreadDotState dot = new UnreadDotState();
-        List<Session> all = Arrays.asList(sess("B", 2000), sess("A", 1000));
-        dot.refresh("A", 1000, all);
-        assertTrue("有比当前会话更新的其它会话 → 红点亮", dot.visible());
+    private static List<Session> all(Session... ss) {
+        return Arrays.asList(ss);
     }
 
-    /** 当前会话自己就是最新 → 没有更旧基准之外的动静，不许必亮 */
+    /** 当前会话 A 停在旧时间戳、B 更新在后 → 未读该亮 */
+    @Test
+    public void lightsWhenOtherSessionIsNewer() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+    }
+
+    /** 当前会话自己就是最新 → 不许必亮 */
     @Test
     public void staysDarkWhenCurrentSessionIsNewest() {
-        UnreadDotState dot = new UnreadDotState();
-        List<Session> all = Arrays.asList(sess("A", 3000), sess("B", 2000));
-        dot.refresh("A", 3000, all);
-        assertFalse("当前会话最新且列表没动静 → 红点不亮", dot.visible());
+        UnreadDotState st = new UnreadDotState();
+        assertFalse(st.evaluate("A", 3000, all(sess("A", 3000), sess("B", 2000))));
     }
 
     /**
-     * 回合结束：AgentEngine.emitTurnEnd → SessionStore.saveActive 把 A.updated 抬到 3000，
-     * AnswerPanel/NativeAnswerPanel 随后的全量刷新按新基准评估「更新的其它会话」不再成立 ——
-     * 这只是时间戳在动，用户没开列表，红点不许被清（缺陷复现的钉子）。
+     * 缺陷钉子：回合结束（emitTurnEnd → saveActive）把当前会话 updated 抬到全库最新，
+     * 随后状态刷新按旧口径「有比当前会话更新的其它会话」评估就不成立了 —— 那只是时间戳
+     * 在动、用户没读，红点不许被清。
      */
     @Test
-    public void turnEndTimestampBumpDoesNotClearUnread() {
-        UnreadDotState dot = new UnreadDotState();
-        dot.refresh("A", 1000, Arrays.asList(sess("B", 2000), sess("A", 1000)));
-        assertTrue(dot.visible());
-
-        dot.refresh("A", 3000, Arrays.asList(sess("A", 3000), sess("B", 2000)));
-        assertTrue("回合结束抬高当前会话 updated 后红点仍亮", dot.visible());
-
-        // 再刷多少次都不回落（状态刷新路径永不清除）
-        dot.refresh("A", 4000, Arrays.asList(sess("A", 4000), sess("B", 2000)));
-        assertTrue(dot.visible());
+    public void turnEndTimestampBumpOfCurrentDoesNotClearUnread() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+        // 回合结束：A.updated 3000（== 全库最新），随后的刷新不许把点打灭
+        assertTrue(st.evaluate("A", 3000, all(sess("A", 3000), sess("B", 2000))));
     }
 
-    /** 打开列表 = 已读：清红点，且此后同样的数据不再回亮 */
+    /** 打开列表不是已读：状态机没有「开列表」入口，任何次数的刷新都必须保持点亮 */
     @Test
-    public void openListClearsAndBlocksRelight() {
-        UnreadDotState dot = new UnreadDotState();
-        List<Session> stale = Arrays.asList(sess("B", 2000), sess("A", 1000));
-        dot.refresh("A", 1000, stale);
-        assertTrue(dot.visible());
-
-        dot.onListOpened();
-        assertFalse("打开列表清红点", dot.visible());
-
-        dot.refresh("A", 1000, stale);
-        assertFalse("列表开着检测闸门关死，同数据不许回亮", dot.visible());
+    public void listRefreshAloneNeverClears() {
+        UnreadDotState st = new UnreadDotState();
+        for (int i = 0; i < 5; i++) {
+            assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+        }
     }
 
-    /** 打开列表后的状态刷新路径也不得把点打回来（清点之后任何 refresh 都保持熄灭） */
+    /** 点开那条更新的会话 = 已读：红点熄灭 */
     @Test
-    public void refreshAfterOpenNeverTurnsDotBackOn() {
-        UnreadDotState dot = new UnreadDotState();
-        dot.onListOpened();
-        dot.refresh("A", 1000, Arrays.asList(sess("B", 9999), sess("A", 1000)));
-        assertFalse(dot.visible());
+    public void openingTheNewerSessionClearsDot() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+        st.onSessionOpened(2000); // 用户点开 B
+        assertFalse(st.evaluate("B", 2000, all(sess("A", 1000), sess("B", 2000))));
     }
 
-    /** 切换/新建会话 = 列表有动静：重新武装检测闸门，后续更新的其它会话能再点亮 */
+    /** 点开的是一条更旧的会话 → 更新的那条仍未读，红点保持 */
     @Test
-    public void sessionChangeRearmsDetectionAfterListSeen() {
-        UnreadDotState dot = new UnreadDotState();
-        dot.onListOpened();
+    public void openingOlderSessionKeepsUnread() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000), sess("C", 3000))));
+        st.onSessionOpened(2000); // 用户点开 B（不是最新的那条）
+        assertTrue(st.evaluate("B", 2000, all(sess("A", 1000), sess("B", 2000), sess("C", 3000))));
+    }
 
-        dot.refresh("A", 1000, Arrays.asList(sess("B", 2000), sess("A", 1000)));
-        assertFalse("没重新武装前不许点亮", dot.visible());
+    /** 熄灭后来了新的会话 → 红点要能再亮（水位只到已读，不封死检测） */
+    @Test
+    public void newSessionAfterClearingLightsAgain() {
+        UnreadDotState st = new UnreadDotState();
+        st.onSessionOpened(2000);
+        assertFalse(st.evaluate("B", 2000, all(sess("B", 2000))));
+        assertTrue(st.evaluate("B", 2000, all(sess("B", 2000), sess("D", 4000))));
+    }
 
-        dot.onSessionChanged(); // native 的 session-new / web 的当前会话切换
-        dot.refresh("C", 1500, Arrays.asList(sess("B", 2000), sess("C", 1500)));
-        assertTrue("重新武装后有更新的其它会话 → 红点再亮", dot.visible());
+    /** 边界：updated 与水位相等不算更新 */
+    @Test
+    public void equalTimestampDoesNotLight() {
+        UnreadDotState st = new UnreadDotState();
+        st.onSessionOpened(2000);
+        assertFalse(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+    }
+
+    /**
+     * 切换会话时「刚在看的那个」也一并算已读：A 看着 A 的回合结束（updated 抬到 3000），
+     * 然后点开 B —— A 不许因为自己时间戳最新而回头点亮红点。
+     */
+    @Test
+    public void previousSessionCountsAsReadWhenSwitching() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000)))); // B 未读
+        assertTrue(st.evaluate("A", 3000, all(sess("A", 3000), sess("B", 2000)))); // A 回合结束，点仍在
+        st.onSessionOpened(3000); // 调用方先抬「刚在看的 A」
+        st.onSessionOpened(2000); // 再抬「打开的 B」
+        assertFalse(st.evaluate("B", 2000, all(sess("A", 3000), sess("B", 2000))));
     }
 }

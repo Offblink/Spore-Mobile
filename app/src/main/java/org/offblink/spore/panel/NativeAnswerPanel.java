@@ -102,10 +102,13 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
 
     /** 记录页/会话列表点入：换入已存会话继续对话（桌面点列表行语义） */
     public void openSession(String sessionId) {
+        long prevUpdated = engine.session().updated; // 刚在看的那个也算已读（见 UnreadDotState）
         if (!engine.loadSession(sessionId)) {
             Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
             return;
         }
+        unreadDotState.onSessionOpened(prevUpdated);              // 点开会话 = 已读（清红点唯一触发）
+        unreadDotState.onSessionOpened(engine.session().updated); // 打开的这条同样算已读
         show();
     }
 
@@ -248,7 +251,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             return;
         }
         buildRows();
-        unreadDotState.onListOpened(); // 打开列表 = 已读：清红点的唯一触发
+        // 打开列表不抬水位、不清红点（2026-10-10 用户拍板：点开会话才消红点，不是开列表）
         paintUnread();
     }
 
@@ -320,6 +323,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
 
         row.setOnClickListener(v -> {
             if (!s.id.equals(engine.session().id)) {
+                long prevUpdated = engine.session().updated; // 刚在看的那个也算已读（回合结束会把它抬成最新）
                 if (!engine.loadSession(s.id)) {
                     Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
                     return;
@@ -327,6 +331,8 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 adapter.setSession(engine.session());
                 title.setText(engine.session().title);
                 status.setText("");
+                unreadDotState.onSessionOpened(prevUpdated); // 点行切入 = 已读（清红点唯一触发）
+                unreadDotState.onSessionOpened(s.updated);   // 打开的这条同样算已读
                 refresh(true);
             }
             closeList();
@@ -375,13 +381,13 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         if (unreadDot == null) {
             return;
         }
-        // 第六轮回灌 web 版语义：红点 = 有比当前会话**更新**的其它会话
-        // （原「存在其它会话」在库里 2+ 条时必亮，第四轮实测抓过）。
-        // 状态机只点亮不熄灭：回合结束 saveActive 抬高当前会话 updated 只是时间戳在动，
-        // 用户没开列表就没读 —— 清点唯一触发 = 打开列表（见 UnreadDotState）。
+        // 红点 = 存在「非当前会话」且比**已读水位**更新的会话；水位只被「点开会话」抬高。
+        // 回合结束把当前会话 updated 抬到全库最新只是时间戳在动，不动水位 → 不会再无读自灭
+        // （见 UnreadDotState 的口径说明；web 侧 renderUnread 同一份语义）。
         Session cur = engine.session();
-        unreadDotState.refresh(cur.id, cur.updated, SessionStore.loadAll(ctx));
-        unreadDot.setVisibility(unreadDotState.visible() ? View.VISIBLE : View.GONE);
+        unreadDot.setVisibility(
+                unreadDotState.evaluate(cur.id, cur.updated, SessionStore.loadAll(ctx))
+                        ? View.VISIBLE : View.GONE);
     }
 
     // ---------------------------------------------------------------- in-panel 模态
@@ -528,7 +534,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 adapter.setSession(engine.session());
                 title.setText(engine.session().title);
                 status.setText("");
-                unreadDotState.onSessionChanged(); // 新会话 = 列表有动静 → 重新武装检测闸门
+                // 新会话不抬水位（用户还没点开它）：红点由 paintUnread 的 evaluate 自然点亮
                 paintUnread();
                 // 列表开着就原地刷行（新会话要能立刻看见），**不关列表**——
                 // 删掉当前会话时列表必须留在原地（web 侧本来就不关，这里对齐）

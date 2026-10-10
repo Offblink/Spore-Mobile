@@ -1,5 +1,5 @@
 // 消息渲染纯函数：桌面 src/lib/md.js 的搬运 + 行结构扩展（ATX/setext 标题、GFM 表格、
-// 无序列表、分隔线，语义对齐 python-markdown；抽屉与记录页共用同一份语义，别各自漂移）。
+// 无序列表、分隔线、引用块，语义对齐 python-markdown；抽屉与记录页共用同一份语义，别各自漂移）。
 // 数学：$$…$$ / \(…\) / \[…\] / $…$ 走离线 KaTeX（vendor/katex，页面里排在 md.js 之前）；
 //       katex 没加载到就回退老的 <span class="math"> 纯文本——不丢内容也不抛。
 // 经典脚本挂全局：panel.html / record.html 都用 <script src="md.js"> 引入。
@@ -27,7 +27,7 @@
     }
   }
 
-  // —— 行结构：ATX 标题 / GFM 表格 / 无序列表 / 分隔线（语义对齐 python-markdown 的
+  // —— 行结构：ATX 标题 / GFM 表格 / 无序列表 / 分隔线 / 引用块（语义对齐 python-markdown 的
   //    headings + tables 扩展，实测口径：标题可打断段落、表格与列表不可（须空行/块后起）、
   //    `text` 下紧邻 `---`/`===` 是 setext 标题、孤立 `---` 才是分隔线、表体少列补空多列截断、
   //    表头分隔行的 :---: 决定对齐样式）。只吃行结构；粗体/链接/公式/代码在进本函数前已处理，
@@ -51,6 +51,8 @@
   const RE_SET_EXT = /^\s*={3,}\s*$/;
   const RE_RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
   const RE_LI = /^\s*[-*+]\s+(.*)$/;
+  // 引用块行首记号：esc 已经把 `>` 转义成 `&gt;`，所以行首认的是 `&gt;`（0~3 空格缩进照 python）
+  const RE_BQ = /^ {0,3}&gt; ?(.*)$/;
 
   function renderBlocks(s) {
     const lines = s.split('\n');
@@ -67,6 +69,39 @@
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (afterBlock && line === '') continue;   // 块元素之间的空行不再落 <br>
+
+      // 引用块：行首 `> ` 起块，可打断段落（python 口径：不须空行，`> ` 直接跟在文本行后也起块）。
+      // 块的范围 = 起块行到本段（空行分隔）末尾：段内**非空**行即使没有 `>` 也吞进块里（python
+      // 实测 `> 引用\n后文` 的「后文」在块内；这是 lazy 续行，与 CommonMark 同款），但**能再起块
+      // 的行**（`#` 标题、`***`/`---` 这类分隔线）不吞——python 实测 `> 甲\n# 标题` 的标题落成
+      // 引用块的兄弟节点。段间空行只在后面还有 `> ` 行时才留在块内（实测 `> 甲\n\n> 乙` 合成一个
+      // blockquote、空行成为块内段落分隔；`> 甲\n\n后文` 则块在空行处结束）。块内剥掉一层 `> `
+      // 后递归走本函数，所以块内标题/表格/列表/hr 与 `>>` 嵌套全部按同一口径落地。
+      if (RE_BQ.test(line)) {
+        flush(true);
+        const inner = [];
+        let j = i;
+        while (j < lines.length) {
+          const cur = lines[j];
+          if (cur.trim() === '') {
+            let k = j;
+            while (k < lines.length && lines[k].trim() === '') k++;
+            // 后面没有 `> ` 行了：空行留在外层（afterBlock 会吃掉），块到此为止
+            if (k >= lines.length || !RE_BQ.test(lines[k])) break;
+            inner.push('');   // 合并跨空行的两段引用：空行降级成块内段落分隔
+            j = k;
+            continue;
+          }
+          const q = RE_BQ.exec(cur);
+          if (!q && (RE_ATX.test(cur) || RE_RULE.test(cur))) break;   // 再起块的行不吞
+          inner.push(q ? q[1] : cur);
+          j++;
+        }
+        out.push('<blockquote>' + renderBlocks(inner.join('\n')) + '</blockquote>');
+        afterBlock = true;
+        i = j - 1;
+        continue;
+      }
 
       // ATX 标题：#~###### 开头（python 口径：不强制 # 后有空格，尾部 # 序列剥掉）
       const atx = RE_ATX.exec(line);

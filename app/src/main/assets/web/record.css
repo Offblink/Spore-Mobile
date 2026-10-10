@@ -356,3 +356,10 @@ body { background: var(--bg); }
 .msg ul { margin: 6px 0; padding-left: 1.4em; }
 .msg li { margin: 2px 0; }
 .msg hr { border: 0; border-top: 1px solid var(--line); margin: 9px 0; }
+/* 引用块（md.js：行首 `> ` 起块，可嵌套；块内仍走同一套行结构） */
+.msg blockquote {
+  margin: 7px 0; padding: 3px 10px 3px 11px;
+  border-left: 3px solid var(--line4); border-radius: 0 6px 6px 0;
+  background: var(--bg2); color: var(--chip-text);
+}
+.msg blockquote blockquote { margin: 4px 0 2px; padding-left: 9px; border-left-width: 2px; }

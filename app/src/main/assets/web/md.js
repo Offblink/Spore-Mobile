@@ -10,7 +10,10 @@
   // 占位符 = NUL + 序号 + NUL：esc / 加粗 / 链接 / 行结构四步都碰不到它，成品最后原样回填
   const NUL = String.fromCharCode(0);
   const PH = (i) => NUL + i + NUL;
-  const PH_RE = new RegExp(NUL + '(\\d+)' + NUL, 'g');
+  // 块级占位符（围栏代码整块）：多带一个 F，好让 renderBlocks 认出来「这行是块元素，
+  // 单独成行落地、别并进相邻文本行」，而行内公式/行内代码的占位符照旧按文本流拼
+  const PH_BLOCK = (i) => NUL + 'F' + i + NUL;
+  const PH_RE = new RegExp(NUL + '(F?)(\\d+)' + NUL, 'g');
 
   // 定界符顺序要紧：$$ 必须先于 $ 试，否则 $$x$$ 会被拆成两个行内段
   const MATH = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([^()]+?)\\\)|\$([^$\n]+)\$/g;
@@ -51,6 +54,11 @@
   const RE_SET_EXT = /^\s*={3,}\s*$/;
   const RE_RULE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
   const RE_LI = /^\s*[-*+]\s+(.*)$/;
+  // 有序列表：python 实测认 `1. ` 不认 `1)`；`3.` 也不开 start 属性；4 空格缩进归代码块
+  const RE_OL = /^ {0,3}\d+\.\s+(.*)$/;
+  // 围栏代码整块（python fenced_code 的预处理器同款）：顶格 + 编号 ≥3 + 语言串单记号 +
+  // 闭合围栏与开启**逐字符相同**（\1 反向引用，实测 4 个 ` 开、3 个 ` 闭不上）；未闭合不匹配。
+  const RE_FENCE_BLOCK = /^(~{3,}|`{3,})[ ]*\{?\.?([a-zA-Z0-9_+-]*)\}?[ ]*\n([\s\S]*?)(?<=\n)\1[ ]*(?=\n|$)/gm;
   // 引用块行首记号：esc 已经把 `>` 转义成 `&gt;`，所以行首认的是 `&gt;`（0~3 空格缩进照 python）
   const RE_BQ = /^ {0,3}&gt; ?(.*)$/;
 
@@ -69,6 +77,16 @@
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (afterBlock && line === '') continue;   // 块元素之间的空行不再落 <br>
+
+      // 围栏代码块（md() 层已摘成整块占位符 NUL+F+序号+NUL）：单独成块落地，
+      // 不并进相邻文本行（否则前后会多出 <br>）
+      if (/^\x00F\d+\x00$/.test(line)) {
+        flush(true);
+        out.push(line);
+        afterBlock = true;
+        continue;
+      }
+
 
       // 引用块：行首 `> ` 起块，可打断段落（python 口径：不须空行，`> ` 直接跟在文本行后也起块）。
       // 块的范围 = 起块行到本段（空行分隔）末尾：段内**非空**行即使没有 `>` 也吞进块里（python
@@ -168,6 +186,21 @@
         continue;
       }
 
+      // 有序列表：连续 `1. ` 成一个 <ol>；紧邻段落不打断（python 口径，与无序列表同款）
+      if (canStart() && RE_OL.test(line)) {
+        flush(true);
+        let olHtml = '<ol>';
+        let oli;
+        while (i < lines.length && (oli = RE_OL.exec(lines[i]))) {
+          olHtml += '<li>' + oli[1] + '</li>';
+          i++;
+        }
+        i--;
+        out.push(olHtml + '</ol>');
+        afterBlock = true;
+        continue;
+      }
+
       // 无序列表：连续 `- `/`* `/`+ ` 成一个 <ul>；紧邻段落时不打断（python 口径）
       if (canStart() && RE_LI.test(line)) {
         flush(true);
@@ -198,6 +231,15 @@
     };
     // 统一换行：样本是 CRLF，\r 会让 /^#/、空行判定（setext/表格/列表起表）全失灵
     let s = String(text ?? '').replace(/\r\n?/g, '\n');
+    // 围栏代码必须先摘（同 python fenced_code 的预处理顺序）：`([^`]+)` 会把 ``` 的开闭反引号
+    // 配成一对、把整段当行内代码吃掉。顶格 + 编号 ≥3 + 语言串单记号 + **闭合围栏与开启逐字符
+    // 相同**（python 用反向引用）；块内只 esc、不再走 markdown（python 口径：块内不解析）。
+    // 引用块里的围栏天然不匹配（python 实测 `> ``` ` 不是围栏）——这里同样要求行首即记号。
+    s = s.replace(RE_FENCE_BLOCK, (m, fence, lang, body) => {
+      const cls = lang ? ' class="language-' + lang + '"' : '';
+      slots.push('<pre><code' + cls + '>' + esc(body) + '</code></pre>');
+      return PH_BLOCK(slots.length - 1);
+    });
     // 代码先摘：`a$b` 里的 $ 不是数学
     s = s.replace(/`([^`]+)`/g, (m, c) => stash('<code>' + esc(c) + '</code>'));
     // 数学再摘：代码已摘空，剩下的 $…$ / $$…$$ / \(…\) / \[…\] 都按公式渲染
@@ -211,7 +253,7 @@
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
     // 行结构（标题/表格/列表/分隔线）在此落地，普通文本行间仍换 <br>
     s = renderBlocks(s);
-    return s.replace(PH_RE, (m, i) => slots[Number(i)] ?? '');
+    return s.replace(PH_RE, (m, f, i) => slots[Number(i)] ?? '');
   }
 
   globalThis.SporeMD = { esc, md };

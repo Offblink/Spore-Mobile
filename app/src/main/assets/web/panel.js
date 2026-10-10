@@ -23,6 +23,10 @@
   let st = { session: null, sessions: [], busy: false };
   let listOn = false;
   let listSeen = false;
+  // 未读闩锁（与 native UnreadDotState 同口径）：只在「打开列表」时清零。
+  // 回合结束 saveActive 会把当前会话 updated 抬到全库最新，「更旧基准」随之一时失效，
+  // 那只是时间戳在动——用户没开列表就没读，红点不许被状态刷新打回去。
+  let unread = false;
   let modalTarget = null; // {id} —— 模态的目标会话
 
   // ---------------------------------------------------------------- 状态拉取
@@ -159,11 +163,17 @@
 
   function renderUnread() {
     // 红点语义 = **有比当前会话更新的其它会话**（不是「存在其它会话」——
-    // 那样只要库里有 2 条就必亮，你正看着最新会话也会误报，第四轮实测抓过）
-    const cur = st.session;
-    const hit = !listSeen && !!cur && (st.sessions || []).some(
-      (x) => x.id !== cur.id && (x.updated || 0) > (cur.updated || 0));
-    sessionsBtn.classList.toggle("has-unread", hit);
+    // 那样只要库里有 2 条就必亮，你正看着最新会话也会误报，第四轮实测抓过），
+    // 且列表没打开过。状态机只点亮不清除：清除唯一触发 = openList 打开列表弹层。
+    if (!listSeen && !unread) {
+      const cur = st.session;
+      const hit = !!cur && (st.sessions || []).some(
+        (x) => x.id !== cur.id && (x.updated || 0) > (cur.updated || 0));
+      if (hit) {
+        unread = true;
+      }
+    }
+    sessionsBtn.classList.toggle("has-unread", unread);
   }
 
   function renderList() {
@@ -364,6 +374,7 @@
   function openList() {
     listOn = true;
     listSeen = true;
+    unread = false; // 打开列表 = 已读：清红点的唯一触发（native toggleList 同口径）
     renderUnread();
     renderList();
     listpop.classList.add('on');

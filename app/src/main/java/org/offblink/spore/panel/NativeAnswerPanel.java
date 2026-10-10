@@ -70,8 +70,11 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     private EditText renameInput;
 
     private boolean visible;
-    /** 列表自上次打开后有没有新会话（MV3 has-unread 语义） */
-    private boolean listSeen;
+    /**
+     * 未读红点状态机（MV3 has-unread 语义）：点亮 = 有比当前会话更新的其它会话，
+     * 清除的唯一触发 = 打开列表；回合结束抬高当前会话时间戳不清点（与 web renderUnread 同口径）
+     */
+    private final UnreadDotState unreadDotState = new UnreadDotState();
 
     /** 模态操作的目标会话（确认/重命名期间暂存） */
     private Session target;
@@ -245,7 +248,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             return;
         }
         buildRows();
-        listSeen = true;
+        unreadDotState.onListOpened(); // 打开列表 = 已读：清红点的唯一触发
         paintUnread();
     }
 
@@ -373,17 +376,12 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             return;
         }
         // 第六轮回灌 web 版语义：红点 = 有比当前会话**更新**的其它会话
-        // （原「存在其它会话」在库里 2+ 条时必亮，第四轮实测抓过）
-        String curId = engine.session().id;
-        long curUpdated = engine.session().updated;
-        boolean newer = false;
-        for (Session s : SessionStore.loadAll(ctx)) {
-            if (!s.id.equals(curId) && s.updated > curUpdated) {
-                newer = true;
-                break;
-            }
-        }
-        unreadDot.setVisibility(!listSeen && newer ? View.VISIBLE : View.GONE);
+        // （原「存在其它会话」在库里 2+ 条时必亮，第四轮实测抓过）。
+        // 状态机只点亮不熄灭：回合结束 saveActive 抬高当前会话 updated 只是时间戳在动，
+        // 用户没开列表就没读 —— 清点唯一触发 = 打开列表（见 UnreadDotState）。
+        Session cur = engine.session();
+        unreadDotState.refresh(cur.id, cur.updated, SessionStore.loadAll(ctx));
+        unreadDot.setVisibility(unreadDotState.visible() ? View.VISIBLE : View.GONE);
     }
 
     // ---------------------------------------------------------------- in-panel 模态
@@ -530,7 +528,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 adapter.setSession(engine.session());
                 title.setText(engine.session().title);
                 status.setText("");
-                listSeen = false; // 新会话 = 列表有动静 → 未读点
+                unreadDotState.onSessionChanged(); // 新会话 = 列表有动静 → 重新武装检测闸门
                 paintUnread();
                 // 列表开着就原地刷行（新会话要能立刻看见），**不关列表**——
                 // 删掉当前会话时列表必须留在原地（web 侧本来就不关，这里对齐）

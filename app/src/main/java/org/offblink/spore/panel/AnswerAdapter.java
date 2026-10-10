@@ -134,7 +134,7 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
         h.think.setVisibility(View.GONE);
         h.verify.setVisibility(View.GONE);
         h.tools.setVisibility(View.GONE);
-        markwon.setMarkdown(h.preview, m.text);
+        markwon.setMarkdown(h.preview, LatexDelims.normalizeForMarkwon(m.text));
     }
 
     private void bindAnswer(VH h, Session.Msg m) {
@@ -154,9 +154,10 @@ public final class AnswerAdapter extends RecyclerView.Adapter<AnswerAdapter.VH> 
             h.thinkToggle.setOnClickListener(v -> host.onToggleThink(m));
         }
 
-        // 正文：NO/ANS/WHY 拍成人话（流式过程中也走同一渲染）
-        markwon.setMarkdown(h.preview,
-                Phases.formatAnswerPreview(m.no, m.ans, m.why));
+        // 正文：题号头单独成段（否则「第3题 ## 标题」会把行首块元素顶掉），
+        // ANS/WHY 各自成段后交给 markdown；公式分隔符先归一到 ext-latex 认得的形态
+        markwon.setMarkdown(h.preview, LatexDelims.normalizeForMarkwon(
+                Phases.answerMarkdown(m.no, m.ans, m.why)));
 
         // 核实块
         String status = host.statusText();

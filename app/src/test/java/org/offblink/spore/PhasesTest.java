@@ -77,4 +77,24 @@ public class PhasesTest {
         assertFalse(Phases.isSelfCertain(raw));
         assertTrue(Phases.isSelfCertain(raw.replace("<<check>>", "<<ok>>")));
     }
+
+    /**
+     * 原生面板：题号头必须与正文分开成段——否则「第3题 ## 标题」会把正文首行的块元素顶掉。
+     */
+    @Test
+    public void 题号头与正文分开_首行块元素不被前缀顶掉() {
+        assertEquals("第3题", Phases.answerHead("3"));
+        assertEquals("第A题", Phases.answerHead("A"));
+        assertEquals("", Phases.answerHead(""));
+        assertEquals("", Phases.answerHead(null));
+
+        assertEquals("选A\n\n因为所以", Phases.answerBody("选A", "因为所以"));
+        assertEquals("选A", Phases.answerBody("选A", ""));
+        assertEquals("因为所以", Phases.answerBody("", "因为所以"));
+
+        String md = Phases.answerMarkdown("3", "## 小标题\n\n正文", "因为所以");
+        assertEquals("第3题\n\n## 小标题\n\n正文\n\n因为所以", md);
+        assertTrue("头独立成段，正文首行仍是行首 `##`", md.startsWith("第3题\n\n## "));
+        assertEquals("## 小标题", Phases.answerMarkdown("", "## 小标题", ""));
+    }
 }

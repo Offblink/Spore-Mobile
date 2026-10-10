@@ -216,6 +216,28 @@ public final class Phases {
         return joinNonEmpty("\n", parts, why);
     }
 
+    /**
+     * 题号头（原生面板用）：把 `no` 拍成「第N题」，不掺正文。
+     * 与 {@link #formatAnswerPreview} 分开是为了 markdown 渲染——头若与正文同串拼接，
+     * 「第3题 ## 标题」会把行首块元素（ATX 标题等）顶掉，渲染不出来。
+     */
+    public static String answerHead(String no) {
+        return (no == null || no.isEmpty())
+                ? "" : "第" + NOT_WORD.matcher(no).replaceAll("") + "题";
+    }
+
+    /** 正文（原生面板用）：ANS + WHY 各自成段（空行分隔，markdown 段落语义） */
+    public static String answerBody(String ans, String why) {
+        return joinNonEmpty("\n\n", ans, why);
+    }
+
+    /** 原生面板整体：头单独一段 + 正文（交给 markdown 渲染前先做分隔符归一化） */
+    public static String answerMarkdown(String no, String ans, String why) {
+        String head = answerHead(no);
+        String body = answerBody(ans, why);
+        return head.isEmpty() ? body : joinNonEmpty("\n\n", head, body);
+    }
+
     /** 桌面 sanitizeTitle：去标点取前 20 字（标题粒度） */
     public static String sanitizeTitle(String text) {
         String s = text == null ? "" : text;

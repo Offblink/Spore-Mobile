@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Locale;
 
 import io.noties.markwon.Markwon;
+import io.noties.markwon.ext.latex.JLatexMathPlugin;
+import io.noties.markwon.ext.tables.TablePlugin;
 
 /**
  * 浮动作答面板 —— MV3 桌面抽屉的移动复刻（白抽屉语言）：
@@ -83,7 +85,17 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         this.ctx = ctx;
         this.wm = wm;
         this.engine = engine;
-        this.markwon = Markwon.builder(ctx).build();
+        // 原生面板的 markdown 渲染：core + 表格 + 公式（ext-latex 走 JLaTeXMath 画图）。
+        // 公式字号跟正文同量级（正文 17.5sp；JLaTeXMath 按 px 画，乘 scaledDensity 换算）。
+        float mathTextSizePx = ctx.getResources().getDisplayMetrics().scaledDensity * 16.5f;
+        this.markwon = Markwon.builder(ctx)
+                .usePlugin(TablePlugin.create(ctx))
+                .usePlugin(JLatexMathPlugin.create(mathTextSizePx,
+                        builder -> builder
+                                .inlinesEnabled(true)   // $$…$$ 行内
+                                .blocksEnabled(true)    // $$ 独立成行 → 块级
+                                .blocksLegacy(true)))   // \[…\] 老式块级
+                .build();
         this.adapter = new AnswerAdapter(engine.session(), markwon, this);
     }
 

@@ -24,6 +24,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
@@ -259,6 +260,19 @@ public class CaptureService extends Service {
     /** 取帧序号：连点球时旧一次的识别结论/提示不许盖到新一次（见 recognizeThenCrop）。 */
     private volatile int captureSeq;
 
+    // ---------- 点球响应优化（2026-10-11 用户：点一下到框选出来要等 1~3 秒）----------
+    // 按下球的那一刻就开始取帧，抬起成点按时帧多半已在手——把「建 VirtualDisplay + 等首帧」
+    // （整段延迟的大头）藏进用户自己的按压时长。bg 是单线程 HandlerThread，预取与正式取帧
+    // 天然串行、不会有两块 VD 同时开；pressGen 主线程写 / bg 读，用来把「上一轮手势」的
+    // 陈货帧挡在门外（拖动、长按留下的帧一律不认）。
+    private volatile int pressGen;
+    private volatile int pressW;
+    private volatile int pressH;
+    private int prefetchedGen = -1;   // 只在 bg 线程读写
+    private Bitmap prefetched;        // 同上
+    /** 一次点球的起点（onTap 写、showCropOverlay 读）：给「点球 → 框选」耗时留证据 */
+    private volatile long captureT0;
+
     /** 两阶段作答引擎与浮动作答面板（截图落盘后接力，handoff §9.2） */
     private AgentEngine engine;
     /** 第五轮分叉：web（默认）/ 原生（auto 判定华为鸿蒙，见 SporeSettings.panelNative） */
@@ -431,6 +445,20 @@ public class CaptureService extends Service {
 
     private final BallView.Listener ballListener = new BallView.Listener() {
         @Override
+        public void onPress() {
+            // 手指按下就开始取帧（抬起成点按时直接用）；框选开着的那一下点球是收起、
+            // 未授权时点球只弹提示，两种都不预取，别白开一块 VirtualDisplay。
+            if (cropView != null || proj == null) {
+                return;
+            }
+            pressGen++;
+            Point sz = displaySize();
+            pressW = sz.x;
+            pressH = sz.y;
+            bg.post(() -> prefetchFrame());
+        }
+
+        @Override
         public void onTap() {
             if (cropView != null) {
                 // 第五轮：框选开着时再点球 = 收起（曾因二次截屏覆盖字段泄漏旧窗 →
@@ -440,6 +468,7 @@ public class CaptureService extends Service {
             }
             if (proj != null) {
                 // 已授权：零 Activity 启动、目标应用不离开前台（用户实测修复）
+                captureT0 = SystemClock.uptimeMillis(); // 点球 → 框选的计时起点
                 final Point sz = displaySize();
                 bg.post(() -> captureFrame(sz.x, sz.y, 0));
                 return;
@@ -533,6 +562,58 @@ public class CaptureService extends Service {
     }
 
     /**
+     * 按下预取（点球响应优化）：只取**一张**帧就收工——可疑帧「重建 VD 再取」的升级循环
+     * 是抬起之后才该花的时间，预取阶段花不起。失败就把存货丢掉：宁可让正式取帧重来，
+     * 也不拿上一轮手势（拖动/长按）留下的陈货帧。
+     */
+    private void prefetchFrame() {
+        if (cropView != null) {
+            // 排队期间框选已经开了（连点）→ 这帧用不上。cropView 是主线程状态，
+            // 这里读到旧值最多多抓一次（纯浪费，无副作用），刻意不加锁。
+            dropPrefetched();
+            return;
+        }
+        MediaProjection p = proj;
+        final int gen = pressGen;
+        final int w = pressW;
+        final int h = pressH;
+        final long t0 = SystemClock.uptimeMillis();
+        Bitmap f = (p == null || w <= 0 || h <= 0)
+                ? null
+                : grabFrame(p, w, h, new Bitmap[1]);
+        if (f == null) {
+            dropPrefetched();
+            return;
+        }
+        if (prefetched != null && prefetched != f) {
+            prefetched.recycle();
+        }
+        prefetched = f;
+        prefetchedGen = gen;
+        SporeLog.i(this, "capture prefetch gen=" + gen + " in "
+                + (SystemClock.uptimeMillis() - t0) + "ms");
+    }
+
+    private void dropPrefetched() {
+        if (prefetched != null) {
+            prefetched.recycle();
+            prefetched = null;
+        }
+        prefetchedGen = -1;
+    }
+
+    /** 交出预取帧：代数必须等于当前按下代，否则是上一轮手势的陈货。只在 bg 线程调用。 */
+    private Bitmap takePrefetched(int gen) {
+        if (prefetched == null || prefetchedGen != gen) {
+            return null;
+        }
+        Bitmap f = prefetched;
+        prefetched = null;
+        prefetchedGen = -1;
+        return f;
+    }
+
+    /**
      * 从**持有中的**投影取一帧：每次点球临时建 VirtualDisplay + ImageReader，读完即释放
      * （不 stop 投影，授权保持存活）。不常驻 VD 是刻意的：缓冲占满后生产者会停更，
      * 下次读到的是陈旧帧——临时建取帧才能保证是「此刻」的屏幕。
@@ -543,38 +624,64 @@ public class CaptureService extends Service {
             return; // 授权中途被收回 → 下次点球重新授权
         }
         final int seq = ++captureSeq;
+        final long t0 = SystemClock.uptimeMillis();
         Bitmap[] seen = new Bitmap[1];
         Bitmap frame = null;
         FrameQuality best = null;
         int dup = 0;
+        int tries = 0;
+        int grabs = 0;   // 实际建了几块 VD（日志用）
+        // ① 按下时预取的帧先用（代数对得上才认）：干净帧直接就绪，连一次重建都不做；
+        //    可疑帧也省掉了「建 VD + 等首帧」那一大段，下面只补升级的那几轮。
+        if (attempt == 0) {
+            Bitmap pre = takePrefetched(pressGen);
+            if (pre != null) {
+                frame = pre;
+                best = FrameQuality.of(pre);
+                tries = 1;
+                grabs = 1;   // 预取那一块也算（日志里看得出省了几轮）
+            }
+        }
         // 第九轮（黑屏悬案）：首抓可能拿到「合成未完成」的帧——视觉特征就是**大片死黑**
         // （图层还没上屏 / 局部 FLAG_SECURE）。旧判据近黑只拦 max<10，噪声黑/半黑全放行 →
         // ML 在黑帧上必然空手 → 整屏预选 → 裁出来还是黑。这里只做两件事，都不加闸：
         //   ① 多帧取「最亮的一张」：半黑帧必然比完整帧暗，取最亮 = 取最完整；
         //   ② 可疑帧重建虚拟显示强制重新合成再取（静态屏下 VD 可能不再产新帧，重抓=同一张）。
         // 干净帧（正常屏幕）第一次就返回：正常路径零额外耗时，可疑帧多花几百毫秒。
-        for (int i = 0; i < GRAB_TRIES; i++) {
-            Bitmap f = grabFrame(p, w, h, seen);
-            if (f == null) {
-                break; // 全近黑/超时 → 走下面的重试与取证分支
-            }
-            FrameQuality q = FrameQuality.of(f);
-            if (frame != null && f.sameAs(frame)) {
-                dup++; // 逐像素撞车 = 重建 VD 也没拿到新帧（合成根本没动）
-            }
-            if (best == null || q.mean > best.mean) {
-                if (frame != null) {
-                    frame.recycle();
+        if (frame == null || best.suspect()) {
+            for (int i = tries; i < GRAB_TRIES; i++) {
+                Bitmap f = grabFrame(p, w, h, seen);
+                grabs++;
+                if (f == null) {
+                    break; // 全近黑/超时 → 走下面的重试与取证分支
                 }
-                frame = f;
-                best = q;
-            } else {
-                f.recycle();
-            }
-            if (!q.suspect()) {
-                break;
+                FrameQuality q = FrameQuality.of(f);
+                if (frame != null && f.sameAs(frame)) {
+                    dup++; // 逐像素撞车 = 重建 VD 也没拿到新帧（合成根本没动）
+                }
+                if (best == null || q.mean > best.mean) {
+                    if (frame != null) {
+                        frame.recycle();
+                    }
+                    frame = f;
+                    best = q;
+                } else {
+                    f.recycle();
+                }
+                if (!q.suspect()) {
+                    break;
+                }
+                if (dup > 0) {
+                    // 重建回来逐字节一样 → 合成根本没动，第三轮必然还是同一张。
+                    // 暗色/纯黑背景上 dead≥25% 是**内容**而不是脏帧，从前每点一次都白烧满
+                    // GRAB_TRIES 三轮（每轮建一次 VD），这是「点球要等 1~3 秒」的主因之一。
+                    break;
+                }
             }
         }
+        SporeLog.i(this, "frame ready in " + (SystemClock.uptimeMillis() - t0)
+                + "ms (grabs=" + grabs + ", prefetch=" + (tries > 0)
+                + ", suspect=" + (best != null && best.suspect()) + ")");
         if (frame == null) {
             if (attempt < 2) {
                 // 首帧迟到/合成未就绪：自动重试（用户拍板——别让用户再点一次球）
@@ -658,7 +765,9 @@ public class CaptureService extends Service {
                 }
             }
             try {
-                Thread.sleep(50);
+                // 16ms（一帧）而不是 50ms：首帧通常几十毫秒就到，50ms 的粒度白等一拍
+                // （三轮下来最多多等 150ms）；bg 是专用线程，16ms 轮询的开销可忽略
+                Thread.sleep(16);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return null;
@@ -698,6 +807,13 @@ public class CaptureService extends Service {
     // ---------- 框选 ----------
 
     private void showCropOverlay(Bitmap frame, int[] suggestion) {
+        // 点球 → 框选的真实耗时（onTap 起表）：优化前后拿日志说话
+        long sinceTap = captureT0;
+        if (sinceTap > 0) {
+            captureT0 = 0;
+            SporeLog.i(this, "crop overlay after tap "
+                    + (SystemClock.uptimeMillis() - sinceTap) + "ms");
+        }
         if (!Settings.canDrawOverlays(this)) {
             toastRes(R.string.status_no_overlay);
             stopSelf();

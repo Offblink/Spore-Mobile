@@ -24,6 +24,9 @@ public class BallView extends View {
     public static final int GLOW_DP = 8;
 
     public interface Listener {
+        /** 手指刚按下（还没判定是点按/长按/拖动）→ 服务侧可开始预取帧，抬起成点按时直接用 */
+        void onPress();
+
         /** 未拖动的点按（未超过 touchSlop 且时长正常）→ 截屏 */
         void onTap();
 
@@ -127,6 +130,7 @@ public class BallView extends View {
                 downTime = System.currentTimeMillis();
                 dragging = false;
                 longFired = false;
+                listener.onPress(); // 抬起成点按时才有得用：建 VD + 等首帧这段先跑起来
                 postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout());
                 return true;
 

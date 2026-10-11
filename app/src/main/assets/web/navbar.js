@@ -57,40 +57,6 @@
     return !!bar && getComputedStyle(bar).display !== "none";
   }
 
-  /**
-   * 把底栏钉在「视口稳定那一刻」的高度上（改 top 落位），稳定之前先不显形。
-   *
-   * 起因（2026-10-11 现场）：进设置页时底栏会先出现在很底部、甚至被系统栏压掉一截，随即往上跳。
-   * `bottom` 是跟着**视口底边**走的——WebView 入场后视口被系统栏 insets 缩掉一截（原生转场关掉
-   * 之后这段就露出来了），底栏就跟着跳。改成 top 钉住后，底边缩多少它都不动，而缩掉的正是
-   * 底部系统栏那一条 —— 落点反而正好。视口没变时（大多数机器）两帧后就显形，看不出延迟。
-   */
-  function pinBar() {
-    var bar = document.querySelector(".tabbar");
-    if (!bar) {
-      return;
-    }
-    var h = window.innerHeight, stable = 0, t0 = performance.now();
-    bar.classList.add("tabbar-wait");
-    (function watch() {
-      if (window.innerHeight === h) {
-        stable++;
-      } else {
-        h = window.innerHeight;
-        stable = 0;
-      }
-      if (stable >= 2 || performance.now() - t0 > 700) {
-        // 底距沿用 CSS 给的值（未钉住时它是 bottom），落位后只认 top
-        var gap = parseFloat(getComputedStyle(bar).bottom) || 12;
-        bar.style.top = Math.round(window.innerHeight - bar.getBoundingClientRect().height - gap) + "px";
-        bar.classList.add("tabbar-pinned");
-        bar.classList.remove("tabbar-wait");
-        return;
-      }
-      requestAnimationFrame(watch);
-    })();
-  }
-
   /** 横滑起手落在横向可滚内容（科目 chips）里时不切页，那是页面自己的滚动 */
   function inScrollable(node) {
     for (var el = node; el && el !== document.body; el = el.parentElement) {
@@ -162,8 +128,6 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    pinBar();
-    window.addEventListener("resize", pinBar);   // 旋转/系统栏显隐后再钉一次
     // 首次加载：动画在首帧就起跑了（早于这里），只接管收尾清场，别重播——
     // 重播会把已经跑了一半的动画拽回起点，看着就是「闪一下」。
     if (root.getAttribute("data-from")) {

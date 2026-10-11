@@ -73,8 +73,7 @@
     $("btnBall").addEventListener("click", pokeBall);
     // 重授权提示：专用 reauth（球照跑）；走 pokeBall 会撞 toggleBall 把运行中的球关掉
     $("projHint").addEventListener("click", function () { bridge("reauth"); });
-    $("navRecords").addEventListener("click", function () { bridge("openRecords"); });
-    $("navSettings").addEventListener("click", function () { bridge("openSettings"); });
+    // 搜题记录 / 设置 的入口已挪到共用底栏（navbar.js 负责路由）
     // 握手：调过 ready 原生才开始推；返回值就是首帧
     render(bridge("ready"));
   });

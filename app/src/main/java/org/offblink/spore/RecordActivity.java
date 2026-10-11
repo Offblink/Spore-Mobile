@@ -1,5 +1,6 @@
 package org.offblink.spore;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
@@ -201,6 +202,15 @@ public class RecordActivity extends AppCompatActivity {
         @JavascriptInterface
         public void close() {
             runOnUiThread(RecordActivity.this::finish);
+        }
+
+        /** 底栏切页：记录 → 设置。关自己再开目标（栈不叠页，返回键恒回主页） */
+        @JavascriptInterface
+        public void openSettings() {
+            runOnUiThread(() -> {
+                startActivity(new Intent(RecordActivity.this, SettingsActivity.class));
+                finish();
+            });
         }
     }
 }

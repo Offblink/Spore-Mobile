@@ -155,5 +155,14 @@ public class SettingsActivity extends AppCompatActivity {
         public void close() {
             runOnUiThread(SettingsActivity.this::finish);
         }
+
+        /** 底栏切页：设置 → 记录。关自己再开目标（栈不叠页，返回键恒回主页） */
+        @JavascriptInterface
+        public void openRecords() {
+            runOnUiThread(() -> {
+                startActivity(new Intent(SettingsActivity.this, RecordActivity.class));
+                finish();
+            });
+        }
     }
 }

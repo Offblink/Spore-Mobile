@@ -1,10 +1,14 @@
-/* 主页专属样式：字标 / 状态胶囊 / 主 CTA / 分组导航。令牌与组件类来自 spore.css。 */
+/* 主页专属样式：字标 / 状态胶囊 / 主 CTA。令牌与组件类来自 spore.css。 */
 
+/* 设置/记录进了底栏，这一页只剩「字标 + 状态胶囊 + 主 CTA」——整组上下居中。
+   padding-bottom 让出底栏的地盘（底栏浮在视口底，内容不钻到它下面）。 */
 .page {
   min-height: 100vh;
-  padding: 40px 24px 32px;
+  padding: 40px 24px calc(112px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  justify-content: safe center; /* 内容超高时从顶部起排，别被裁掉（不认这个关键字的浏览器忽略本行） */
   gap: 18px;
 }
 
@@ -57,9 +61,3 @@
 }
 #projHint:active { background: var(--pink-tint); }
 #projHint[hidden] { display: none; }
-
-/* ---- 分组导航卡 ---- */
-.nav { overflow: hidden; }
-.nav .row { width: 100%; text-align: left; background: transparent; }
-.nav .row:last-child { border-bottom: 0; }
-.nav .ico { flex: none; font-size: 17px; }

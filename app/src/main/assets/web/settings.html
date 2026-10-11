@@ -2,12 +2,13 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Spore 设置</title>
     <link rel="stylesheet" href="spore.css" />
+    <link rel="stylesheet" href="navbar.css" />
     <link rel="stylesheet" href="settings.css" />
   </head>
-  <body>
+  <body data-tab="settings">
     <!-- 顶栏：‹（裸箭头，同搜题记录页；桥 close → 原生 finish + 反向转场）+ 页面标题 -->
     <header class="topbar">
       <button type="button" class="back-btn" id="btnBack">‹</button>
@@ -152,7 +153,33 @@
       <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
     </main>
 
+    <!-- 底栏（M3 胶囊指示器配方）：当前页 = 设置 -->
+    <nav class="tabbar" aria-label="页面切换">
+      <span class="tab-pill" aria-hidden="true"></span>
+      <button type="button" class="tabitem" data-tab="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11l9-8 9 8" />
+          <path d="M5 10v10h14V10" />
+        </svg>
+        <span class="tab-lab">首页</span>
+      </button>
+      <button type="button" class="tabitem" data-tab="records">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span class="tab-lab">记录</span>
+      </button>
+      <button type="button" class="tabitem on" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+        <span class="tab-lab">设置</span>
+      </button>
+    </nav>
+
     <script src="common.js"></script>
+    <script src="navbar.js"></script>
     <script src="settings.js"></script>
   </body>
 </html>

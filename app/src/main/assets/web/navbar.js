@@ -166,11 +166,13 @@
      * 变的是包含块高度、`bottom` 自己的计算值没变 → `transition: bottom` 根本不触发，
      * 于是是硬跳（morning 那条「transition bottom 当兜底」对这个机制是空转的）。
      *
-     * 接法：resize 时先按位移把条**推回原位**（此刻还没上屏），下一帧再把 transform 过渡归 0
+     * 接法：先按位移把条**推回原位**（此刻还没上屏），下一帧再把 transform 过渡归 0
      * → 顺滑滑到新落位。**只用过渡、元素始终可见**（上午用 opacity 兜位置偏差，结果整条消失）。
+     * 两个触发源：`resize` 事件（即时）+ 下面那段限时轮询（兜住「纠正在 load 结束才发生、
+     * 且不派发 resize」的那种 —— 真机看到的就是进度条消失时位置才对上）。
      */
     var lastH = window.innerHeight;
-    var onResize = function () {
+    var checkViewport = function () {
       var h = window.innerHeight;
       var dy = lastH - h;   // >0 = 视口缩了，条的新落位比旧落位高 dy
       lastH = h;
@@ -189,7 +191,63 @@
       bar.style.transition = "transform var(--t-pop) var(--damped)";
       bar.style.transform = "translateY(0)";
     };
-    window.addEventListener("resize", onResize);
+    window.addEventListener("resize", checkViewport);
+
+    // 兜底轮询：真机实测「有进度条时位置是错的、进度条消失才对」——纠正在**载入完成**那一刻
+    // 才发生，而那种变化不一定派发 resize（也可能派发在本脚本绑定之前），只挂监听会漏。
+    // 头几秒每帧盯一次 innerHeight（没变就是一次读属性，几乎零成本），命中就走同一条推回 +
+    // 过渡归 0；到点自己停，绝不常驻烧帧。load/pageshow 各再给一小段窗口。
+    var watchStop = 0, watching = false;
+    var watchFor = function (ms) {
+      watchStop = Math.max(watchStop, Date.now() + ms);
+      if (watching) {
+        return;
+      }
+      watching = true;
+      (function tick() {
+        if (Date.now() > watchStop) {
+          watching = false;
+          return;
+        }
+        checkViewport();
+        requestAnimationFrame(tick);
+      })();
+    };
+    watchFor(2500);
+    window.addEventListener("load", function () { watchFor(2000); });
+    window.addEventListener("pageshow", function () { watchFor(1200); });
+
+    /* 几何时间线（**临时诊断，定位后删**）：真机现象是「进度条消失那一刻位置才对上」，
+     * 光靠推断已经两轮没猜中 —— 把变化点记下来回写操作日志（设置页 → 日志 → 复制）。
+     * 只记数字：ih=布局视口高 / vv=visualViewport 高 / top=条的落位 / st=readyState。
+     * 谁变了、变的时机与幅度都在日志里；一条都没变 = 不是几何问题，转查渲染层。 */
+    if (window.Spore && typeof window.Spore.geomLog === "function") {
+      var t0 = Date.now();
+      var snap = function () {
+        var vv = window.visualViewport;
+        return "ih=" + Math.round(window.innerHeight)
+          + " vv=" + (vv ? Math.round(vv.height) : "-")
+          + " top=" + bar.getBoundingClientRect().top.toFixed(1)
+          + " st=" + document.readyState;
+      };
+      // 基线**同步**取：否则头 50ms 里发生的变化会被当成基线吞掉
+      var prev = snap(), hits = [];
+      var iv = setInterval(function () {
+        var s = snap();
+        if (s !== prev) {
+          if (hits.length < 12) {
+            hits.push((Date.now() - t0) + "ms " + s);
+          }
+          prev = s;
+        }
+        if (Date.now() - t0 > 4000) {   // 4s：要盖过「进度条消失」那一刻（load 结束）
+          clearInterval(iv);
+          if (hits.length) {
+            try { Spore.geomLog("geom[web] " + hits.join(" | ")); } catch (e) { /* 日志是旁路 */ }
+          }
+        }
+      }, 50);
+    }
     // 滑完把内联 transform/transition 清干净：留着 translateY(0) 会让后人把内联样式误当状态读，
     // 也会给条常驻一个合成层。只认 transform 的收尾（height 那条是 compact 的，别碰）。
     bar.addEventListener("transitionend", function (e) {

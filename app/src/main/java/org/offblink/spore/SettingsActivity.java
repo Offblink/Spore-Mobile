@@ -111,6 +111,16 @@ public class SettingsActivity extends AppCompatActivity {
             return SporeLog.read(SettingsActivity.this);
         }
 
+        /** 几何时间线回写（**临时诊断，定位后删**）：navbar.js 把「视口/条落位的变化点」塞进来，
+         *  三页里只有设置页有日志卡 → 用户复现后到 设置页 → 日志 → 复制 取数。
+         *  只含数字与状态字串，不含 token/apiKey（红线同 logRead）。 */
+        @JavascriptInterface
+        public void geomLog(String msg) {
+            if (msg != null && !msg.isEmpty() && msg.length() <= 2000) {
+                SporeLog.i(SettingsActivity.this, msg);
+            }
+        }
+
         /** 清空操作日志 */
         @JavascriptInterface
         public void logClear() {

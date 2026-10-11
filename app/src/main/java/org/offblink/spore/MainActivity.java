@@ -267,6 +267,15 @@ public class MainActivity extends AppCompatActivity {
             return stateJson();
         }
 
+        /** 几何时间线回写（**临时诊断，定位后删**，口径同 SettingsActivity.geomLog：
+         *  只含数字与状态字串，无 token/apiKey）。主页也会跳，所以这里也要有一份。 */
+        @JavascriptInterface
+        public void geomLog(String msg) {
+            if (msg != null && !msg.isEmpty() && msg.length() <= 2000) {
+                SporeLog.i(MainActivity.this, msg);
+            }
+        }
+
         /** 开/关悬浮球：起服务与发 Intent 都必须主线程（这里不能用 Host 自身的 this 引用） */
         @JavascriptInterface
         public void toggleBall() {

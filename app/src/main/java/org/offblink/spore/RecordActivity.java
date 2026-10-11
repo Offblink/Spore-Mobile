@@ -139,6 +139,15 @@ public class RecordActivity extends AppCompatActivity {
             return stateJson();
         }
 
+        /** 几何时间线回写（**临时诊断，定位后删**，口径同 SettingsActivity.geomLog：
+         *  只含数字与状态字串，无 token/apiKey）。记录页也会跳，所以这里也要有一份。 */
+        @JavascriptInterface
+        public void geomLog(String msg) {
+            if (msg != null && !msg.isEmpty() && msg.length() <= 2000) {
+                SporeLog.i(RecordActivity.this, msg);
+            }
+        }
+
         @JavascriptInterface
         public String sessions() {
             return stateJson();

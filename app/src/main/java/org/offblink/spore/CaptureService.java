@@ -84,6 +84,8 @@ public class CaptureService extends Service {
     private static final int GRAB_TRIES = 3;
     /** 识别无结论的等待上限：到点按「识别超时」提示（与文案一致，避免用户干等）。 */
     private static final long ML_TIMEOUT_MS = 8000;
+    /** 悬浮球默认位置上移量（dp）：垂直居中会压住主页那颗居中的「显示悬浮球」主按钮。 */
+    private static final int BALL_LIFT_DP = 96;
 
     private static volatile boolean running = false;
     /** 服务单例句柄：记录页「点进去接着对话」从静态入口喊面板 */
@@ -436,7 +438,10 @@ public class CaptureService extends Service {
                 PixelFormat.TRANSLUCENT);
         ballParams.gravity = Gravity.TOP | Gravity.LEFT;
         ballParams.x = sz.x - bw + glow;           // 平边贴右缘（光晕不入界）
-        ballParams.y = Math.max(0, sz.y / 2 - bh / 2);
+        // 垂直居中会压住主页那颗居中的「显示悬浮球」主按钮（底栏改版后主页整组居中，
+        // 球正好落在按钮右端）→ 默认位置上移 BALL_LIFT_DP。球位置不持久化，
+        // 每次起服务都按这个默认摆，拖过的话按用户拖的来。
+        ballParams.y = Math.max(0, sz.y / 2 - bh / 2 - dp(BALL_LIFT_DP));
 
         ball = new BallView(this, ballListener);
         wm.addView(ball, ballParams);

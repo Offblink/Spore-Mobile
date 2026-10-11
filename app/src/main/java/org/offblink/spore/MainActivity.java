@@ -30,6 +30,11 @@ import org.offblink.spore.agent.SessionStore;
  */
 public class MainActivity extends AppCompatActivity {
 
+    /** 底栏切页的来源 tab（home/records/settings）：三页互开时带在 Intent 上，
+     *  目标页把它拼进 loadUrl 的片段（#from=…），页内胶囊据此画出「从哪一格来」的行程。
+     *  键定义在主页：主页是底栏三页的锚点。 */
+    static final String EXTRA_FROM = "navFrom";
+
     private WebView web;
     /** JS 调过 ready() 后才允许推 onState（桥握手门闩）；JavaBridge 线程写、主线程读 */
     private volatile boolean webReady;
@@ -253,16 +258,19 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(MainActivity.this::startBallWithConsent);
         }
 
-        /** 搜题记录页：新页自右平移进入、主页左移让位（转场由主题 SporeAnim 接管） */
+        /** 搜题记录页：新页自右平移进入、主页左移让位（转场由主题 SporeAnim 接管）。
+         *  EXTRA_FROM 供目标页画底栏胶囊的入场行程（从「首页」那格弹射过来）。 */
         @JavascriptInterface
         public void openRecords() {
-            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, RecordActivity.class)));
+            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, RecordActivity.class)
+                    .putExtra(EXTRA_FROM, "home")));
         }
 
         /** 设置页：同上 */
         @JavascriptInterface
         public void openSettings() {
-            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, SettingsActivity.class)));
+            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, SettingsActivity.class)
+                    .putExtra(EXTRA_FROM, "home")));
         }
     }
 }

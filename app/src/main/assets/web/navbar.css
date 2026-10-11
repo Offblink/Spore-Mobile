@@ -2,12 +2,15 @@
  * 出处：mobile-design/components/android-m3/nav-pill-bar：浮在内容上的 surface 条 +
  * 胶囊指示器 + 图标/标签分色（Expressive 规则：active 图标走正文色、标签单独走强调色）。
  * 与本 App 的差异：切页不是页内 JS 平移，而是原生 Activity 转场（主题 SporeAnim 已接管
- * 「进右滑入/回右滑出」= M3 的页面平移），所以这里只做「指示器弹射 + 当前页高亮」。
+ * 「进右滑入/回右滑出」= M3 的页面平移）；胶囊的位移由 navbar.js 在新页入场时补一段行程
+ * （从 #from 那一格弹射到本页那一格，中途沿轴轻微拉长）。
  * 当前页由 <body data-tab="home|records|settings"> 决定；点击路由见 navbar.js。
  * 让位规则在各页自己的 css（记录页详情/多选模式会收起本条）。 */
 
 .tabbar {
-  position: absolute;
+  /* fixed 而不是 absolute：absolute 在真页面里挂在文档流上，记录/设置页一滚就跟着走
+     （demo 里是固定高度的手机舞台，抄过来就错了）。 */
+  position: fixed;
   left: 12px;
   right: 12px;
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -42,6 +45,14 @@
 body[data-tab="home"] .tab-pill { transform: translateX(0); }
 body[data-tab="records"] .tab-pill { transform: translateX(100%); }
 body[data-tab="settings"] .tab-pill { transform: translateX(200%); }
+
+/* 入场起点（原生 loadUrl 带 #from=<tab>，navboot.js 在首帧前落到 <html> 上）：
+ * 胶囊先落在来源那一格且无过渡，随后 navbar.js 从这格弹射到目标格——切页是原生 Activity
+ * 转场，胶囊的行程必须由新页自己补，否则「一进来就在终点」，看不到移动过程。
+ * 这三条必须排在 body[data-tab] 之后（同特异性，靠次序覆盖）。 */
+html[data-from="home"] .tab-pill { transform: translateX(0); transition: none; }
+html[data-from="records"] .tab-pill { transform: translateX(100%); transition: none; }
+html[data-from="settings"] .tab-pill { transform: translateX(200%); transition: none; }
 
 .tabitem {
   position: relative;

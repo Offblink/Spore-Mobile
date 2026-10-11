@@ -82,7 +82,18 @@ public class RecordActivity extends AppCompatActivity {
         });
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Host(), "Spore");
-        web.loadUrl("file:///android_asset/web/record.html");
+        web.loadUrl("file:///android_asset/web/record.html" + fromHash());
+    }
+
+    /**
+     * 底栏入场行程的来源 tab（主页/设置开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
+     * 页内胶囊从那一格弹射到「记录」这一格。用 URL 片段（#）而不是 query——
+     * file:///android_asset 的资源解析不认 query。白名单取值，别把外部串拼进 URL。
+     */
+    private String fromHash() {
+        Intent it = getIntent();
+        String from = it == null ? null : it.getStringExtra(MainActivity.EXTRA_FROM);
+        return ("home".equals(from) || "settings".equals(from)) ? "#from=" + from : "";
     }
 
     @Override
@@ -208,7 +219,8 @@ public class RecordActivity extends AppCompatActivity {
         @JavascriptInterface
         public void openSettings() {
             runOnUiThread(() -> {
-                startActivity(new Intent(RecordActivity.this, SettingsActivity.class));
+                startActivity(new Intent(RecordActivity.this, SettingsActivity.class)
+                        .putExtra(MainActivity.EXTRA_FROM, "records"));
                 finish();
             });
         }

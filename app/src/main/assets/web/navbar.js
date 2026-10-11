@@ -158,6 +158,48 @@
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
+
+    /**
+     * 视口几何迟到的接法（2026-10-11 真机「进设置页先沉在很底部再往上跳」）。
+     *
+     * 机制：系统栏 insets 迟到会让**视口（ICB）在首帧之后缩一截**，而 `bottom` 锚定的条
+     * 变的是包含块高度、`bottom` 自己的计算值没变 → `transition: bottom` 根本不触发，
+     * 于是是硬跳（morning 那条「transition bottom 当兜底」对这个机制是空转的）。
+     *
+     * 接法：resize 时先按位移把条**推回原位**（此刻还没上屏），下一帧再把 transform 过渡归 0
+     * → 顺滑滑到新落位。**只用过渡、元素始终可见**（上午用 opacity 兜位置偏差，结果整条消失）。
+     */
+    var lastH = window.innerHeight;
+    var onResize = function () {
+      var h = window.innerHeight;
+      var dy = lastH - h;   // >0 = 视口缩了，条的新落位比旧落位高 dy
+      lastH = h;
+      if (Math.abs(dy) < 1) {
+        return;             // 只有宽度变（旋转等）：纵向落位没动，别多此一举
+      }
+      if (getComputedStyle(bar).display === "none") {
+        // 记录页详情/多选模式条不在场：清掉可能残留的 transform，回来时是干净位置
+        bar.style.transition = "";
+        bar.style.transform = "";
+        return;
+      }
+      bar.style.transition = "none";
+      bar.style.transform = "translateY(" + dy + "px)";  // 退回旧落位（同帧内，尚未上屏）
+      void bar.offsetHeight;                             // 强制重排：让推回值在本次布局生效
+      bar.style.transition = "transform var(--t-pop) var(--damped)";
+      bar.style.transform = "translateY(0)";
+    };
+    window.addEventListener("resize", onResize);
+    // 滑完把内联 transform/transition 清干净：留着 translateY(0) 会让后人把内联样式误当状态读，
+    // 也会给条常驻一个合成层。只认 transform 的收尾（height 那条是 compact 的，别碰）。
+    bar.addEventListener("transitionend", function (e) {
+      // 只认条自己的收尾：transitionend 会冒泡，`.lg-tab svg` 的 transform 结束也会打到这儿
+      if (e.target !== bar || e.propertyName !== "transform" || bar.style.transform !== "translateY(0px)") {
+        return;
+      }
+      bar.style.transition = "";
+      bar.style.transform = "";
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -19,7 +19,10 @@
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  /* 定值，**不许挂 env(safe-area-inset-bottom)**：env() 在入场时序里会「先是 0、随后才变」，
+     等于给底栏加了一个迟到的几何输入（2026-10-11 五修就是为这个把 env() 从 bottom 拆掉的，
+     本轮别再装回去）。三页 viewport meta 也没带 viewport-fit=cover，env() 恒 0，装了只有害。 */
+  bottom: 14px;
   height: 74px;
   border-radius: 32px;
   z-index: 40;                 /* 压在内容上、但低于页内模态（.modal-mask z-index 50） */
@@ -36,9 +39,10 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 10px 34px rgba(30, 30, 60, .16);
 
   /* 动效双轨：尺寸/圆角走 spring（spatial 回弹），颜色/透明度走 damped（绝不回弹）。
-     `bottom` 也只做过渡当兜底：视口万一在加载后仍变一次（原生已尽量把 loadUrl 推到
-     几何落定之后），让它平滑归位而不是硬跳；**只许过渡、绝不隐藏**——用隐藏兜位置偏差
-     会把「微调」放大成「整条不见了」（2026-10-11 真机实测）。 */
+     `bottom` 也只做过渡，但**它兜不住视口变化**（ICB 缩一截时 bottom 的计算值不变、
+     transition 不触发）——那条路由在 navbar.js 的 resize 接法里（推回原位再过渡归 0）。
+     ★ 兜几何只许过渡这类「元素始终可见」的手段，绝不许用隐藏（2026-10-11 真机教训：
+     用 opacity 兜位置偏差 → 底栏进设置页整条消失）。 */
   transition: height .45s var(--spring), border-radius .45s var(--spring),
               bottom var(--t-pop) var(--damped);
 }

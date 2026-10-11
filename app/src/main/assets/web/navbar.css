@@ -32,10 +32,15 @@
   border-radius: 26px;
   box-shadow: 0 8px 24px rgba(20, 23, 42, 0.1);
   z-index: 35;
-  /* 兜底：万一视口/insets 仍在加载后变一次（原生侧已尽量把加载推到 insets 之后），
-     让底栏平滑归位而不是硬跳一下 */
-  transition: bottom var(--t-pop) var(--damped);
+  transition: opacity 160ms var(--damped);
 }
+
+/* 落位后改钉 top（navbar.js 在视口稳定那一刻算好）：
+ * bottom 是跟着**视口底边**走的，视口在入场后缩一截（系统栏 insets 迟到）它就会跟着往上跳；
+ * top 是跟着视口顶边走的，底边缩多少它都不动 —— 而缩掉的正是底部的系统栏那条。 */
+.tabbar-pinned { bottom: auto; }
+/* 视口稳定之前先不显形（只压 opacity，不动布局）：首帧位置可能还是「旧视口」算出来的 */
+.tabbar-wait { opacity: 0; }
 
 /* ---------- 整页平移（.sheet 由各页挂在内容根上；底栏是它的兄弟，不跟着动） ---------- */
 /* 方向 = 来源格与目标格的先后：往后走（索引变大）新页自右边进来，往回走自左边进来，

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 15（API 35）起，targetSdk 35+ 的应用被强制 edge-to-edge：窗口不用 insets 收缩，
+     内容（WebView）一开始就铺到状态栏/导航栏底下，等系统栏 insets 派发下来视口才缩一截。
+     本 App 的窗口是照「非 edge-to-edge」设计的（主题给状态栏/导航栏上纯色、页面里
+     position:fixed 的底栏按视口底边定位），视口这一缩就会让底栏在入场后跳一下
+     （2026-10-11 用户实测）。opt-out 让窗口从一开始就是稳定内容区。
+     注意：该开关只在 API 35 生效（Google 明确只在 35 这一版提供），所以页面侧另有
+     .tabbar-pinned 的兜底（改 top 落位，不依赖视口底边）。 -->
+<resources>
+    <!-- 按资源限定符整体覆盖 values/ 那份，所以 parent 必须写全（其余项由 parent 继承） -->
+    <style name="Theme.Spore" parent="Base.Theme.Spore">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>

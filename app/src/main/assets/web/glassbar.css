@@ -1,0 +1,104 @@
+/* 底部玻璃导航条（Mobile-Design 的 glass-tab-bar 配方）—— 主页 / 搜题记录 / 设置 三页共用。
+ * 出处：`Mobile-Design/components/liquid-glass/glass-tab-bar` + `shared/glass.css`：
+ * 浮在内容上的玻璃条 + 单色 SVG tab + 滚动最小化（向下滚收起标签、回滚弹回）+
+ * active 图标放大 1.12（图标仍是 currentColor 单色，不上彩色角标）。
+ *
+ * 两层纪律：本条是**控件层**（三页唯一的玻璃底栏），下面的内容层永远不透明——
+ * 玻璃的模糊/饱和来自背后滚过去的内容，所以记录页滚列表时读数会变，这是特性不是 bug。
+ *
+ * 位置上下文必须是 fixed：demo 里 `.lg-tabbar` 是 absolute，挂在固定高度的手机舞台上，
+ * 照抄到真页面会挂在文档流上、记录/设置页一滚就跟着走（2026-10-11 第一版底栏实测）。
+ * 也因此本条必须放在 `.sheet` **之外**（各页的内容根是 .sheet，动画期间带 transform，
+ * fixed 子元素会改挂它做包含块 → 底栏跟着平移/错位）。
+ *
+ * 当前页 = 各页标记在自己那个 tab 上的 `.on`；点击路由、滚动最小化的逻辑在 navbar.js。
+ * 让位规则（记录页详情视图 / 多选模式自带贴底栏）在 record.css——那两处收起本条只要一条 CSS，
+ * 别让 record.js 去管显示逻辑。 */
+
+.lg-tabbar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  height: 74px;
+  border-radius: 32px;
+  z-index: 40;                 /* 压在内容上、但低于页内模态（.modal-mask z-index 50） */
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  color: var(--muted2);
+
+  /* 玻璃面（Regular 变体；blur/饱和同本仓 .topbar 与 .batchbar，三处玻璃一个配方） */
+  background: rgba(255, 255, 255, .58);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: .5px solid rgba(255, 255, 255, .7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 10px 34px rgba(30, 30, 60, .16);
+
+  /* 动效双轨：尺寸/圆角走 spring（spatial 回弹），颜色/透明度走 damped（绝不回弹）。
+     `bottom` 也只做过渡当兜底：视口万一在加载后仍变一次（原生已尽量把 loadUrl 推到
+     几何落定之后），让它平滑归位而不是硬跳；**只许过渡、绝不隐藏**——用隐藏兜位置偏差
+     会把「微调」放大成「整条不见了」（2026-10-11 真机实测）。 */
+  transition: height .45s var(--spring), border-radius .45s var(--spring),
+              bottom var(--t-pop) var(--damped);
+}
+/* 最小化：向下滚过 140px → 54px + 标签折叠；回滚或近顶（<80px）弹回（navbar.js 判据） */
+.lg-tabbar.compact { height: 54px; border-radius: 27px; }
+
+/* ---------- 单色 tab ---------- */
+.lg-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+  cursor: pointer;
+  color: inherit;
+  transition: transform .4s var(--spring), gap .35s var(--spring),
+              color .25s var(--damped);
+}
+.lg-tab svg {
+  width: 25px;
+  height: 25px;
+  display: block;
+  transition: transform .4s var(--spring);
+}
+/* label 折叠：max-height 必须有显式初值，收起才有过渡 */
+.lg-lb {
+  max-height: 16px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  overflow: hidden;
+  transition: opacity .25s var(--damped), max-height .35s var(--spring);
+}
+.lg-tabbar.compact .lg-lb { opacity: 0; max-height: 0; }
+.lg-tabbar.compact .lg-tab { gap: 0; }
+
+/* active：色加深 + 图标放大 1.12（图标本身仍是 currentColor 单色） */
+.lg-tab.on { color: var(--ink); }
+.lg-tab.on svg { transform: scale(1.12); }
+.lg-tab:active { transform: scale(.88); }
+
+/* ---------- 无障碍/降级 ---------- */
+/* 不认 backdrop-filter → 不透明 surface 兜底（可读性不塌，读不出玻璃但读得出层级） */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lg-tabbar {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: 0 8px 24px rgba(20, 23, 42, .1);
+  }
+}
+/* Reduce Transparency → 不透明回退（同 .topbar / .batchbar 的口径） */
+@media (prefers-reduced-transparency: reduce) {
+  .lg-tabbar {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 8px 24px rgba(20, 23, 42, .1);
+  }
+}
+/* Reduce Motion → 形变/位移全停（静止位置本来就是终点） */
+@media (prefers-reduced-motion: reduce) {
+  .lg-tabbar, .lg-tab, .lg-tab svg, .lg-lb { transition: none; }
+}

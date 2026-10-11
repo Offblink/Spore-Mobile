@@ -24,14 +24,14 @@ import org.offblink.spore.agent.SessionStore;
 
 /**
  * 主页（web 皮）+ 悬浮球开关与权限引导。
- * 皮在 assets/web/main.html（字标 / 状态胶囊 / 主 CTA / 分组导航卡），权限、授权与
+ * 皮在 assets/web/main.html（字标 / 状态胶囊 / 主 CTA + 底部玻璃条），权限、授权与
  * 服务开关仍全在原生——悬浮窗唯一的存在理由：答题类 App 禁止切出，球让用户在对方
  * App 之上完成「截题 → 作答」。
  */
 public class MainActivity extends AppCompatActivity {
 
     /** 底栏切页的来源 tab（home/records/settings）：三页互开时带在 Intent 上，
-     *  目标页把它拼进 loadUrl 的片段（#from=…），页内胶囊据此画出「从哪一格来」的行程。
+     *  目标页把它拼进 loadUrl 的片段（#from=…），页内据此画出方向正确的整页平移。
      *  键定义在主页：主页是底栏三页的锚点。 */
     static final String EXTRA_FROM = "navFrom";
 
@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
     static volatile String pendingHomeEnter;
 
     /**
-     * 关掉这一程的原生转场：底栏切页的整页平移 + 胶囊行程都由 web 层演（navbar.css），
+     * 关掉这一程的原生转场：底栏切页的整页平移由 web 层演（navbar.css），
      * 原生再滑一次就是双动画；而且部分 ROM（华为等）压根不播原生转场，只留 web 层反而一致。
      */
     static void noSystemTransition(android.app.Activity a) {
@@ -190,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // 回页即刷新：悬浮窗权限/服务状态可能在系统授权页里被改掉
         pushState();
-        // 从记录/设置回主页：主页只被恢复，得让页内自己重播一次入场（整页平移 + 胶囊行程）
+        // 从记录/设置回主页：主页只被恢复，得让页内自己重播一次入场（整页平移）
         String from = pendingHomeEnter;
         pendingHomeEnter = null;
         if (from != null && web != null) {
@@ -279,19 +279,26 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(MainActivity.this::startBallWithConsent);
         }
 
-        /** 搜题记录页：新页自右平移进入、主页左移让位（转场由主题 SporeAnim 接管）。
-         *  EXTRA_FROM 供目标页画底栏胶囊的入场行程（从「首页」那格弹射过来）。 */
+        /** 搜题记录页。转场交给 web 层的整页平移（navbar.css）——原生 SporeAnim 必须显式关掉，
+         *  否则「原生滑一次 + 页面加载完再滑一次」双动画（records/settings 互开与回主页早就是
+         *  这么关的，唯独从主页开出这两跳漏了）。EXTRA_FROM 供目标页定入场方向（从「首页」过来）。 */
         @JavascriptInterface
         public void openRecords() {
-            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, RecordActivity.class)
-                    .putExtra(EXTRA_FROM, "home")));
+            runOnUiThread(() -> {
+                noSystemTransition(MainActivity.this);
+                startActivity(new Intent(MainActivity.this, RecordActivity.class)
+                        .putExtra(EXTRA_FROM, "home"));
+            });
         }
 
         /** 设置页：同上 */
         @JavascriptInterface
         public void openSettings() {
-            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, SettingsActivity.class)
-                    .putExtra(EXTRA_FROM, "home")));
+            runOnUiThread(() -> {
+                noSystemTransition(MainActivity.this);
+                startActivity(new Intent(MainActivity.this, SettingsActivity.class)
+                        .putExtra(EXTRA_FROM, "home"));
+            });
         }
     }
 }

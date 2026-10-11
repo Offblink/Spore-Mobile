@@ -6,8 +6,9 @@
     <title>Spore 设置</title>
     <link rel="stylesheet" href="spore.css" />
     <link rel="stylesheet" href="navbar.css" />
+    <link rel="stylesheet" href="glassbar.css" />
     <link rel="stylesheet" href="settings.css" />
-    <!-- navboot 必须同步放在 head：要在首帧前把来源 tab 落到 <html>（否则胶囊先在终点闪一下） -->
+    <!-- navboot 必须同步放在 head：要在首帧前把来源 tab 落到 <html>（否则新页先在终点亮一下再滑进来） -->
     <script src="navboot.js"></script>
   </head>
   <body data-tab="settings">
@@ -154,6 +155,23 @@
 
       <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
     </main>
+
+    <!-- 底部玻璃导航条（Mobile-Design liquid-glass · glass-tab-bar）：浮在内容上的控件层，
+         必须在 .sheet 之外 + position: fixed（见 glassbar.css 头注释） -->
+    <nav class="lg-tabbar" aria-label="页面切换">
+      <button type="button" class="lg-tab" data-tab="home">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.2L12 3l9 8.2V21h-6v-6H9v6H3z" /></svg>
+        <span class="lg-lb">首页</span>
+      </button>
+      <button type="button" class="lg-tab" data-tab="records">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V6a2 2 0 012-2h12v15H6a2 2 0 00-2 2z" /><path d="M8 8h6M8 12h6" /></svg>
+        <span class="lg-lb">记录</span>
+      </button>
+      <button type="button" class="lg-tab on" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <span class="lg-lb">设置</span>
+      </button>
+    </nav>
 
     <script src="common.js"></script>
     <script src="navbar.js"></script>

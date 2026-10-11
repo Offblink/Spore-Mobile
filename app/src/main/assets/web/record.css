@@ -2,8 +2,15 @@
 
 body { background: var(--bg); }
 
-/* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页（底栏已撤，不必留底部让位） */
-#listView { display: flex; flex-direction: column; min-height: 100vh; }
+/* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页；底部让出浮动玻璃条的地盘
+   （条高 74 + 下边距 14 = 88，垫 96 让最后一行能滚到条上方） */
+#listView { display: flex; flex-direction: column; min-height: 100vh;
+  padding-bottom: 96px; }
+
+/* 底栏让位：详情视图自带追问栏、多选模式自带批量底栏——两处都贴在视口底，
+   同时挂着玻璃条就是叠罗汉。收起只要一条 CSS，别让 record.js 去管这套显示逻辑。 */
+#detailView:not([hidden]) ~ .lg-tabbar,
+#listView.sel ~ .lg-tabbar { display: none; }
 
 /* ---------------- 顶栏（玻璃控件层：压在滚动内容上 = Liquid Glass 合法位） ---------------- */
 .topbar {

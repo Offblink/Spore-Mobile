@@ -8,8 +8,8 @@ import androidx.core.view.ViewCompat;
  * 页面加载与窗口几何的时序：等窗口几何**落定**（布局完成 + insets 派发完并静默一拍）再 loadUrl。
  *
  * <p>为什么值得等：WebView 若在 insets 到位前就把页面上屏，Chromium 会先按「整屏」算一次视口，
- * insets 一到视口缩水，页面里 position:fixed / 100vh 之类的东西会当场挪一下。底栏已经拆掉
- * （用户拍板只留滑动切页），但页面本身仍会重排，所以这道闸保留。
+ * insets 一到视口缩水，页面里 position:fixed / 100vh 之类的东西会当场挪一下。底部玻璃条
+ * （glassbar.css，2026-10-11 加回）正是 position: fixed，所以这道闸继续服役。
  *
  * <p>「静默」而不是「收到过」：系统栏 insets 可能分几次派发，只等第一次仍会晚一步。
  */

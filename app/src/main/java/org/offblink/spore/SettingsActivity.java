@@ -59,8 +59,8 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 底栏入场行程的来源 tab（主页/记录开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
-     * 页内胶囊从那一格弹射到「设置」这一格。用 URL 片段（#）而不是 query——
+     * 整页平移的来源 tab（主页/记录开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
+     * 页内据此画出从那一格方向滑进来的入场。用 URL 片段（#）而不是 query——
      * file:///android_asset 的资源解析不认 query。白名单取值，别把外部串拼进 URL。
      */
     private String fromHash() {

@@ -23,7 +23,8 @@ import org.offblink.spore.agent.SubjectsStore;
  * 长按卡片进多选（单选框涂抹连选，批量收藏/移入科目/删除）；
  * 点行 = <b>独立详情视图</b>（第四轮反馈 2①：不再借悬浮抽屉），详情追问经
  * {@link CaptureService#followup} 走同一引擎、轮询刷新（详情页不是引擎监听器）。
- * 转场：主题 SporeAnim 接管（进右滑入/回右滑出）；硬件返回先问页内 Host.back
+ * 转场：整页平移在 web 层（navbar.css 的 `.sheet`），原生转场显式关掉；
+ * 切页入口 = 底部玻璃条的点击 / 左右滑动（navbar.js）；硬件返回先问页内 Host.back
  * （详情回列表 → 退多选）。
  */
 public class RecordActivity extends AppCompatActivity {
@@ -96,8 +97,8 @@ public class RecordActivity extends AppCompatActivity {
     }
 
     /**
-     * 底栏入场行程的来源 tab（主页/设置开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
-     * 页内胶囊从那一格弹射到「记录」这一格。用 URL 片段（#）而不是 query——
+     * 整页平移的来源 tab（主页/设置开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
+     * 页内据此画出从那一格方向滑进来的入场。用 URL 片段（#）而不是 query——
      * file:///android_asset 的资源解析不认 query。白名单取值，别把外部串拼进 URL。
      */
     private String fromHash() {

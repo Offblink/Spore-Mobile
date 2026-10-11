@@ -1,10 +1,11 @@
 /* 主页专属样式：字标 / 状态胶囊 / 主 CTA。令牌与组件类来自 spore.css。 */
 
-/* 首页只剩「字标 + 状态胶囊 + 主 CTA」三块，整组上下居中；
-   记录/设置不再有入口卡片，只靠左右滑动切页（用户拍板）。 */
+/* 主页只剩「字标 + 状态胶囊 + 主 CTA」三块，整组上下居中（记录/设置的入口在底部玻璃条上）；
+   padding-bottom 让出玻璃条的地盘（条浮在视口底，内容不钻到它下面）：
+   条高 74 + 下边距 14 = 88，垫 112 留出呼吸。 */
 .page {
   min-height: 100vh;
-  padding: 40px 24px 32px;
+  padding: 40px 24px 112px;
   display: flex;
   flex-direction: column;
   justify-content: center;

@@ -10,6 +10,16 @@
   --nav-ease: cubic-bezier(0.2, 0.75, 0.25, 1);  /* 快起、缓收（fast_out_slow_in 手感） */
 }
 
+/* 横向溢出必须掐掉（2026-10-11 真机：那根灰/「粉红」进度条就是它）。
+ * `.sheet` 平移到 translateX(±100%) 时会探出视口右缘 → 文档比视口宽 → Chromium 画一条
+ * **横向滚动条**（实测：切页那 300ms 里 scrollWidth 最多比 innerWidth 宽一整个视口，
+ * 19/84 帧有溢出）。它只在动画期间出现、动画一完就消失 —— 正是用户看到的
+ * 「进度条到一半 / 进度条消失后位置才对」；滚动条一出现还可能抢走布局高度，让 `bottom`
+ * 锚定的玻璃条当场位移。溢出的部分本来就全在视口外，裁掉视觉零差别。
+ * 只在动画期间生效（`html[data-from]`，navboot 在首帧前落好）：静止时不留这个约束，
+ * 将来真有内容横向撑破视口时还能被看见。 */
+html[data-from] { overflow-x: hidden; }
+
 html[data-from] .sheet {
   animation-duration: var(--nav-move);
   animation-timing-function: var(--nav-ease);

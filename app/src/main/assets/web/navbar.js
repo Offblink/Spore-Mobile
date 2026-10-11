@@ -162,9 +162,10 @@
     /**
      * 视口几何迟到的接法（2026-10-11 真机「进设置页先沉在很底部再往上跳」）。
      *
-     * 机制：系统栏 insets 迟到会让**视口（ICB）在首帧之后缩一截**，而 `bottom` 锚定的条
-     * 变的是包含块高度、`bottom` 自己的计算值没变 → `transition: bottom` 根本不触发，
-     * 于是是硬跳（morning 那条「transition bottom 当兜底」对这个机制是空转的）。
+     * 机制：切页动画里 `.sheet` 探出视口 → 文档变宽 → 横向滚动条出现/消失（navbar.css 已用
+     * `html[data-from]{overflow-x:hidden}` 掐掉）；系统栏 insets 迟到也会让**视口（ICB）缩一截**。
+     * 两者都表现为「`bottom` 锚定的条变的是包含块高度、`bottom` 自己的计算值没变」→
+     * `transition: bottom` 根本不触发，就是硬跳（morning 那条兜底对这个机制是空转的）。
      *
      * 接法：先按位移把条**推回原位**（此刻还没上屏），下一帧再把 transform 过渡归 0
      * → 顺滑滑到新落位。**只用过渡、元素始终可见**（上午用 opacity 兜位置偏差，结果整条消失）。

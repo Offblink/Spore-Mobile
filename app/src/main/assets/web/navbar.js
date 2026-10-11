@@ -104,13 +104,26 @@
 
   /** 左右滑动切页：横滑 ≥60px 且明显横向（纵向是滚动）；弹层开着或底栏不在场一律不抢。 */
   var SWIPE_MIN = 60;
+  function handleSwipe(dx, dy) {
+    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.6) {
+      return;
+    }
+    var idx = TABS.indexOf(CUR);
+    // 往左滑 = 翻到右边那一页；往右滑 = 退到左边那一页（与底栏点击同一套 —— 方向也对得上）
+    go(TABS[dx < 0 ? idx + 1 : idx - 1]);
+  }
+
+  /** 这一笔手势该不该由我们接管 */
+  function canSwipe(node) {
+    return barVisible()
+      && !document.querySelector(".modal-mask.on")
+      && !inScrollable(node);
+  }
+
   function bindSwipe() {
     var x0 = 0, y0 = 0, tracking = false;
     document.addEventListener("touchstart", function (e) {
-      tracking = e.touches.length === 1
-        && barVisible()
-        && !document.querySelector(".modal-mask.on")
-        && !inScrollable(e.target);
+      tracking = e.touches.length === 1 && canSwipe(e.target);
       if (tracking) {
         x0 = e.touches[0].clientX;
         y0 = e.touches[0].clientY;
@@ -122,18 +135,30 @@
       }
       tracking = false;
       var t = e.changedTouches && e.changedTouches[0];
-      if (!t) {
-        return;
+      if (t) {
+        handleSwipe(t.clientX - x0, t.clientY - y0);
       }
-      var dx = t.clientX - x0;
-      var dy = t.clientY - y0;
-      if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.6) {
-        return;
-      }
-      var idx = TABS.indexOf(CUR);
-      // 往左滑 = 翻到右边那一页；往右滑 = 退到左边那一页（与底栏点击同一套 —— 方向也对得上）
-      go(TABS[dx < 0 ? idx + 1 : idx - 1]);
     }, { passive: true });
+
+    // 鼠标/触控板拖拽走同一套判据：桌面 Chromium 里也能验滑动切页（真机走 touch 分支）。
+    var down = false;
+    document.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) {
+        return;
+      }
+      down = canSwipe(e.target);
+      if (down) {
+        x0 = e.clientX;
+        y0 = e.clientY;
+      }
+    });
+    document.addEventListener("mouseup", function (e) {
+      if (!down) {
+        return;
+      }
+      down = false;
+      handleSwipe(e.clientX - x0, e.clientY - y0);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -1,4 +1,5 @@
-/* 主页逻辑：状态胶囊 / 主 CTA / 分组导航。桥协议见 common.js 头注。 */
+/* 主页逻辑：状态胶囊 / 主 CTA。桥协议见 common.js 头注。
+ * 记录/设置没有入口卡片（用户拍板：只留左右滑动切页），切页手势在 navbar.js。 */
 (function () {
   "use strict";
 
@@ -73,8 +74,6 @@
     $("btnBall").addEventListener("click", pokeBall);
     // 重授权提示：专用 reauth（球照跑）；走 pokeBall 会撞 toggleBall 把运行中的球关掉
     $("projHint").addEventListener("click", function () { bridge("reauth"); });
-    $("navRecords").addEventListener("click", function () { bridge("openRecords"); });
-    $("navSettings").addEventListener("click", function () { bridge("openSettings"); });
     // 握手：调过 ready 原生才开始推；返回值就是首帧
     render(bridge("ready"));
   });

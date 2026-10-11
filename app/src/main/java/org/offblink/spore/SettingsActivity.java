@@ -8,6 +8,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
@@ -46,6 +47,14 @@ public class SettingsActivity extends AppCompatActivity {
         web.getSettings().setSupportZoom(false);
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Host(), "Spore");
+        // 物理返回也走「回主页」那条路（同顶栏 ‹）：整页平移交给主页的 web 层重播
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                leaveForHome();
+                finish();
+            }
+        });
         web.loadUrl("file:///android_asset/web/settings.html" + fromHash());
     }
 
@@ -161,33 +170,34 @@ public class SettingsActivity extends AppCompatActivity {
             });
         }
 
-        /** 顶栏返回：finish 必须主线程，动画挂在 finish() 覆写里 */
+        /** 顶栏返回：回主页那一程交给主页的 web 层重播（原生转场关掉），见 leaveForHome */
         @JavascriptInterface
         public void close() {
-            runOnUiThread(SettingsActivity.this::finish);
-        }
-
-        /** 底栏切页：设置 → 记录。关自己再开目标（栈不叠页，返回键恒回主页）。
-         *  2→1 是「往回」的 tab：主题默认转场是前进方向（新页自右滑入），跟胶囊向左的行程
-         *  正好相反 → 这一跳换成反向转场，页面与胶囊同向。 */
-        @JavascriptInterface
-        public void openRecords() {
             runOnUiThread(() -> {
-                startActivity(new Intent(SettingsActivity.this, RecordActivity.class)
-                        .putExtra(MainActivity.EXTRA_FROM, "settings"));
+                leaveForHome();
                 finish();
-                backwardTransition();
             });
         }
 
-        /** 反向转场：34+ 用 overrideActivityTransition；本 App 未启用预测性返回，
-         *  旧 API 仍生效，两边都调，哪个平台认哪个。 */
-        private void backwardTransition() {
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,
-                        R.anim.slide_in_left, R.anim.slide_out_right);
-            }
-            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right);
+        /** 底栏切页：设置 → 记录。不是回主页（别让主页播入场），关自己再开目标（栈不叠页） */
+        @JavascriptInterface
+        public void openRecords() {
+            runOnUiThread(() -> {
+                MainActivity.pendingHomeEnter = null;
+                MainActivity.noSystemTransition(SettingsActivity.this);
+                startActivity(new Intent(SettingsActivity.this, RecordActivity.class)
+                        .putExtra(MainActivity.EXTRA_FROM, "settings"));
+                finish();
+            });
         }
+    }
+
+    /**
+     * 离开本页回主页（顶栏 ‹ / 底栏「首页」/ 物理返回都走这里）：整页平移由主页的 web 层演，
+     * 原生转场关掉（否则会双动画，不播转场的 ROM 上则完全没动画）。
+     */
+    private void leaveForHome() {
+        MainActivity.pendingHomeEnter = "settings";
+        MainActivity.noSystemTransition(this);
     }
 }

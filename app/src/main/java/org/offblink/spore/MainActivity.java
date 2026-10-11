@@ -35,6 +35,21 @@ public class MainActivity extends AppCompatActivity {
      *  键定义在主页：主页是底栏三页的锚点。 */
     static final String EXTRA_FROM = "navFrom";
 
+    /** 回主页时让主页重播一次入场（主页是被「恢复」不是重载，WebView 不会自己再放动画）：
+     *  值 = 从哪一页回来（records/settings）；null = 不播。Record/Settings 退出前写、这里消费。 */
+    static volatile String pendingHomeEnter;
+
+    /**
+     * 关掉这一程的原生转场：底栏切页的整页平移 + 胶囊行程都由 web 层演（navbar.css），
+     * 原生再滑一次就是双动画；而且部分 ROM（华为等）压根不播原生转场，只留 web 层反而一致。
+     */
+    static void noSystemTransition(android.app.Activity a) {
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            a.overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0);
+        }
+        a.overridePendingTransition(0, 0);
+    }
+
     private WebView web;
     /** JS 调过 ready() 后才允许推 onState（桥握手门闩）；JavaBridge 线程写、主线程读 */
     private volatile boolean webReady;
@@ -175,6 +190,12 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // 回页即刷新：悬浮窗权限/服务状态可能在系统授权页里被改掉
         pushState();
+        // 从记录/设置回主页：主页只被恢复，得让页内自己重播一次入场（整页平移 + 胶囊行程）
+        String from = pendingHomeEnter;
+        pendingHomeEnter = null;
+        if (from != null && web != null) {
+            web.evaluateJavascript("window.__navEnter&&window.__navEnter('" + from + "')", null);
+        }
     }
 
     /**

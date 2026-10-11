@@ -58,7 +58,17 @@ public class RecordActivity extends AppCompatActivity {
     /** 关掉自己再问一次 dispatcher → 落到默认兜底（退出本页） */
     private void fallThrough() {
         backCb.setEnabled(false);
+        leaveForHome();
         getOnBackPressedDispatcher().onBackPressed();
+    }
+
+    /**
+     * 离开本页回主页（顶栏 ‹ / 底栏「首页」/ 物理返回都走这里）：
+     * 转场交给主页的 web 层重播（主页是被恢复的，自己不会放动画），原生转场关掉。
+     */
+    private void leaveForHome() {
+        MainActivity.pendingHomeEnter = "records";
+        MainActivity.noSystemTransition(this);
     }
 
     @Override
@@ -212,13 +222,18 @@ public class RecordActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void close() {
-            runOnUiThread(RecordActivity.this::finish);
+            runOnUiThread(() -> {
+                leaveForHome();
+                finish();
+            });
         }
 
-        /** 底栏切页：记录 → 设置。关自己再开目标（栈不叠页，返回键恒回主页） */
+        /** 底栏切页：记录 → 设置。不是回主页（别让主页播入场），关自己再开目标（栈不叠页） */
         @JavascriptInterface
         public void openSettings() {
             runOnUiThread(() -> {
+                MainActivity.pendingHomeEnter = null;
+                MainActivity.noSystemTransition(RecordActivity.this);
                 startActivity(new Intent(RecordActivity.this, SettingsActivity.class)
                         .putExtra(MainActivity.EXTRA_FROM, "records"));
                 finish();

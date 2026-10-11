@@ -4,7 +4,7 @@ body { background: var(--bg); }
 
 /* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页；底部让出浮动底栏的地盘 */
 #listView { display: flex; flex-direction: column; min-height: 100vh;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  padding-bottom: 96px; }
 
 /* 底栏让位：详情视图自带追问栏、多选模式自带批量底栏——两处都贴在视口底，
    同时挂着底栏就是叠罗汉。收起只要一条 CSS，别让 record.js 去管这套显示逻辑。 */

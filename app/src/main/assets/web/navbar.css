@@ -23,7 +23,7 @@
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: 12px;
   height: 76px;
   display: flex;
   align-items: center;

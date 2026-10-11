@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(WebInsets.loggingClient());
         web.addJavascriptInterface(new Host(), "Spore");
 
         overlayLauncher = registerForActivityResult(
@@ -110,7 +110,7 @@ public class MainActivity extends AppCompatActivity {
             notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
 
-        WebInsets.loadAfterInsets(web, "file:///android_asset/web/main.html");
+        WebInsets.loadWhenReady(web, "file:///android_asset/web/main.html");
         if (!maybeShowCrashReport()) {
             maybeShowFrameDiag();
         }

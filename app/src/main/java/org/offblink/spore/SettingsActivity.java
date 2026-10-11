@@ -45,7 +45,7 @@ public class SettingsActivity extends AppCompatActivity {
         web = findViewById(R.id.web);
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setSupportZoom(false);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(WebInsets.loggingClient());
         web.addJavascriptInterface(new Host(), "Spore");
         // 物理返回也走「回主页」那条路（同顶栏 ‹）：整页平移交给主页的 web 层重播
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -55,7 +55,7 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
             }
         });
-        WebInsets.loadAfterInsets(web, "file:///android_asset/web/settings.html" + fromHash());
+        WebInsets.loadWhenReady(web, "file:///android_asset/web/settings.html" + fromHash());
     }
 
     /**

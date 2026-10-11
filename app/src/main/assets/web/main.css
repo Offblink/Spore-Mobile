@@ -4,7 +4,7 @@
    padding-bottom 让出底栏的地盘（底栏浮在视口底，内容不钻到它下面）。 */
 .page {
   min-height: 100vh;
-  padding: 40px 24px calc(112px + env(safe-area-inset-bottom, 0px));
+  padding: 40px 24px 112px;
   display: flex;
   flex-direction: column;
   justify-content: center;

@@ -55,7 +55,7 @@ public class SettingsActivity extends AppCompatActivity {
                 finish();
             }
         });
-        web.loadUrl("file:///android_asset/web/settings.html" + fromHash());
+        WebInsets.loadAfterInsets(web, "file:///android_asset/web/settings.html" + fromHash());
     }
 
     /**

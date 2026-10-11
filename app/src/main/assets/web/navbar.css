@@ -32,6 +32,9 @@
   border-radius: 26px;
   box-shadow: 0 8px 24px rgba(20, 23, 42, 0.1);
   z-index: 35;
+  /* 兜底：万一视口/insets 仍在加载后变一次（原生侧已尽量把加载推到 insets 之后），
+     让底栏平滑归位而不是硬跳一下 */
+  transition: bottom var(--t-pop) var(--damped);
 }
 
 /* ---------- 整页平移（.sheet 由各页挂在内容根上；底栏是它的兄弟，不跟着动） ---------- */

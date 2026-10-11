@@ -110,7 +110,7 @@ public class MainActivity extends AppCompatActivity {
             notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
 
-        web.loadUrl("file:///android_asset/web/main.html");
+        WebInsets.loadAfterInsets(web, "file:///android_asset/web/main.html");
         if (!maybeShowCrashReport()) {
             maybeShowFrameDiag();
         }

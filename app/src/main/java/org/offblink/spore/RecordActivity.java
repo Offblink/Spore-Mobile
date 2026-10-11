@@ -92,7 +92,7 @@ public class RecordActivity extends AppCompatActivity {
         });
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Host(), "Spore");
-        web.loadUrl("file:///android_asset/web/record.html" + fromHash());
+        WebInsets.loadAfterInsets(web, "file:///android_asset/web/record.html" + fromHash());
     }
 
     /**

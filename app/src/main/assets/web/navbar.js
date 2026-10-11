@@ -1,14 +1,12 @@
-/* 底部导航条：点击 / 左右滑动切页 + 入场重播（navbar.css 的伴生脚本，三页共用）。
+/* 页面切换：左右滑动切页 + 入场动画重播（navbar.css 的伴生脚本，三页共用）。
  *
- * 切页动作全在 web 层（CSS 动画挂在 html[data-from] 上，见 navbar.css）：整页平移与
- * 胶囊行程同一条 --nav-move、同一帧起跑。原生 Activity 转场由 Java 侧关掉。
- * 路由（点击与滑动共用同一张表）：
- *   主页    → openRecords / openSettings（MainActivity 原有）
- *   记录页  → openSettings（RecordActivity，关自己再开，栈不叠页）
- *   设置页  → openRecords （SettingsActivity，同上）
- *   三页共通 → close（finish 回主页）
- * 已在本页的 tab 直接 return：不重复 startActivity、也不回压栈。
- * 桥缺失（无头浏览器冒烟）时 bridge() 返回 null，这里静默不动作，页面照常渲染。 */
+ * 底栏（M3 胶囊指示器条）已按用户要求整条撤掉 —— 切页只剩两条入口：
+ * 主页那张「搜题记录 / 设置」导航卡（main.js 的桥），以及这里的左右滑动。
+ * 路由与桥：home → close（finish 回主页）；records → openRecords；settings → openSettings。
+ * 滑动方向：往左滑 = 去右边那一页，往右滑 = 退到左边那一页（与整页平移方向一致）。
+ * 判据：横滑 ≥60px 且横向位移 ≥ 纵向 1.6 倍。
+ * 三道闸（不抢页面自己的手势）：① 记录页详情视图 / 多选模式开着；② 弹层开着；
+ * ③ 起手落在横向可滚元素（科目 chips）里。桥缺失（无头浏览器冒烟）时静默不动作。 */
 (function () {
   "use strict";
 
@@ -34,12 +32,12 @@
 
   function scheduleClear() {
     clearTimeout(clearT);
-    // 动画 300ms；跑完把 data-from 摘掉，胶囊交回 body[data-tab] 的静止位置（= 动画终点，无跳变）
+    // 动画 300ms；跑完把 data-from 摘掉（不留悬挂属性，重播时才不会误判）
     clearT = setTimeout(function () { root.removeAttribute("data-from"); }, 420);
   }
 
   /**
-   * 重播一次入场（整页平移 + 胶囊行程）。
+   * 重播一次入场（整页平移）。
    * 回主页时主页是「恢复」而不是重载（WebView 没重新加载），原生喊这一声才有动画。
    * 摘属性 → 强制重排 → 再挂上 = 干干净净的第二遍（不断开的话浏览器认为动画没变，不重播）。
    */
@@ -51,39 +49,34 @@
   }
   window.__navEnter = replay;
 
-  /** 底栏此刻是不是「在场」：记录页详情/多选模式会收起它 → 那些模式下别抢手势 */
-  function barVisible() {
-    var bar = document.querySelector(".tabbar");
-    return !!bar && getComputedStyle(bar).display !== "none";
-  }
-
-  /** 横滑起手落在横向可滚内容（科目 chips）里时不切页，那是页面自己的滚动 */
-  function inScrollable(node) {
+  /** 这一笔手势该不该由我们接管（页面自己的模式优先） */
+  function canSwipe(node) {
+    if (document.querySelector(".modal-mask.on")) {
+      return false;
+    }
+    var detail = document.getElementById("detailView");
+    if (detail && !detail.hasAttribute("hidden")) {
+      return false;   // 记录页详情视图：有追问输入，别抢
+    }
+    var list = document.getElementById("listView");
+    if (list && list.classList.contains("sel")) {
+      return false;   // 多选模式：涂抹连选就是横滑
+    }
     for (var el = node; el && el !== document.body; el = el.parentElement) {
       var ox = getComputedStyle(el).overflowX;
       if (ox === "auto" || ox === "scroll") {
-        return true;
+        return false;   // 横向可滚内容（科目 chips）自己滚
       }
     }
-    return false;
+    return true;
   }
 
-  /** 左右滑动切页：横滑 ≥60px 且明显横向（纵向是滚动）；弹层开着或底栏不在场一律不抢。 */
-  var SWIPE_MIN = 60;
   function handleSwipe(dx, dy) {
-    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.6) {
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6) {
       return;
     }
     var idx = TABS.indexOf(CUR);
-    // 往左滑 = 翻到右边那一页；往右滑 = 退到左边那一页（与底栏点击同一套 —— 方向也对得上）
     go(TABS[dx < 0 ? idx + 1 : idx - 1]);
-  }
-
-  /** 这一笔手势该不该由我们接管 */
-  function canSwipe(node) {
-    return barVisible()
-      && !document.querySelector(".modal-mask.on")
-      && !inScrollable(node);
   }
 
   function bindSwipe() {
@@ -106,7 +99,7 @@
       }
     }, { passive: true });
 
-    // 鼠标/触控板拖拽走同一套判据：桌面 Chromium 里也能验滑动切页（真机走 touch 分支）。
+    // 鼠标/触控板拖拽走同一套判据：桌面 Chromium 里也能验滑动切页（真机走 touch 分支）
     var down = false;
     document.addEventListener("mousedown", function (e) {
       if (e.button !== 0) {
@@ -132,15 +125,6 @@
     // 重播会把已经跑了一半的动画拽回起点，看着就是「闪一下」。
     if (root.getAttribute("data-from")) {
       scheduleClear();
-    }
-    var bar = document.querySelector(".tabbar");
-    if (bar) {
-      bar.addEventListener("click", function (e) {
-        var it = e.target.closest ? e.target.closest(".tabitem") : null;
-        if (it) {
-          go(it.getAttribute("data-tab"));
-        }
-      });
     }
     bindSwipe();
   });

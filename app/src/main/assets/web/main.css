@@ -1,10 +1,10 @@
-/* 主页专属样式：字标 / 状态胶囊 / 主 CTA。令牌与组件类来自 spore.css。 */
+/* 主页专属样式：字标 / 状态胶囊 / 主 CTA / 分组导航卡。令牌与组件类来自 spore.css。 */
 
-/* 设置/记录进了底栏，这一页只剩「字标 + 状态胶囊 + 主 CTA」——整组上下居中。
-   padding-bottom 让出底栏的地盘（底栏浮在视口底，内容不钻到它下面）。 */
+/* 底栏已撤（用户拍板：只留左右滑动切页）——首页仍是整组上下居中，
+   底部不必再给底栏让位，回到普通页边距。 */
 .page {
   min-height: 100vh;
-  padding: 40px 24px 112px;
+  padding: 40px 24px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -61,3 +61,9 @@
 }
 #projHint:active { background: var(--pink-tint); }
 #projHint[hidden] { display: none; }
+
+/* ---- 分组导航卡（底栏撤掉后恢复） ---- */
+.nav { overflow: hidden; }
+.nav .row { width: 100%; text-align: left; background: transparent; }
+.nav .row:last-child { border-bottom: 0; }
+.nav .ico { flex: none; font-size: 17px; }

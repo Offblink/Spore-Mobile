@@ -1,45 +1,15 @@
-/* 底部导航条（M3 nav-pill-bar 配方）——主页 / 搜题记录 / 设置 三页共用。
- * 出处：mobile-design/components/android-m3/nav-pill-bar：浮在内容上的 surface 条 +
- * 胶囊指示器 + 图标/标签分色（Expressive 规则：active 图标走正文色、标签单独走强调色）。
+/* 页面切换的入场动画（底栏已按用户要求撤掉；左右滑动切页在 navbar.js）。
  *
- * 切页动作整个在 web 层演：**整页平移（.sheet）+ 胶囊行程（.tab-pill）同一条时长曲线、
- * 同一帧起跑**，所以看上去是一个动作。原生 Activity 转场被显式关掉
- * （MainActivity.noSystemTransition）——部分 ROM（华为等）压根不播它，那就会出现
- * 「页面先蹦出来、胶囊再慢悠悠移一段」的脱节，而且两边动画还会互不同步。
- *
- * 当前页 = <body data-tab="home|records|settings">；来源页 = <html data-from="…">
- * （navboot.js 在首帧前落好；回主页时主页是「恢复」不是重载，由 navbar.js 的
- * window.__navEnter 重播一次）。点击路由见 navbar.js。
- * 让位规则在各页自己的 css（记录页详情/多选模式会收起本条）。 */
+ * 整页平移：`.sheet`（各页的内容根）从来源方向滑进来 —— 方向 = 来源格与目标格的先后，
+ * 往后走（索引变大）自右边进、往回走自左边进，与「往左滑去右边那页」的手势方向天然一致。
+ * 来源 tab 由原生 loadUrl 的片段带进来（`#from=<tab>`，navboot.js 在首帧前落到 <html>）；
+ * 回主页时主页是被「恢复」不是重载，由 navbar.js 的 window.__navEnter 重播一次。 */
 
 :root {
-  --nav-move: 300ms;                             /* 页面平移与胶囊行程的唯一旋钮：两者必须同值 */
-  --nav-ease: cubic-bezier(0.2, 0.75, 0.25, 1);  /* 进场曲线：快起、缓收（fast_out_slow_in 手感） */
+  --nav-move: 300ms;                             /* 整页平移时长（唯一旋钮） */
+  --nav-ease: cubic-bezier(0.2, 0.75, 0.25, 1);  /* 快起、缓收（fast_out_slow_in 手感） */
 }
 
-.tabbar {
-  /* fixed 而不是 absolute：absolute 在真页面里挂在文档流上，记录/设置页一滚就跟着走
-     （demo 里是固定高度的手机舞台，抄过来就错了）。 */
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  height: 76px;
-  display: flex;
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 26px;
-  box-shadow: 0 8px 24px rgba(20, 23, 42, 0.1);
-  z-index: 35;
-  /* 万一视口在加载后仍变一次（原生侧已尽量把加载推到几何落定之后），让底栏顺滑滑到位，
-     而不是硬跳一下。只过渡 bottom，**绝不隐藏**——隐藏会让「位置微调」变成「整条不见了」。 */
-  transition: bottom var(--t-pop) var(--damped);
-}
-
-/* ---------- 整页平移（.sheet 由各页挂在内容根上；底栏是它的兄弟，不跟着动） ---------- */
-/* 方向 = 来源格与目标格的先后：往后走（索引变大）新页自右边进来，往回走自左边进来，
-   与胶囊的行程方向天然一致。 */
 html[data-from] .sheet {
   animation-duration: var(--nav-move);
   animation-timing-function: var(--nav-ease);
@@ -54,75 +24,7 @@ html[data-from="settings"] body[data-tab="records"] .sheet { animation-name: she
 @keyframes sheet-in-right { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes sheet-in-left { from { transform: translateX(-100%); } to { transform: none; } }
 
-/* ---------- 胶囊指示器 ---------- */
-/* 静止位置：占一格（1/3）宽 → translateX 100% 正好跳到下一格（% 相对自身宽度）。
-   `--pt` 同时是动画终点，`--pf` 是起点（来源格）。 */
-.tab-pill {
-  position: absolute;
-  top: 10px;
-  left: 0;
-  width: 33.3334%;
-  height: 32px;
-  pointer-events: none;
-}
-.tab-pill::after {
-  content: "";
-  position: absolute;
-  inset: 0 8px;
-  border-radius: var(--r999);
-  background: var(--pink-tint);
-}
-body[data-tab="home"] .tab-pill { --pt: 0%; transform: translateX(0); }
-body[data-tab="records"] .tab-pill { --pt: 100%; transform: translateX(100%); }
-body[data-tab="settings"] .tab-pill { --pt: 200%; transform: translateX(200%); }
-
-html[data-from="home"] .tab-pill { --pf: 0%; }
-html[data-from="records"] .tab-pill { --pf: 100%; }
-html[data-from="settings"] .tab-pill { --pf: 200%; }
-/* 行程：起点（略收窄）→ 半程（沿轴拉长 14%，Expressive 的指示器形变）→ 终点。
-   逐段 easing = 先加速后减速，与整页平移同一条 --nav-move。 */
-html[data-from] .tab-pill { animation: pill-travel var(--nav-move) both; }
-@keyframes pill-travel {
-  0% {
-    transform: translateX(var(--pf)) scaleX(0.94);
-    animation-timing-function: cubic-bezier(0.55, 0, 0.75, 0.5);
-  }
-  50% {
-    transform: translateX(calc((var(--pf) + var(--pt)) / 2)) scaleX(1.14);
-    animation-timing-function: cubic-bezier(0.3, 0.5, 0.2, 1);
-  }
-  100% { transform: translateX(var(--pt)) scaleX(1); }
-}
-
-/* 降级：不要动效就都不动（静止位置本来就是终点） */
+/* 不要动效就都不动（静止位置本来就是终点） */
 @media (prefers-reduced-motion: reduce) {
-  html[data-from] .sheet,
-  html[data-from] .tab-pill { animation: none; }
+  html[data-from] .sheet { animation: none; }
 }
-
-.tabitem {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  color: var(--muted3);
-  font-size: 10.5px;
-  font-weight: 600;
-  transition: color var(--t-fast) var(--damped);
-}
-.tabitem svg {
-  width: 22px;
-  height: 22px;
-  display: block;
-}
-.tabitem .tab-lab {
-  color: var(--muted2);
-  transition: color var(--t-fast) var(--damped);
-}
-.tabitem.on { color: var(--ink); }
-.tabitem.on .tab-lab { color: var(--pink); }

@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
-        web.setWebViewClient(WebInsets.loggingClient());
+        web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Host(), "Spore");
 
         overlayLauncher = registerForActivityResult(

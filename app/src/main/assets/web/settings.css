@@ -39,7 +39,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 18px 20px 104px;
+  padding: 18px 20px 44px;
 }
 .group { padding: 16px 16px 6px; }
 .group-title {

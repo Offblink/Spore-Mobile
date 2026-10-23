@@ -65,7 +65,7 @@
 ## 安装与用法
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
-   （2026-10-06 构建，72.5 MB），允许「安装未知应用」后安装。
+   （2026-10-23 构建，73.0 MB），允许「安装未知应用」后安装。
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限。
 3. 日常：
    - **左右滑动切页**：三页（首页 / 记录 / 设置）之间往左滑去右边那页、往右滑回左边那页，
@@ -114,14 +114,13 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-11 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**，单测 **85/85 全绿**
+- 2026-10-23 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+  lint **Error 0**，单测 **90/90 全绿**
   （FrameQuality 7 · Phases 8 · Suggest 6 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  LatexDelims 7 · UnreadDotState 9 · ShotPolicy 5 · SporeSettingsDefaults 2），
-  APK **76,595,986 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
-  clean 多 1.13MB；CI 同树 fresh 构建 76,595,622 B）
-  （自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
+  LatexDelims 7 · UnreadDotState 14 · ShotPolicy 5 · SporeSettingsDefaults 2），
+  APK **76,597,005 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  clean 多 1.13MB）（自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），
   这类坑单测跑不出来（开发机 JDK 全有），只有 lint 按 `minSdk 26` 对一遍才拦得住；

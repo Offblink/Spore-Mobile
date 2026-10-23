@@ -46,10 +46,25 @@ public final class UnreadDotState {
             return false;
         }
         for (Session s : all) {
-            if (s.id != null && !s.id.equals(curId) && s.updated > seenThrough) {
+            if (isUnread(curId, curUpdated, s)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * 行级判定：这条会话在列表里该画未读点吗（web renderList 的 {@code unread} 同口径）。
+     * 顶栏红点只说「有未读」，行内点才指认是哪个会话——与 {@link #evaluate} 共用同一水位。
+     *
+     * @param curId      正在查看的会话 id
+     * @param curUpdated 正在查看的会话的 {@code Session.updated}（水位未起算时按它起算）
+     * @param s          待判定的会话行
+     */
+    public boolean isUnread(String curId, long curUpdated, Session s) {
+        if (seenThrough == 0) {
+            seenThrough = Math.max(seenThrough, curUpdated);
+        }
+        return curId != null && s.id != null && !s.id.equals(curId) && s.updated > seenThrough;
     }
 }

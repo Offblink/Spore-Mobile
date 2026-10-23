@@ -112,4 +112,48 @@ public class UnreadDotStateTest {
         st.onSessionOpened(2000); // 再抬「打开的 B」
         assertFalse(st.evaluate("B", 2000, all(sess("A", 3000), sess("B", 2000))));
     }
+
+    // ---------------------------------------------------------------- 行级判定（isUnread）
+
+    /** 行级与整体级同一水位：顶栏点亮时，「更新的那条」行必须被指认 */
+    @Test
+    public void rowDotMarksTheNewerOtherSession() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.evaluate("A", 1000, all(sess("A", 1000), sess("B", 2000))));
+        assertFalse(st.isUnread("A", 1000, sess("A", 1000))); // 当前会话永不标行
+        assertTrue(st.isUnread("A", 1000, sess("B", 2000)));  // 更新的那条 → 行内点
+    }
+
+    /** 整体口径「回合结束抬当前会话不清点」在行级同样成立：B 的行点不许灭 */
+    @Test
+    public void rowDotSurvivesCurrentSessionTimestampBump() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.isUnread("A", 1000, sess("B", 2000)));
+        // 回合结束：A.updated 抬到 3000，B 的行点仍在
+        assertTrue(st.isUnread("A", 3000, sess("B", 2000)));
+    }
+
+    /** 点开未读会话 = 该行熄灭（水位抬到其 updated） */
+    @Test
+    public void rowDotClearsAfterOpeningThatSession() {
+        UnreadDotState st = new UnreadDotState();
+        assertTrue(st.isUnread("A", 1000, sess("B", 2000)));
+        st.onSessionOpened(2000);
+        assertFalse(st.isUnread("B", 2000, sess("A", 1000)));
+        assertFalse(st.isUnread("B", 2000, sess("B", 2000)));
+    }
+
+    /** 时间戳相等不算未读（与整体口径 equalTimestampDoesNotLight 一致） */
+    @Test
+    public void rowDotIgnoresEqualTimestamp() {
+        UnreadDotState st = new UnreadDotState();
+        assertFalse(st.isUnread("A", 2000, sess("B", 2000)));
+    }
+
+    /** 无当前会话（curId null）→ 任何行都不标（与 evaluate 的 null 分支一致） */
+    @Test
+    public void rowDotNeverMarksWithoutCurrentSession() {
+        UnreadDotState st = new UnreadDotState();
+        assertFalse(st.isUnread(null, 1000, sess("B", 2000)));
+    }
 }

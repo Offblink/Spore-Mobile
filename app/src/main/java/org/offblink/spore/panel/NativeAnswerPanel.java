@@ -324,12 +324,13 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         });
     }
 
-    /** 行绑定：标题/时间/星标/✎/✕/当前态 —— 与记录页同一行组件 */
+    /** 行绑定：标题/时间/星标/✎/✕/当前态/未读点 —— 与记录页同一行组件 */
     private void bindRow(View row, Session s, SimpleDateFormat fmt, String currentId) {
         TextView t = row.findViewById(R.id.item_title);
         TextView ts = row.findViewById(R.id.item_time);
         TextView fav = row.findViewById(R.id.item_fav);
         View bar = row.findViewById(R.id.item_bar);
+        View dot = row.findViewById(R.id.item_unread);
 
         t.setText(s.title);
         ts.setText(fmt.format(new Date(s.updated)));
@@ -338,6 +339,11 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         row.setSelected(active);
         if (bar != null) {
             bar.setVisibility(active ? View.VISIBLE : View.GONE);
+        }
+        if (dot != null) {
+            // 行级未读点：与顶栏同一水位口径（web renderList 的 unread 同步镜像）
+            dot.setVisibility(unreadDotState.isUnread(
+                    currentId, engine.session().updated, s) ? View.VISIBLE : View.GONE);
         }
 
         row.setOnClickListener(v -> {

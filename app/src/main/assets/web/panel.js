@@ -187,12 +187,17 @@
     }
     listpop.innerHTML = list.map((e) => {
       const running = (st.running || []).indexOf(e.id) >= 0;
-      const cls = 'srow' + (e.fav ? ' fav' : '') + (e.id === cur ? ' active' : '');
+      // 行级未读点：与顶栏红点同一份水位口径（桌面 .row .d 的移动端复刻）——
+      // 光有顶栏点、列表里不指认是哪个会话，用户点进来等于白点（2026-10-23 反馈）
+      const unread = e.id !== cur && (e.updated || 0) > seenThrough;
+      const cls = 'srow' + (e.fav ? ' fav' : '') + (e.id === cur ? ' active' : '') +
+        (unread ? ' unread' : '');
       return '<div class="' + cls + '" data-id="' + esc(e.id) + '">' +
         '<button class="act f" data-op="fav" type="button">★</button>' +
         '<div class="col"><div class="t">' + esc(e.title || e.id) + '</div>' +
         '<div class="ts">' + fmtShort(e.updated) +
         (running ? '<span class="gen"> · 生成中</span>' : '') + '</div></div>' +
+        '<span class="d"></span>' +
         '<button class="act r" data-op="rename" type="button">✎</button>' +
         '<button class="act x" data-op="del" type="button">✕</button>' +
         '</div>';

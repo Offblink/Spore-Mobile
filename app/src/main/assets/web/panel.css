@@ -192,6 +192,10 @@ body { overflow: hidden; }
 .srow .ts { font-size: 11.5px; color: var(--muted3); white-space: nowrap; }
 .srow .ts .gen { color: var(--pink); font-weight: 600; }
 .srow.active .t { color: #C2185B; font-weight: 600; }
+/* 行级未读点（桌面 .row .d 复刻）：顶栏红点只说「有未读」，行内点才指认是哪个会话 */
+.srow .d { flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--pink); box-shadow: 0 0 6px rgba(236, 72, 153, .6); display: none; }
+.srow.unread .d { display: block; }
 /* 移动端无 hover：三个动作常显（桌面是 hover 才露） */
 .srow .act { flex: none; border: 0; background: transparent; padding: 4px 5px;
   border-radius: 7px; color: var(--row-action); font-size: 15px; line-height: 1; opacity: .8; }

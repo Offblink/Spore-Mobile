@@ -34,14 +34,14 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/item_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/spore_row_title"
-                android:textSize="14.5sp" />
+        <TextView
+            android:id="@+id/item_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/spore_row_title"
+            android:textSize="14.5sp" />
 
             <TextView
                 android:id="@+id/item_time"
@@ -51,6 +51,15 @@
                 android:textColor="@color/spore_muted3"
                 android:textSize="11.5sp" />
         </LinearLayout>
+
+        <!-- 行内未读点：顶栏红点只说「有未读」，行内点才指认是哪个会话（MV3 .row .d 同位） -->
+        <View
+            android:id="@+id/item_unread"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/spore_unread_row_dot"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/item_rename"

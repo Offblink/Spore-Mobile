@@ -25,6 +25,59 @@ public final class SessionStore {
     private SessionStore() {
     }
 
+    // ---------------------------------------------------------------- 元数据缓存
+
+    /**
+     * 会话元数据行（列表/未读点/web 索引专用）：只带头部字段 + 消息条数，<b>不物化任何 Msg</b>。
+     * 会话列表、未读红点、record 索引都不该付「全库消息反序列化」的代价——
+     * 2026-10-25 反馈：点开列表近 1 秒 = 每次开列表两趟全量 loadAll（buildRows + paintUnread）。
+     */
+    public static final class Meta {
+        public final String id;
+        public final String title;
+        public final long created;
+        public final long updated;
+        public final boolean fav;
+        /** null = 未分组（与 {@link Session#subjectId} 同约定） */
+        public final String subjectId;
+        /** 归一后口径（answering 等进行中 → done，与 {@link #fromJson} 同步） */
+        public final String status;
+        public final int msgCount;
+
+        public Meta(String id, String title, long created, long updated, boolean fav,
+                    String subjectId, String status, int msgCount) {
+            this.id = id;
+            this.title = title;
+            this.created = created;
+            this.updated = updated;
+            this.fav = fav;
+            this.subjectId = subjectId;
+            this.status = status;
+            this.msgCount = msgCount;
+        }
+    }
+
+    /** 缓存条目：文件 mtime+len 双校验，漏网的外部写入靠它兜底打回重解析 */
+    private static final class MetaCacheEntry {
+        final long mtime;
+        final long len;
+        final Meta meta;
+
+        MetaCacheEntry(long mtime, long len, Meta meta) {
+            this.mtime = mtime;
+            this.len = len;
+            this.meta = meta;
+        }
+    }
+
+    /**
+     * 进程内元数据缓存（absolutePath → 条目）。本类是 sessions 目录的<b>唯一</b>写入口
+     * （引擎/同步/记录页全走 save/saveQuiet/saveActive/delete）→ 写路径同步喂缓存；
+     * 读路径仍做 mtime+len 校验，任何漏网写入自动退回整档重解析。
+     */
+    private static final Object META_LOCK = new Object();
+    private static final java.util.Map<String, MetaCacheEntry> META_CACHE = new java.util.HashMap<>();
+
     private static File dir(Context ctx) {
         File d = new File(ctx.getFilesDir(), "sessions");
         //noinspection ResultOfMethodCallIgnored
@@ -71,6 +124,7 @@ public final class SessionStore {
                     throw new IOException("rename failed");
                 }
             }
+            cachePut(f, s); // 落盘成功 → 喂元数据缓存（本类是唯一写入口，读端免重解析）
         } catch (IOException | org.json.JSONException ignored) {
             // 记录是次要品：失败不打断主链路（下次回合结束再试）
         }
@@ -101,6 +155,83 @@ public final class SessionStore {
         return out;
     }
 
+    /**
+     * 元数据加载（列表/未读点/record 索引热路径）：进程内缓存，不物化任何消息。
+     * 命中 → 只做 mtime+len 校验；未命中/文件变了 → 整档 {@link #loadFile} 解析一次后回填。
+     * 语义与 {@link #loadAll} 一致（坏文件跳过、updated 倒序），只是不带 messages。
+     */
+    public static List<Meta> loadMeta(Context ctx) {
+        File[] files = dir(ctx).listFiles((d, name) -> name.endsWith(".json"));
+        List<Meta> out = new ArrayList<>();
+        if (files == null) {
+            return out;
+        }
+        for (File f : files) {
+            Meta m = cachedMeta(f);
+            if (m != null) {
+                out.add(m);
+            }
+        }
+        Collections.sort(out, Comparator.comparingLong((Meta m) -> m.updated).reversed());
+        return out;
+    }
+
+    /** 单文件元数据：缓存命中且 mtime+len 未变 → 直接回；否则整档解析并回填 */
+    private static Meta cachedMeta(File f) {
+        String key = f.getAbsolutePath();
+        long mtime = f.lastModified();
+        long len = f.length();
+        synchronized (META_LOCK) {
+            MetaCacheEntry hit = META_CACHE.get(key);
+            if (hit != null && hit.mtime == mtime && hit.len == len) {
+                return hit.meta;
+            }
+        }
+        Session s = loadFile(f); // 未命中：整档解析（唯一重的一步，做完就进缓存）
+        if (s == null) {
+            return null; // 坏文件跳过（与 loadAll 同口径），且不回填 → 每次都重试一次
+        }
+        Meta m = metaOf(s);
+        synchronized (META_LOCK) {
+            META_CACHE.put(key, new MetaCacheEntry(mtime, len, m));
+        }
+        return m;
+    }
+
+    /** 会话 → 元数据行（包私有：SessionStoreTest 钉住字段映射与状态归一口径） */
+    static Meta metaOf(Session s) {
+        return new Meta(s.id, s.title, s.created, s.updated, s.fav,
+                s.subjectId, normalizeStatus(s.status), s.messages.size());
+    }
+
+    /**
+     * 状态归一（与 {@link #fromJson} 同一口径）：进程被杀留下的进行中状态按已结束处理。
+     * {@code metaOf} 直接读活对象，可能拿到 "answering"——旧契约里 metaJson 走 fromJson
+     * 已归一成 done，这里补齐，免得缓存路径与旧路径对同一会话吐出不同 status。
+     */
+    private static String normalizeStatus(String status) {
+        if ("answering".equals(status) || "verifying".equals(status)
+                || "searching".equals(status) || status == null || status.isEmpty()) {
+            return "done";
+        }
+        return status;
+    }
+
+    /** 写路径同步缓存：本类是唯一写入口，落盘成功即把该会话的新元数据喂进去（免得读端再解析） */
+    private static void cachePut(File f, Session s) {
+        synchronized (META_LOCK) {
+            META_CACHE.put(f.getAbsolutePath(),
+                    new MetaCacheEntry(f.lastModified(), f.length(), metaOf(s)));
+        }
+    }
+
+    /** 删除路径同步清缓存 */
+    private static void cacheDrop(File f) {
+        synchronized (META_LOCK) {
+            META_CACHE.remove(f.getAbsolutePath());
+        }
+    }
+
     /** 按 id 取单个；不存在/损坏 → null */
     public static Session load(Context ctx, String id) {
         if (id == null || id.isEmpty()) {
@@ -125,6 +256,7 @@ public final class SessionStore {
         }
         //noinspection ResultOfMethodCallIgnored
         f.delete();
+        cacheDrop(f); // 删完即清缓存（读端 mtime 校验兜底，但主动清更省一次校验 miss）
     }
 
     /**
@@ -199,24 +331,26 @@ public final class SessionStore {
 
     /**
      * web bridge 索引条目（记录页分页 / 面板 listpop）：不带 messages，
-     * 全量消息走 {@link #toJson} 按需单取，避免索引每次读盘把所有消息拼一遍。
+     * 全量消息走 {@link #toJson} 按需单取。走 {@link #loadMeta} 缓存路径——
+     * 每次 state 推送/开列表不再全量物化所有会话的消息（status 已在 metaOf 归一，
+     * 字段与旧版逐 key 一致）。
      */
     public static JSONArray metaJson(Context ctx) {
         JSONArray out = new JSONArray();
-        for (Session s : loadAll(ctx)) {
+        for (Meta m : loadMeta(ctx)) {
             JSONObject o = new JSONObject();
             try {
-                o.put("id", s.id);
-                o.put("title", s.title);
-                o.put("created", s.created);
-                o.put("updated", s.updated);
-                o.put("fav", s.fav);
+                o.put("id", m.id);
+                o.put("title", m.title);
+                o.put("created", m.created);
+                o.put("updated", m.updated);
+                o.put("fav", m.fav);
                 // 键缺席 = 未分组（与 toJson 同约定）
-                if (s.subjectId != null) {
-                    o.put("subjectId", s.subjectId);
+                if (m.subjectId != null) {
+                    o.put("subjectId", m.subjectId);
                 }
-                o.put("status", s.status);
-                o.put("msgCount", s.messages.size());
+                o.put("status", m.status);
+                o.put("msgCount", m.msgCount);
             } catch (org.json.JSONException ignored) {
             }
             out.put(o);
@@ -379,11 +513,8 @@ public final class SessionStore {
         }
         s.title = o.optString("title", "新会话");
         s.status = o.optString("status", "");
-        // 回合跑一半进程死了（华为杀后台真实发生）→ 展示层按已结束处理
-        if ("answering".equals(s.status) || "verifying".equals(s.status)
-                || "searching".equals(s.status) || s.status.isEmpty()) {
-            s.status = "done";
-        }
+        // 回合跑一半进程死了（华为杀后台真实发生）→ 展示层按已结束处理（与 metaOf 同一口径）
+        s.status = normalizeStatus(s.status);
         JSONArray msgs = o.optJSONArray("messages");
         if (msgs != null) {
             for (int i = 0; i < msgs.length(); i++) {

@@ -79,8 +79,8 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
      */
     private final UnreadDotState unreadDotState = new UnreadDotState();
 
-    /** 模态操作的目标会话（确认/重命名期间暂存） */
-    private Session target;
+    /** 模态操作的目标会话（确认/重命名期间暂存；只用到 id/title，故存元数据行即可） */
+    private SessionStore.Meta target;
 
     public NativeAnswerPanel(Context ctx, WindowManager wm, AgentEngine engine) {
         this.ctx = ctx;
@@ -121,13 +121,15 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
 
     /** 记录页/会话列表点入：换入已存会话继续对话（桌面点列表行语义） */
     public void openSession(String sessionId) {
-        long prevUpdated = engine.session().updated; // 刚在看的那个也算已读（见 UnreadDotState）
+        Session prev = engine.session();
+        long prevUpdated = prev.updated; // 刚在看的那个也算已读（见 UnreadDotState）
         if (!engine.loadSession(sessionId)) {
             Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
             return;
         }
-        unreadDotState.onSessionOpened(prevUpdated);              // 点开会话 = 已读（清红点唯一触发）
-        unreadDotState.onSessionOpened(engine.session().updated); // 打开的这条同样算已读
+        // 点开会话 = 已读（清红点唯一触发）：逐会话抬水位，点开一条不连带清其它未读
+        unreadDotState.onSessionOpened(prev.id, prevUpdated);
+        unreadDotState.onSessionOpened(sessionId, engine.session().updated);
         show();
     }
 
@@ -290,7 +292,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     }
 
     private void buildRows() {
-        List<Session> all = SessionStore.loadAll(ctx);
+        List<SessionStore.Meta> all = SessionStore.loadMeta(ctx);
         listrows.removeAllViews();
         if (all.isEmpty()) {
             listpop.setVisibility(View.GONE);
@@ -300,7 +302,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         }
         String currentId = engine.session().id;
         SimpleDateFormat fmt = new SimpleDateFormat("MM-dd HH:mm", Locale.US);
-        for (Session s : all) {
+        for (SessionStore.Meta s : all) {
             View row = LayoutInflater.from(ctx).inflate(R.layout.item_session, listrows, false);
             ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) row.getLayoutParams();
             lp.leftMargin = 0;
@@ -325,7 +327,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
     }
 
     /** 行绑定：标题/时间/星标/✎/✕/当前态/未读点 —— 与记录页同一行组件 */
-    private void bindRow(View row, Session s, SimpleDateFormat fmt, String currentId) {
+    private void bindRow(View row, SessionStore.Meta s, SimpleDateFormat fmt, String currentId) {
         TextView t = row.findViewById(R.id.item_title);
         TextView ts = row.findViewById(R.id.item_time);
         TextView fav = row.findViewById(R.id.item_fav);
@@ -341,14 +343,15 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             bar.setVisibility(active ? View.VISIBLE : View.GONE);
         }
         if (dot != null) {
-            // 行级未读点：与顶栏同一水位口径（web renderList 的 unread 同步镜像）
+            // 行级未读点：与顶栏同一份逐会话水位（web renderList 的 unread 同步镜像）
             dot.setVisibility(unreadDotState.isUnread(
                     currentId, engine.session().updated, s) ? View.VISIBLE : View.GONE);
         }
 
         row.setOnClickListener(v -> {
             if (!s.id.equals(engine.session().id)) {
-                long prevUpdated = engine.session().updated; // 刚在看的那个也算已读（回合结束会把它抬成最新）
+                Session prev = engine.session();
+                long prevUpdated = prev.updated; // 刚在看的那个也算已读（回合结束会把它抬成最新）
                 if (!engine.loadSession(s.id)) {
                     Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
                     return;
@@ -356,8 +359,9 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
                 adapter.setSession(engine.session());
                 title.setText(engine.session().title);
                 status.setText("");
-                unreadDotState.onSessionOpened(prevUpdated); // 点行切入 = 已读（清红点唯一触发）
-                unreadDotState.onSessionOpened(s.updated);   // 打开的这条同样算已读
+                // 点行切入 = 已读（清红点唯一触发）：逐会话抬，点开一条不连带清其它未读
+                unreadDotState.onSessionOpened(prev.id, prevUpdated);
+                unreadDotState.onSessionOpened(s.id, engine.session().updated);
                 refresh(true);
             }
             closeList();
@@ -371,14 +375,19 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
             del.setOnClickListener(v -> showConfirm(s));
         }
         fav.setOnClickListener(v -> {
-            s.fav = !s.fav;
-            SessionStore.save(ctx, s);
-            paintRowFav(fav, s.fav);
+            // 走引擎（解析到活对象/磁盘单档）而非整档 save：避免拿列表里的陈旧快照
+            // 覆盖掉在途回合刚 persist 的消息，也与 web 桥 fav 同一条路径
+            if (!engine.toggleFav(s.id)) {
+                Toast.makeText(ctx, R.string.session_gone, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            boolean on = !s.fav;
+            paintRowFav(fav, on);
             if (s.id.equals(engine.session().id)) {
                 paintFav();
             }
             // 第六轮回灌：收藏要有反馈（第四轮 web 版 toast 实测过）
-            Toast.makeText(ctx, s.fav ? "收藏成功" : "已取消收藏", Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, on ? "收藏成功" : "已取消收藏", Toast.LENGTH_SHORT).show();
             if (listpop != null && listpop.getVisibility() == View.VISIBLE) {
                 buildRows(); // 原地刷新列表、不退出
             }
@@ -406,12 +415,13 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         if (unreadDot == null) {
             return;
         }
-        // 红点 = 存在「非当前会话」且比**已读水位**更新的会话；水位只被「点开会话」抬高。
-        // 回合结束把当前会话 updated 抬到全库最新只是时间戳在动，不动水位 → 不会再无读自灭
+        // 红点 = 存在「非当前会话」、比首帧基线新、且比它自己已读水位新的会话；
+        // 水位只被「点开会话」抬高该条。回合结束把当前会话 updated 抬到全库最新只是
+        // 时间戳在动、当前会话本就不参与判定 → 不会再无读自灭；点开一条也不连带清其它未读
         // （见 UnreadDotState 的口径说明；web 侧 renderUnread 同一份语义）。
         Session cur = engine.session();
         unreadDot.setVisibility(
-                unreadDotState.evaluate(cur.id, cur.updated, SessionStore.loadAll(ctx))
+                unreadDotState.evaluate(cur.id, cur.updated, SessionStore.loadMeta(ctx))
                         ? View.VISIBLE : View.GONE);
     }
 
@@ -462,7 +472,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         });
     }
 
-    private void showConfirm(Session s) {
+    private void showConfirm(SessionStore.Meta s) {
         target = s;
         confirmBody.setText(ctx.getString(R.string.delete_body, s.title));
         confirmBox.bringToFront(); // 模态压在 listpop 之上，别再互相遮挡（第六轮回灌）
@@ -470,7 +480,7 @@ public final class NativeAnswerPanel implements Panel, AnswerAdapter.Host {
         popIn(confirmBox);
     }
 
-    private void showRename(Session s) {
+    private void showRename(SessionStore.Meta s) {
         target = s;
         renameInput.setText(s.title);
         renameInput.setSelection(s.title.length());

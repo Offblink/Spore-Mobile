@@ -22,12 +22,24 @@
 
   let st = { session: null, sessions: [], busy: false };
   let listOn = false;
-  // 已读水位（epoch ms）：用户**点开会话**时抬到该会话的 updated（与 native UnreadDotState 同口径）。
-  // 红点 = 存在「非当前会话」且 updated > 水位 的会话；面板首次显示时正在看的会话按已读起算。
+  // 未读红点（与 native UnreadDotState 同口径，2026-10-25 重写为逐会话已读）：
+  // - readBase：首帧基线（地板）。首帧正在看的会话 updated 定基线，比它旧的一律算已读，
+  //   只设一次——否则一进面板就把历史会话全点亮。
+  // - readThrough：逐会话已读水位（id → 用户点开过它的那一刻的 updated）。点开会话是唯一
+  //   抬该条水位的动作；点开一条只灭自己那条，不连带清其它未读（修「读一条灭一片」）。
   // 打开列表**不算**已读（用户 2026-10-10 拍板：是点开会话才消红点，不是点开列表）；
-  // 回合结束抬当前会话 updated 只动时间戳、不动水位 → 不会再无读自灭。
-  let seenThrough = 0;
+  // 回合结束抬当前会话 updated 只动时间戳、当前会话本就不参与判定 → 不会再无读自灭。
+  let readBase = 0;
+  let readThrough = Object.create(null);
   let modalTarget = null; // {id} —— 模态的目标会话
+
+  /** 点开会话 = 已读：只抬这一条的水位（清红点唯一触发） */
+  function markRead(id, updated) {
+    if (!id) {
+      return;
+    }
+    readThrough[id] = Math.max(readThrough[id] || 0, updated || 0);
+  }
 
   // ---------------------------------------------------------------- 状态拉取
 
@@ -161,8 +173,17 @@
     favBtn.classList.toggle('on', !!(m && m.fav));
   }
 
+  /** 行级未读判定（顶栏 renderUnread 与列表 renderList 共用一份口径） */
+  function isUnreadRow(x, curId) {
+    if (!curId || !x || x.id === curId) {
+      return false; // 无当前会话 / 当前会话本身永不标未读
+    }
+    const u = x.updated || 0;
+    return u > readBase && u > (readThrough[x.id] || 0);
+  }
+
   function renderUnread() {
-    // 红点语义 = **有我从未点开过的其它会话比已读水位更新**（不是「存在其它会话」——
+    // 红点语义 = **有我没点开过、又比我首帧在看的东西更新的会话**（不是「存在其它会话」——
     // 那样只要库里有 2 条就必亮；也不是「比当前会话更新」——回合结束把当前会话
     // updated 抬到全库最新会让它无读自灭，第四轮/2026-10-10 两轮实测都抓过）。
     const cur = st.session;
@@ -170,11 +191,10 @@
       sessionsBtn.classList.toggle("has-unread", false);
       return;
     }
-    if (!seenThrough) {
-      seenThrough = cur.updated || 0; // 面板首次显示：正在看的这个按已读起算
+    if (!readBase) {
+      readBase = cur.updated || 0; // 首帧基线：正在看的这个按已读起算（地板，只设一次）
     }
-    const hit = (st.sessions || []).some(
-      (x) => x.id !== cur.id && (x.updated || 0) > seenThrough);
+    const hit = (st.sessions || []).some((x) => isUnreadRow(x, cur.id));
     sessionsBtn.classList.toggle("has-unread", hit);
   }
 
@@ -187,9 +207,9 @@
     }
     listpop.innerHTML = list.map((e) => {
       const running = (st.running || []).indexOf(e.id) >= 0;
-      // 行级未读点：与顶栏红点同一份水位口径（桌面 .row .d 的移动端复刻）——
+      // 行级未读点：与顶栏红点同一份逐会话口径（桌面 .row .d 的移动端复刻）——
       // 光有顶栏点、列表里不指认是哪个会话，用户点进来等于白点（2026-10-23 反馈）
-      const unread = e.id !== cur && (e.updated || 0) > seenThrough;
+      const unread = isUnreadRow(e, cur);
       const cls = 'srow' + (e.fav ? ' fav' : '') + (e.id === cur ? ' active' : '') +
         (unread ? ' unread' : '');
       return '<div class="' + cls + '" data-id="' + esc(e.id) + '">' +
@@ -432,15 +452,16 @@
       return;
     }
     // 点行 = 切入该会话（仅当前会话也关一下列表）——**点开会话 = 已读**：
-    // 抬水位到「刚在看的那个」与「即将打开的这条」的 updated（清红点的唯一触发；
-    // 前者也要算：它一直在屏幕上，回合结束把自己的 updated 抬成最新，不许回来点亮红点）
+    // 逐会话抬水位到「刚在看的那个」与「即将打开的这条」的 updated（清红点的唯一触发；
+    // 前者也要算：它一直在屏幕上，回合结束把自己的 updated 抬成最新，不许回来点亮红点）。
+    // 只抬这两条自己的水位——点开最新一条不会连带清掉其它未读（修「读一条灭一片」）。
     const cur = st.session && st.session.id;
     if (id !== cur) {
       const ok = bridge('open', id);
       if (ok === true) {
         const meta = (st.sessions || []).find((x) => x.id === id);
-        seenThrough = Math.max(seenThrough,
-          (st.session && st.session.updated) || 0, (meta && meta.updated) || 0);
+        markRead(cur, (st.session && st.session.updated) || 0);
+        markRead(id, (meta && meta.updated) || 0);
         closeList();
         refresh();
       } else if (ok === false) {

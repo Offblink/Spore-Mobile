@@ -137,6 +137,35 @@
           <button type="button" class="btn btn-primary" id="btnSync" disabled>立即同步</button>
           <button type="button" class="btn btn-danger" id="btnUnpair" hidden>取消配对</button>
         </div>
+
+        <!-- 账号直连：不扫码，直接登上 Spore-Cloud 网关（微服务后端）换 JWT 后落配对态 -->
+        <details class="acct" id="acctBox">
+          <summary>账号直连服务器（不用扫码）</summary>
+          <div class="field">
+            <label for="srvApi">服务器地址</label>
+            <input
+              id="srvApi"
+              class="input"
+              type="url"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="http://192.168.1.5:19080"
+            />
+            <div class="hint">填到端口即可，自动补 /api；与手机同一个 Wi-Fi</div>
+          </div>
+          <div class="field">
+            <label for="srvUser">账号</label>
+            <input id="srvUser" class="input" type="text" spellcheck="false" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="srvPass">口令</label>
+            <input id="srvPass" class="input" type="password" autocomplete="off" />
+            <div class="hint">只用于这次登录换 token，不落盘、不进日志</div>
+          </div>
+          <div class="sync-btns">
+            <button type="button" class="btn btn-soft" id="btnConnect">连接并配对</button>
+          </div>
+        </details>
       </section>
 
       <!-- 日志（三端对齐：MV3 主页日志卡 / GUI 日志页 / 这里的设置底部日志卡） -->

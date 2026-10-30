@@ -93,6 +93,10 @@
     info = info || {};
     syncRunning = !!info.running;
     var paired = !!info.paired;
+    // 已配对的基址回填到「账号直连」输入框（去掉 /api 后缀，用户看到的是端口）
+    if (info.api && !text("srvApi")) {
+      $("srvApi").value = String(info.api).replace(/\/api\/?$/, "");
+    }
     var syncBtn = $("btnSync");
     syncBtn.disabled = !paired || syncRunning;
     syncBtn.textContent = syncRunning ? "同步中…" : "立即同步";
@@ -158,6 +162,48 @@
     $("btnUnpair").addEventListener("click", function () {
       bridge("unpair"); // 确认框在原生（页面无模态）
     });
+
+    // 账号直连：后台登录 Spore-Cloud 网关换 JWT（桥 connectStart + connectPoll，300ms 一轮）
+    $("btnConnect").addEventListener("click", function () {
+      var api = text("srvApi");
+      var user = text("srvUser");
+      var pass = $("srvPass").value || "";
+      if (!api || !user || !pass) {
+        toast("服务器地址、账号、口令都要填");
+        return;
+      }
+      if (syncRunning) {
+        toast("同步进行中，稍后再连");
+        return;
+      }
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = "连接中…";
+      bridge("connectStart", JSON.stringify({ api: api, username: user, password: pass }));
+      pollConnect(btn);
+    });
+
+    function pollConnect(btn) {
+      var r = bridge("connectPoll");
+      if (r && r.state === "pending") {
+        setTimeout(function () { pollConnect(btn); }, 300);
+        return;
+      }
+      btn.disabled = false;
+      btn.textContent = "连接并配对";
+      if (!r) {
+        toast("桥不可用");
+        return;
+      }
+      if (r.ok) {
+        $("srvPass").value = ""; // 口令只用这一次，成功即清
+        $("srvApi").value = String(r.api || "").replace(/\/api\/?$/, "");
+        toast("已配对 · " + (r.nick || r.api || "服务器"));
+        refreshSync();
+      } else {
+        toast(r.message || "连接失败");
+      }
+    }
 
     // 日志卡：开页即取尾部；刷新/复制/清空走原生桥（剪贴板必须原生——
     // file:// 页里 navigator.clipboard 在 WebView 上不可靠）

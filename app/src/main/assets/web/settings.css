@@ -109,6 +109,28 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 /* hidden 属性别被 .btn 的 display 盖掉 */
 .sync-btns .btn[hidden] { display: none; }
 
+/* 账号直连：折叠块（默认收起，扫码仍是主路径） */
+.acct { border-top: 1px solid var(--ghost-press); padding-top: 12px; }
+.acct > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 0 10px;
+}
+.acct > summary::-webkit-details-marker { display: none; }
+.acct > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--muted2);
+  transition: transform .18s ease;
+}
+.acct[open] > summary::before { transform: rotate(90deg); }
+.acct[open] > summary { color: var(--ink); }
+.acct .sync-btns { padding-bottom: 10px; }
+
 /* 日志卡：等宽小字、可滚动的内嵌块 */
 .logbody {
   margin-top: 8px;

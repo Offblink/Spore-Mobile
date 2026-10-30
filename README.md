@@ -44,7 +44,7 @@
   [Spore-GUI](https://github.com/Offblink/Spore-GUI) 桌面端头像二维码 → 记录、收藏、科目
   按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传（协议对齐 Spore-GUI `SyncController`）。
 - **没有桌面端也能同步**：同一张卡里展开「账号直连服务器」，填 Spring Cloud 微服务后端
-  （Spore-Cloud）的网关地址（`<电脑IP>:19080`）+ 账号口令即可——登录换 JWT 后走的还是同一套
+  （[Spore-Cloud](https://github.com/Offblink/Spore-Cloud)）的网关地址（`<电脑IP>:19080`）+ 账号口令即可——登录换 JWT 后走的还是同一套
   同步协议，换服务器会把双游标清零、下轮全量交换。
 - **作答内核是移植的**：阶段 A 直答 → 阶段 B 联网核实的两阶段协议、`<<ok>>` 自评跳过核实、
   「答案与解析必须同向」的极性自检 —— 逐语义移植自 MV3 版 `src/lib/agent.js`

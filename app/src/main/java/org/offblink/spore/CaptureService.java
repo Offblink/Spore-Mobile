@@ -310,6 +310,10 @@ public class CaptureService extends Service {
         createChannel();
         startAsForeground();
 
+        // 元数据缓存预热（后台线程）：把「首次开列表」那一次性全库解析挪到服务启动时，
+        // 用户点 💬 时缓存已热、开列表不再有冷启动的那次停顿（2026-10-25 反馈 ~1s）。
+        bg.post(() -> SessionStore.loadMeta(this));
+
         engine = new AgentEngine(this);
         panel = SporeSettings.load(this).panelNative()
                 ? new NativeAnswerPanel(this, wm, engine)

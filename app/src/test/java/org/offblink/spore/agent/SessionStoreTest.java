@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import org.json.JSONObject;
 import org.junit.Test;
@@ -51,5 +52,52 @@ public class SessionStoreTest {
         String long40 = SubjectsStore.cleanName("一".repeat(45));
         assertNotNull(long40);
         assertEquals(40, long40.length());
+    }
+
+    // ---------------------------------------------------------------- metaOf（元数据行契约）
+
+    /** metaOf 字段映射：id/title/created/updated/fav/subjectId 逐字段对上，msgCount = 消息条数 */
+    @Test
+    public void metaOfMapsHeaderFieldsAndMsgCount() throws Exception {
+        Session s = new Session();
+        s.id = "20261025-120000000";
+        s.title = "数学";
+        s.created = 100;
+        s.updated = 200;
+        s.fav = true;
+        s.subjectId = "20261002-153012";
+        s.status = "done";
+        s.messages.add(new Session.Msg());
+        s.messages.add(new Session.Msg());
+        SessionStore.Meta m = SessionStore.metaOf(s);
+        assertEquals("20261025-120000000", m.id);
+        assertEquals("数学", m.title);
+        assertEquals(100, m.created);
+        assertEquals(200, m.updated);
+        assertTrue(m.fav);
+        assertEquals("20261002-153012", m.subjectId);
+        assertEquals("done", m.status);
+        assertEquals(2, m.msgCount);
+    }
+
+    /** metaOf 状态归一：进行中/空状态一律按 done（与 fromJson 同一口径，缓存路径不吐旧值） */
+    @Test
+    public void metaOfNormalizesInFlightStatusToDone() {
+        for (String raw : new String[] {"answering", "verifying", "searching", ""}) {
+            Session s = new Session();
+            s.status = raw;
+            assertEquals("done", SessionStore.metaOf(s).status);
+        }
+        Session s = new Session();
+        s.status = "aborted";
+        assertEquals("aborted", SessionStore.metaOf(s).status); // 非进行中原样保留
+    }
+
+    /** metaOf 未分组：subjectId null → Meta.subjectId 也是 null（不吐空串/"null"） */
+    @Test
+    public void metaOfKeepsNullSubjectId() {
+        Session s = new Session();
+        s.subjectId = null;
+        assertNull(SessionStore.metaOf(s).subjectId);
     }
 }

@@ -43,6 +43,9 @@
 - **扫码配对 · 与 Spore-GUI 双向同步**：设置页「配对与同步」→ 扫
   [Spore-GUI](https://github.com/Offblink/Spore-GUI) 桌面端头像二维码 → 记录、收藏、科目
   按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传（协议对齐 Spore-GUI `SyncController`）。
+- **没有桌面端也能同步**：同一张卡里展开「账号直连服务器」，填 Spring Cloud 微服务后端
+  （Spore-Cloud）的网关地址（`<电脑IP>:19080`）+ 账号口令即可——登录换 JWT 后走的还是同一套
+  同步协议，换服务器会把双游标清零、下轮全量交换。
 - **作答内核是移植的**：阶段 A 直答 → 阶段 B 联网核实的两阶段协议、`<<ok>>` 自评跳过核实、
   「答案与解析必须同向」的极性自检 —— 逐语义移植自 MV3 版 `src/lib/agent.js`
   （本项目 `app/src/main/java/org/offblink/spore/agent/Phases.java`，两边字段与分支一一对应）。
@@ -114,12 +117,12 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-10-23 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**，单测 **90/90 全绿**
+- 2026-10-30 实测：`lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+  lint **Error 0**（92 条 warning），单测 **96/96 全绿**
   （FrameQuality 7 · Phases 8 · Suggest 6 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
-  SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 4 · SubjectsStore 4 · LlmClient 3 ·
-  LatexDelims 7 · UnreadDotState 14 · ShotPolicy 5 · SporeSettingsDefaults 2），
-  APK **76,597,005 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 7 · SubjectsStore 4 · LlmClient 3 ·
+  LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5 · SporeSettingsDefaults 2），
+  APK **76,599,037 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（自 v1.1 起含 CameraX + ML Kit 条码模型，自 Round 18 起含离线 KaTeX 公式字体）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

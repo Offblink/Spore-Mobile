@@ -1,5 +1,6 @@
 package org.offblink.spore;
 
+import android.content.Context;
 import android.content.Intent;
 import android.app.Dialog;
 import android.os.Bundle;
@@ -11,7 +12,9 @@ import android.webkit.WebViewClient;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+import org.offblink.spore.sync.ServerConnector;
 import org.offblink.spore.sync.SporeSyncState;
 import org.offblink.spore.sync.SyncEngine;
 
@@ -36,6 +39,22 @@ public class SettingsActivity extends AppCompatActivity {
         t.setDaemon(true);
         return t;
     });
+
+    /** 「账号直连」结果（null = 还没跑过 / 正在跑看 connectRunning）：页面 300ms 轮询一次 */
+    private static volatile JSONObject connectResult = null;
+    private static volatile boolean connectRunning = false;
+
+    /** 桥入参坏掉时的统一失败帧（形状与 ServerConnector 的失败帧一致） */
+    private static JSONObject connectFail(String message) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("ok", false);
+            o.put("message", message);
+        } catch (JSONException ignored) {
+            // JSONObject.put(String,String) 不会真抛
+        }
+        return o;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -158,6 +177,44 @@ public class SettingsActivity extends AppCompatActivity {
             }
             final android.content.Context app = getApplicationContext();
             SYNC_EXEC.execute(() -> SyncEngine.run(app));
+        }
+
+        /**
+         * 「账号直连」配对：入参 JSON {api, username, password}，后台登录 Spore-Cloud 后端并落配对态。
+         * 页面用 {@link #connectPoll()} 轮询结果——网络调用不能卡在 JS 桥线程上。
+         * 红线：口令只在本机内存里过一遍，不写日志、不落 prefs。
+         */
+        @JavascriptInterface
+        public void connectStart(String json) {
+            if (connectRunning) {
+                return;
+            }
+            final JSONObject in;
+            try {
+                in = new JSONObject(json == null || json.length() == 0 ? "{}" : json);
+            } catch (JSONException e) {
+                connectResult = connectFail("参数格式错误");
+                return;
+            }
+            final String api = in.optString("api", "");
+            final String username = in.optString("username", "");
+            final String password = in.optString("password", "");
+            connectRunning = true;
+            connectResult = null;
+            final Context app = getApplicationContext();
+            SYNC_EXEC.execute(() -> {
+                connectResult = ServerConnector.connect(app, api, username, password);
+                connectRunning = false;
+            });
+        }
+
+        /** 账号直连结果：{state:"pending"} / {ok:true,api,nick,uid} / {ok:false,message} */
+        @JavascriptInterface
+        public String connectPoll() {
+            if (connectRunning) {
+                return "{\"state\":\"pending\"}";
+            }
+            return connectResult == null ? "{\"state\":\"idle\"}" : connectResult.toString();
         }
 
         /** 取消配对：应用皮确认框（SporePairDialog + dialog_unpair，零原生 chrome） */

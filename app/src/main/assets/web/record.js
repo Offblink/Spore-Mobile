@@ -128,6 +128,11 @@
     $("#bFav").disabled = none;
     $("#bMove").disabled = none;
     $("#bDel").disabled = none;
+    // 全选只看当前过滤后的可见会话；已全选 → 文案换「取消全选」
+    const vis = filtered().map((s) => s.id);
+    $("#selAll").textContent =
+      vis.length > 0 && vis.every((id) => selected.has(id)) ? "取消全选" : "全选";
+    $("#selAll").disabled = !vis.length;
   }
 
   function rowEl(id) {
@@ -444,6 +449,21 @@
       openPicker(Array.from(selected));
     }
   });
+
+  /** 全选/取消全选：只动当前过滤后的可见会话；既有选中里看不见的（跨科目）不碰 */
+  function toggleSelectAll() {
+    const vis = filtered().map((s) => s.id);
+    if (!vis.length) {
+      return;
+    }
+    const allOn = vis.every((id) => selected.has(id));
+    for (const id of vis) {
+      setRowSel(id, !allOn);   // 幂等：已到目标态的直接跳过，就地刷 .on 不整表重绘
+    }
+    syncSelChrome();
+  }
+
+  $("#selAll").addEventListener("click", toggleSelectAll);
 
   /** 批量删除：确认框带条数，确定后逐条走同一座桥，成功即退多选 */
   $("#bDel").addEventListener("click", () => {

@@ -187,6 +187,12 @@ body { background: var(--bg); }
 .bbtn.danger { background: var(--danger-tint); color: var(--danger-text); }
 .bbtn.danger:active { background: #FFE4EA; }
 .bbtn:disabled { opacity: .4; pointer-events: none; }
+/* 全选：次级文字动作，不吃 flex——让三个实心批量键保持原宽（四键挤一行会把「移入科目」压折行） */
+.batchbar .selall {
+  flex: none; padding: 10px 8px;
+  background: transparent; color: var(--pink-deep);
+}
+.batchbar .selall:active { background: var(--pink-tint); }
 
 /* ---------------- 详情视图 ---------------- */
 #detailView {

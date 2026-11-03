@@ -14,8 +14,9 @@ import org.offblink.spore.R;
 /**
  * 冻结帧框选层 —— MV3 桌面 overlay.js 的逐字复刻：
  * 55% 暗幕 + 2dp #EC4899 选框（10% 粉填充）、框上 W×H 粉色尺寸牌、
- * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、底部粉色「搜」pill、左下 ✕（唯一关闭键）。
+ * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、左下 ✕（唯一关闭键）。
  * 判定沿用桌面契约：宽高**都**小于下限才拒，有其一过线就放行。
+ * 松手即搜（拖完 / 调角 / 移动都直接 confirmSelection，与桌面两端「松手即采纳」同口径）。
  */
 public class CropOverlayView extends View {
 
@@ -29,12 +30,6 @@ public class CropOverlayView extends View {
 
     private final Bitmap frame;
     private final Listener listener;
-    /**
-     * 无确认按钮模式（Round 24，2026-10-09，用户拍板）：**ML 关着**时为 true ——
-     * 底部不画「搜」pill，拖完 / 调角 / 移动松手即搜（与桌面两端「松手即采纳」同口径）。
-     * ML 开着为 false：维持第六轮拍板——拖完只留选区，确认只属于「搜」按钮。
-     */
-    private final boolean autoConfirm;
     private final float minW, minH;
     private final int minWdp, minHdp;
     private final float density;
@@ -47,8 +42,6 @@ public class CropOverlayView extends View {
     private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint btnPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint btnTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint closeBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint closePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -60,8 +53,6 @@ public class CropOverlayView extends View {
      * （第五轮实测，b5e5206 加备用键的由来），左下永不被盖、也更好够。
      */
     private final RectF closeRect = new RectF();
-    private final RectF searchRect = new RectF();
-    private final RectF searchHitRect = new RectF();
     private final RectF hintRect = new RectF();
     private float scale = 1f;
 
@@ -76,11 +67,8 @@ public class CropOverlayView extends View {
     /** 缩放锚点 = 抓住的角的对角（拖动时固定） */
     private float anchorX, anchorY;
     private boolean closeHit;
-    private boolean searchHit;
     private float startX, startY;
     private float lastX, lastY;
-    /** 建议框先于布局到达时暂存（帧坐标），onSizeChanged 后回放 */
-    private int[] pendingSuggestion;
 
     /** 顶部提示 pill 的默认文案与告警态复位（桌面 warn() 同款 1.8s） */
     private final Runnable warnReset = new Runnable() {
@@ -93,12 +81,10 @@ public class CropOverlayView extends View {
     };
     private String hintText;
 
-    public CropOverlayView(Context context, Bitmap frame, Listener listener,
-                           boolean autoConfirm) {
+    public CropOverlayView(Context context, Bitmap frame, Listener listener) {
         super(context);
         this.frame = frame;
         this.listener = listener;
-        this.autoConfirm = autoConfirm;
         density = context.getResources().getDisplayMetrics().density;
         minW = Math.round(60 * density);
         minH = Math.round(40 * density);
@@ -127,12 +113,6 @@ public class CropOverlayView extends View {
         hintPaint.setTextAlign(Paint.Align.CENTER);
         hintPaint.setTextSize(13 * density);
 
-        btnPaint.setColor(0xFFEC4899); // 搜 pill = 品牌粉
-        btnTextPaint.setColor(Color.WHITE);
-        btnTextPaint.setTextAlign(Paint.Align.CENTER);
-        btnTextPaint.setTextSize(15 * density);
-        btnTextPaint.setFakeBoldText(true);
-
         closeBgPaint.setColor(0xDB0C0C12);
         closePaint.setColor(Color.WHITE);
         closePaint.setStyle(Paint.Style.STROKE);
@@ -155,19 +135,6 @@ public class CropOverlayView extends View {
         float cx = r + 16 * density;
         float cy = h - r - 16 * density;
         closeRect.set(cx - r, cy - r, cx + r, cy + r);
-
-        float btnW = 110 * density;
-        float btnH = 46 * density;
-        searchRect.set((w - btnW) / 2f, h - btnH - 26 * density,
-                (w + btnW) / 2f, h - 26 * density);
-        searchHitRect.set(searchRect);
-        searchHitRect.inset(-10 * density, -10 * density);
-
-        if (pendingSuggestion != null) {
-            int[] box = pendingSuggestion;
-            pendingSuggestion = null;
-            applySuggestion(box[0], box[1], box[2], box[3]);
-        }
     }
 
     @Override
@@ -202,17 +169,6 @@ public class CropOverlayView extends View {
             canvas.drawText(size, lx + chipW / 2, ly + chipH / 2 - (labelPaint.descent() + labelPaint.ascent()) / 2f, labelPaint);
         }
 
-        // 「搜」确认 pill（有框且不在新手势中；ML 关着的 autoConfirm 模式不画 —— 松手即搜）
-        if (hasSel && !dragging && !autoConfirm) {
-            float radius = searchRect.height() / 2f;
-            btnPaint.setColor(searchHit ? 0xFFDB2777 : 0xFFEC4899);
-            canvas.drawRoundRect(searchRect, radius, radius, btnPaint);
-            String confirm = getContext().getString(R.string.crop_confirm);
-            float baseline = searchRect.centerY()
-                    - (btnTextPaint.descent() + btnTextPaint.ascent()) / 2f;
-            canvas.drawText(confirm, searchRect.centerX(), baseline, btnTextPaint);
-        }
-
         // 左下 ✕（唯一关闭键）
         drawClose(canvas, closeRect);
     }
@@ -234,29 +190,6 @@ public class CropOverlayView extends View {
         hintBgPaint.setColor(0xF29E1C2C); // rgba(158,28,44,.95)
         invalidate();
         postDelayed(warnReset, 1800);
-    }
-
-    /**
-     * §9.3 建议框入口：ML Kit 单框（冻结帧坐标）预填为选择框。
-     * 已有选择/新手势进行中不覆盖；建议先于布局到达则暂存，onSizeChanged 后回放。
-     */
-    public void setSuggestion(int left, int top, int right, int bottom) {
-        if (dragging || moving || hasSel) {
-            return;
-        }
-        if (dst.isEmpty()) {
-            pendingSuggestion = new int[]{left, top, right, bottom};
-            return;
-        }
-        applySuggestion(left, top, right, bottom);
-    }
-
-    private void applySuggestion(int left, int top, int right, int bottom) {
-        sel.set(dst.left + left * scale, dst.top + top * scale,
-                dst.left + right * scale, dst.top + bottom * scale);
-        clampSel();
-        hasSel = sel.width() > 4 && sel.height() > 4;
-        invalidate();
     }
 
     /**
@@ -294,11 +227,6 @@ public class CropOverlayView extends View {
         float y = event.getY();
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                if (hasSel && !dragging && !autoConfirm && searchHitRect.contains(x, y)) {
-                    searchHit = true;
-                    invalidate();
-                    return true;
-                }
                 closeHit = closeRect.contains(x, y);
                 if (closeHit) {
                     return true;
@@ -329,7 +257,7 @@ public class CropOverlayView extends View {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                if (closeHit || searchHit) {
+                if (closeHit) {
                     return true;
                 }
                 if (moving) {
@@ -359,16 +287,6 @@ public class CropOverlayView extends View {
                 return true;
 
             case MotionEvent.ACTION_UP:
-                if (searchHit) {
-                    boolean in = searchHitRect.contains(x, y);
-                    searchHit = false;
-                    if (in) {
-                        confirmSelection();
-                    } else {
-                        invalidate();
-                    }
-                    return true;
-                }
                 if (closeHit) {
                     closeHit = false;
                     if (closeRect.contains(x, y)) {
@@ -380,21 +298,20 @@ public class CropOverlayView extends View {
                     resizing = false;
                     resizeMoved = false;
                     handle = H_NONE;
-                    if (autoConfirm && hasSel) {
-                        confirmSelection(); // ML 关：调角松手即搜（底部没有 pill）
-                        return true;
+                    if (hasSel) {
+                        confirmSelection(); // 调角松手即搜
+                    } else {
+                        invalidate();
                     }
-                    // ML 开着维持第六轮拍板：拖完绝不自动搜，确认只属于「搜」按钮
-                    invalidate();
                     return true;
                 }
                 if (moving) {
                     moving = false;
-                    if (autoConfirm && hasSel) {
-                        confirmSelection(); // ML 关：挪完松手即搜
-                        return true;
+                    if (hasSel) {
+                        confirmSelection(); // 挪完松手即搜
+                    } else {
+                        invalidate();
                     }
-                    invalidate();
                     return true;
                 }
                 if (dragging) {
@@ -415,13 +332,7 @@ public class CropOverlayView extends View {
                         invalidate();
                         return true;
                     }
-                    if (autoConfirm) {
-                        confirmSelection(); // ML 关：拖完松手即搜（Round 24 拍板，底部无 pill）
-                        return true;
-                    }
-                    // 第六轮更正（ML 开着照旧）：拖完只留选区，绝不自动搜——确认唯一入口是「搜」按钮。
-                    // 由此人工与 ML 彻底同口：预选 → 点搜 → 同一个 confirmSelection/cropSelection。
-                    invalidate();
+                    confirmSelection(); // 拖完松手即搜
                     return true;
                 }
                 return true;
@@ -433,7 +344,6 @@ public class CropOverlayView extends View {
                 resizeMoved = false;
                 handle = H_NONE;
                 closeHit = false;
-                searchHit = false;
                 hasSel = false;
                 invalidate();
                 return true;

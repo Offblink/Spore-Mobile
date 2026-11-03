@@ -31,7 +31,6 @@
     $("historyLimit").value = current.historyLimit == null ? 10 : current.historyLimit;
     $("swFastNoThink").classList.toggle("on", !!current.fastNoThink);
     $("swAutoVerify").classList.toggle("on", !!current.autoVerify);
-    $("swMlSuggest").classList.toggle("on", !!current.mlSuggest);
     var pr = document.querySelector(
       'input[name="panelRender"][value="' + (current.panelRender || "web") + '"]');
     if (pr) {
@@ -56,7 +55,6 @@
         current && current.historyLimit != null ? current.historyLimit : 10),
       fastNoThink: on("swFastNoThink"),
       autoVerify: on("swAutoVerify"),
-      mlSuggest: on("swMlSuggest"),
       panelRender: (function () {
         var c = document.querySelector('input[name="panelRender"]:checked');
         return c ? c.value : "web";

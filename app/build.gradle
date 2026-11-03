@@ -58,7 +58,6 @@ dependencies {
     implementation libs.material
     implementation libs.okhttp
     implementation libs.recyclerview
-    implementation libs.mlkit.chinese
     implementation libs.markwon
     implementation libs.markwon.ext.tables
     implementation libs.markwon.ext.latex

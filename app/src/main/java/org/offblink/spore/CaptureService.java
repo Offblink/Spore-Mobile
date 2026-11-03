@@ -32,19 +32,12 @@ import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
-import com.google.mlkit.vision.text.TextRecognition;
-import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
-
 import org.offblink.spore.agent.AgentEngine;
 import org.offblink.spore.agent.Session;
 import org.offblink.spore.agent.SessionStore;
 import org.offblink.spore.agent.SubjectsStore;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
-import org.offblink.spore.overlay.Suggestor;
 import org.offblink.spore.panel.AnswerPanel;
 import org.offblink.spore.panel.NativeAnswerPanel;
 import org.offblink.spore.panel.Panel;
@@ -54,11 +47,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 悬浮球 + 截屏采集的前台服务（handoff §9）。
@@ -82,8 +72,6 @@ public class CaptureService extends Service {
     private static final long FRAME_TIMEOUT_MS = 3000;
     /** 取帧尝试上限：首抓 + 至多两次「重建 VD 强制重新合成」（干净帧一次即返回）。 */
     private static final int GRAB_TRIES = 3;
-    /** 识别无结论的等待上限：到点按「识别超时」提示（与文案一致，避免用户干等）。 */
-    private static final long ML_TIMEOUT_MS = 8000;
     /** 悬浮球默认位置上移量（dp）：垂直居中会压住主页那颗居中的「显示悬浮球」主按钮。 */
     private static final int BALL_LIFT_DP = 96;
 
@@ -259,8 +247,6 @@ public class CaptureService extends Service {
     private HandlerThread bgThread;
     private Handler bg;
     private Handler main;
-    /** 取帧序号：连点球时旧一次的识别结论/提示不许盖到新一次（见 recognizeThenCrop）。 */
-    private volatile int captureSeq;
 
     // ---------- 点球响应优化（2026-10-11 用户：点一下到框选出来要等 1~3 秒）----------
     // 按下球的那一刻就开始取帧，抬起成点按时帧多半已在手——把「建 VirtualDisplay + 等首帧」
@@ -632,7 +618,6 @@ public class CaptureService extends Service {
         if (p == null) {
             return; // 授权中途被收回 → 下次点球重新授权
         }
-        final int seq = ++captureSeq;
         final long t0 = SystemClock.uptimeMillis();
         Bitmap[] seen = new Bitmap[1];
         Bitmap frame = null;
@@ -709,21 +694,14 @@ public class CaptureService extends Service {
         // 第七轮用户拍板：整屏 meanLuma「屏幕太暗」闸**撤掉**——屏幕没问题时它误杀。
         // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
         // 第九轮：只因大片死黑多取几帧，**绝不因此拒绝进框选**（不回头加闸）。
-        // 第九轮后半（用户拍板，推翻 R7）：**ML 认不出字就不进截屏界面**，直接 toast 请重试。
-        // Round 23（2026-10-09）：ML 识别改成**可选**（默认关，对齐 MV3/GUI 两端）——
-        // 关着就不建识别器、不跑 OCR，直接进框选手动拖；开着走原样（含上面那条硬门禁）。
         final Bitmap show = frame;
         final FrameQuality fq = best;
         final int dupCount = dup;
         bg.post(() -> FrameDiag.save(this, show, fq, dupCount, "frame")); // 取证不拖 UI
-        if (SporeSettings.load(this).mlSuggest) {
-            recognizeThenCrop(show, seq); // 认出字才 showCropOverlay，否则只剩 toast
-        } else {
-            // 关着 = 无建议框、无 OCR、无门禁。**必须回主线程**：captureFrame 跑在 bg 线程，
-            // wm.addView 在非 UI 线程会 CalledFromWrongThreadException —— Round 23 实装时漏了，
-            // 而默认就是关着（等于默认路径必崩，单测/CI 无 instrumentation 抓不到，Round 24 修）
-            main.post(() -> showCropOverlay(show, null));
-        }
+        // **必须回主线程**：captureFrame 跑在 bg 线程，wm.addView 在非 UI 线程会
+        // CalledFromWrongThreadException —— Round 23 实装时漏了（默认路径必崩，
+        // 单测/CI 无 instrumentation 抓不到，Round 24 修）
+        main.post(() -> showCropOverlay(show));
     }
 
     /**
@@ -815,7 +793,7 @@ public class CaptureService extends Service {
 
     // ---------- 框选 ----------
 
-    private void showCropOverlay(Bitmap frame, int[] suggestion) {
+    private void showCropOverlay(Bitmap frame) {
         // 点球 → 框选的真实耗时（onTap 起表）：优化前后拿日志说话
         long sinceTap = captureT0;
         if (sinceTap > 0) {
@@ -836,73 +814,8 @@ public class CaptureService extends Service {
                 PixelFormat.TRANSLUCENT);
         cropParams.gravity = Gravity.TOP | Gravity.LEFT;
         removeCropView(); // 防重入：绝不允许第二张框选叠上去（暗幕叠加 = 全黑 + 关不掉）
-        // Round 24（2026-10-09）：**ML 关着时不画底部「搜」pill、松手即搜**
-        // （与桌面两端「松手即采纳」同口径，用户拍板）；开着维持第六轮：确认只属于「搜」按钮
-        cropView = new CropOverlayView(this, frame, cropListener,
-                !SporeSettings.load(this).mlSuggest);
+        cropView = new CropOverlayView(this, frame, cropListener);
         wm.addView(cropView, cropParams);
-        // 预选框随层一起上：setSuggestion 对「布局未到位」自带暂存回放
-        if (suggestion != null) {
-            cropView.setSuggestion(suggestion[0], suggestion[1], suggestion[2], suggestion[3]);
-        }
-    }
-
-    /**
-     * §9.3 建议框：bundled 中文识别（无 GMS 也可用）→ Suggestor 聚类出单框 → 预填 → **才进框选层**。
-     *
-     * 第九轮用户拍板（推翻 R7 的「失败就整屏预选」）：**ML 认不出字 = 不进截屏界面**，
-     * 直接 toast「识别超时，请重试」。理由：真机上认不出字那种场景多半伴随脏帧/禁截，
-     * 进去了也只能裁出黑的，不如让用户重截一次；整屏预选只是把症状顺延到成片。
-     * 识别器起不来 / 识别失败 / 没认出字 / 超过 {@link #ML_TIMEOUT_MS} 无结论 → 同一条 toast，
-     * 且由 settled 原子门闩保证**只结一次**（超时后迟到的识别结果不会再弹出框选层）。
-     */
-    private void recognizeThenCrop(Bitmap frame, int seq) {
-        final int frameW = frame.getWidth();
-        final int frameH = frame.getHeight();
-        final AtomicBoolean settled = new AtomicBoolean(false);
-        // 连点球时旧一次的结论不许盖到新一次上（迟到的 toast / 旧帧框选层）
-        final Runnable giveUp = () -> {
-            if (settled.compareAndSet(false, true) && seq == captureSeq) {
-                toastRes(R.string.capture_ml_failed);
-            }
-        };
-        bg.postDelayed(giveUp, ML_TIMEOUT_MS); // 识别器挂死也不能让用户干等（文案即超时）
-        TextRecognizer recognizer;
-        try {
-            recognizer = TextRecognition.getClient(
-                    new ChineseTextRecognizerOptions.Builder().build());
-        } catch (Throwable t) {
-            giveUp.run(); // 识别器起不来（设备不支持等）
-            return;
-        }
-        try {
-            recognizer.process(InputImage.fromBitmap(frame, 0))
-                    .addOnSuccessListener(text -> {
-                        List<Suggestor.Line> lines = new ArrayList<>();
-                        for (Text.TextBlock block : text.getTextBlocks()) {
-                            for (Text.Line line : block.getLines()) {
-                                Rect box = line.getBoundingBox();
-                                if (box != null && !line.getText().isEmpty()) {
-                                    lines.add(new Suggestor.Line(box.left, box.top,
-                                            box.right, box.bottom, line.getText()));
-                                }
-                            }
-                        }
-                        final int[] suggestion = Suggestor.suggest(lines, frameW, frameH);
-                        if (suggestion == null) {
-                            giveUp.run(); // 没认出字 → 同一条提示，不进框选
-                            return;
-                        }
-                        if (settled.compareAndSet(false, true) && seq == captureSeq) {
-                            main.post(() -> showCropOverlay(frame, suggestion));
-                        }
-                    })
-                    .addOnFailureListener(e -> giveUp.run())
-                    .addOnCompleteListener(t -> recognizer.close());
-        } catch (Throwable t) {
-            recognizer.close();
-            giveUp.run();
-        }
     }
 
     private final CropOverlayView.Listener cropListener = new CropOverlayView.Listener() {

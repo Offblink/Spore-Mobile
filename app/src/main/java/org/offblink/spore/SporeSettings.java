@@ -27,12 +27,6 @@ public final class SporeSettings {
     /** 面板渲染分叉（第六轮拍板）：web（默认）| native——auto/设备探测已删除，
      *  「一检索就崩」根因是 URLEncoder API33 重载、与 WebView 无关，鸿蒙可放心走 web */
     public String panelRender = "web";
-    /**
-     * AI 建议框（Round 23，2026-10-09，**默认关**，对齐 MV3/GUI 两端「都默认关闭」）。
-     * 开 = 截帧后本机 ML Kit 出建议框（**保留第九轮硬门禁**：认不出字就不进框选、toast 请重试）；
-     * 关 = 不建识别器、不跑 OCR，直接进框选手动拖（零 ML 开销）。
-     */
-    public boolean mlSuggest = false;
 
     private SporeSettings() {
     }
@@ -53,7 +47,6 @@ public final class SporeSettings {
         s.historyLimit = p.getInt("historyLimit", s.historyLimit);
         s.fastNoThink = p.getBoolean("fastNoThink", s.fastNoThink);
         s.autoVerify = p.getBoolean("autoVerify", s.autoVerify);
-        s.mlSuggest = p.getBoolean("mlSuggest", s.mlSuggest);
         return s;
     }
 
@@ -68,7 +61,6 @@ public final class SporeSettings {
                 .putInt("historyLimit", historyLimit)
                 .putBoolean("fastNoThink", fastNoThink)
                 .putBoolean("autoVerify", autoVerify)
-                .putBoolean("mlSuggest", mlSuggest)
                 .apply();
     }
 
@@ -85,7 +77,6 @@ public final class SporeSettings {
             o.put("historyLimit", historyLimit);
             o.put("fastNoThink", fastNoThink);
             o.put("autoVerify", autoVerify);
-            o.put("mlSuggest", mlSuggest);
         } catch (JSONException ignored) {
         }
         return o;
@@ -109,7 +100,6 @@ public final class SporeSettings {
             s.historyLimit = o.optInt("historyLimit", s.historyLimit);
             s.fastNoThink = o.optBoolean("fastNoThink", s.fastNoThink);
             s.autoVerify = o.optBoolean("autoVerify", s.autoVerify);
-            s.mlSuggest = o.optBoolean("mlSuggest", s.mlSuggest);
             s.save(c);
         } catch (JSONException ignored) {
             // 脏入参不落盘

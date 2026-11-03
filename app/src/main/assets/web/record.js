@@ -582,6 +582,8 @@
         toast(msg);
         closeModal("#subpick");
         pickTargets = null;
+        // 归属变了 → 列表按科目重排，选中集必须跟着清（与批量删除同口径）
+        if (selecting) setSelecting(false);
         refreshSessions();
       } else {
         toast("找不到这条会话或科目");

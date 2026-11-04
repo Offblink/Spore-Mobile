@@ -211,12 +211,12 @@ public class MainActivity extends AppCompatActivity {
     /** 值域只有三个布尔，手工拼就是合法 JSON = 合法 JS 字面量 */
     private String stateJson() {
         return "{\"overlay\":" + Settings.canDrawOverlays(this)
-                + ",\"running\":" + CaptureService.isRunning()
+                + ",\"running\":" + CaptureService.isBallOn()
                 + ",\"projection\":" + CaptureService.hasProjection() + "}";
     }
 
     private void toggleBall() {
-        if (CaptureService.isRunning()) {
+        if (CaptureService.isBallOn()) {
             CaptureService.stop(this);
         } else if (!Settings.canDrawOverlays(this)) {
             requestOverlayPermission();
@@ -229,9 +229,10 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 开球 = 起服务（FGS 就绪，Android 14+ 要求先 startForeground 才能拿投影）
      * + **应用内**过首授——截屏时永远零弹窗、零前台抢占（用户实测拍板）。
+     * 引擎模式（拍照搜题）已在跑时：就地补球，不重新起服务。
      */
     private void startBallWithConsent() {
-        CaptureService.start(this);
+        CaptureService.startWithBall(this);
         MediaProjectionManager mpm =
                 (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         consentLauncher.launch(mpm.createScreenCaptureIntent());
@@ -288,18 +289,12 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(MainActivity.this::startBallWithConsent);
         }
 
-        /** 拍照搜题：相机拍一张 → 框选（可旋转）→ 直接进记录详情页看答案。
-         *  回答引擎在 CaptureService 里而服务起不来就没有悬浮窗权限 → 先拦一道，别让用户拍完才发现白拍。 */
+        /** 拍照搜题：相机拍一张 → 应用内框选（可旋转）→ 直接进记录详情页看答案。
+         *  引擎在 CaptureService 里，但引擎模式起服务<b>不依赖悬浮窗权限</b>——这里不再拦。 */
         @JavascriptInterface
         public void photoSearch() {
-            runOnUiThread(() -> {
-                if (!Settings.canDrawOverlays(MainActivity.this)) {
-                    Toast.makeText(MainActivity.this, R.string.status_no_overlay,
-                            Toast.LENGTH_LONG).show();
-                    return;
-                }
-                startActivity(new Intent(MainActivity.this, PhotoActivity.class));
-            });
+            runOnUiThread(() -> startActivity(
+                    new Intent(MainActivity.this, PhotoActivity.class)));
         }
 
         /** 搜题记录页。转场交给 web 层的整页平移（navbar.css）——原生 SporeAnim 必须显式关掉，

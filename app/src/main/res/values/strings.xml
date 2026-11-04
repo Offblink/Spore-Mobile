@@ -13,6 +13,8 @@
     <string name="notif_channel">悬浮球服务</string>
     <string name="notif_title">Spore 悬浮球运行中</string>
     <string name="notif_text">点悬浮球即可截屏搜题</string>
+    <string name="notif_engine_title">Spore 后台作答中</string>
+    <string name="notif_engine_text">拍照搜题的答案正在生成</string>
 
     <!-- 截屏框选 -->
     <string name="crop_hint">拖拽框选题目区域</string>

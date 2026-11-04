@@ -83,9 +83,19 @@ public class CaptureService extends Service {
     private static volatile String pendingFollowupText;
     /** 拍照搜题排队的题图（PhotoActivity 在服务未运行时交的活；onCreate 接力起回合） */
     private static volatile String pendingPhotoPath;
+    /** 引擎模式（拍照搜题冷启动）：只起引擎跑回合，<b>不加球、不要悬浮窗权限</b>，答完自动收工 */
+    private static volatile boolean engineOnlyPending;
+    /** 球模式启动请求（用户开球 / 记录页追问冷启动）：onCreate 据此加球 */
+    private static volatile boolean ballRequested;
 
     public static boolean isRunning() {
         return running;
+    }
+
+    /** 球在不在（主页状态胶囊与开关用）：服务在跑但球没开（引擎模式）= false */
+    public static boolean isBallOn() {
+        CaptureService s = self;
+        return s != null && s.ballAttached;
     }
 
     /**
@@ -148,7 +158,8 @@ public class CaptureService extends Service {
             return;
         }
         pendingPhotoPath = imagePath;
-        start(c);
+        // 引擎模式起服务：不加球、不要悬浮窗权限（拍照搜题不依赖悬浮窗）
+        startForEngine(c);
     }
 
     /** 起拍照回合 → 返回会话 id（newCaptureTurn 同步定会话，跑回合在引擎线程） */
@@ -243,7 +254,8 @@ public class CaptureService extends Service {
         if (!running) {
             pendingFollowupId = id;
             pendingFollowupText = t;
-            start(c);
+            // 引擎模式起服务：追问的答案在记录详情页看，不需要球也不需要悬浮窗
+            startForEngine(c);
             return "ok";
         }
         CaptureService s = self;
@@ -271,7 +283,35 @@ public class CaptureService extends Service {
         return s == null ? null : s.engine.liveSession(id);
     }
 
-    public static void start(Context c) {
+    /** 拍照搜题冷启动：只起引擎跑回合，不加球、不要悬浮窗权限 */
+    public static void startForEngine(Context c) {
+        if (self == null) {
+            // 只在冷启动时置位：服务已在跑就没有 onCreate 来消费，留着会污染下一次启动的模式
+            engineOnlyPending = true;
+        }
+        startService(c);
+    }
+
+    /**
+     * 开球（主页开关 / 重授权）：服务没跑就带球起；已在跑（引擎模式）就地补球——
+     * 补球必须主线程（wm.addView），所以走 main.post。
+     */
+    public static void startWithBall(Context c) {
+        if (self == null) {
+            ballRequested = true;
+            startService(c);
+            return;
+        }
+        CaptureService s = self;
+        s.main.post(() -> {
+            if (!s.ballAttached && Settings.canDrawOverlays(s)) {
+                s.addBall();
+                s.updateNotification(true);
+            }
+        });
+    }
+
+    private static void startService(Context c) {
         c.startForegroundService(new Intent(c, CaptureService.class));
     }
 
@@ -331,44 +371,83 @@ public class CaptureService extends Service {
         main = new Handler(Looper.getMainLooper());
 
         createChannel();
-        startAsForeground();
+        // 启动模式先定下来（通知文案、要不要球、要不要悬浮窗权限都看它）：
+        //   引擎模式（拍照搜题）= 只跑回合，不加球、不要悬浮窗权限、答完自动收工；
+        //   球模式（用户开球 / 记录页追问冷启动）= 老语义，没悬浮窗权限起不来。
+        boolean engineOnly = engineOnlyPending;
+        engineOnlyPending = false;
+        boolean withBall = ballRequested;
+        ballRequested = false;
+        boolean overlayOk = Settings.canDrawOverlays(this);
+        boolean ballOn = withBall && overlayOk;
+        startAsForeground(ballOn);
 
         // 元数据缓存预热（后台线程）：把「首次开列表」那一次性全库解析挪到服务启动时，
-        // 用户点 💬 时缓存已热、开列表不再有冷启动的那次停顿（2026-10-25 反馈 ~1s）。
+        // 用户点 💬 时缓存已热，开列表不再有冷启动的那次停顿（2026-10-25 反馈 ~1s）。
         bg.post(() -> SessionStore.loadMeta(this));
 
         engine = new AgentEngine(this);
         panel = SporeSettings.load(this).panelNative()
                 ? new NativeAnswerPanel(this, wm, engine)
                 : new AnswerPanel(this, wm, engine);
-        engine.setListener(panel);
+        // 包一层监听：回合结束时若球没开（引擎模式）就把服务收掉，别留着 FGS 通知
+        engine.setListener(new AgentEngine.Listener() {
+            @Override
+            public void onEvent(org.json.JSONObject ev) {
+                panel.onEvent(ev);
+                if ("turn-end".equals(ev.optString("type"))) {
+                    maybeStopEngineOnly();
+                }
+            }
+        });
         self = this;
         CrashLog.hb(this, "create");
 
-        if (Settings.canDrawOverlays(this)) {
-            addBall();
-            final String pfId = pendingFollowupId;
-            final String pfText = pendingFollowupText;
-            pendingFollowupId = null;
-            pendingFollowupText = null;
-            if (pfId != null && pfText != null) {
-                main.post(() -> {
-                    // 已发出 = 服务冷启动的排队补发成功；否则给明确提示
-                    if (!(engine.loadSession(pfId) && engine.sendFollowup(pfText))) {
-                        toastRes(R.string.busy_wait);
-                    }
-                });
-            }
-            // 拍照搜题排队（PhotoActivity 交的活）：接力起回合 → 直开记录详情页
-            final String ppPath = pendingPhotoPath;
-            pendingPhotoPath = null;
-            if (ppPath != null) {
-                main.post(() -> launchRecords(CaptureService.this, startPhotoTurn(ppPath)));
-            }
-        } else {
+        if (!overlayOk && !engineOnly) {
+            // 球模式却没悬浮窗权限：球和面板都浮不起来，起不来（老行为）
             toastRes(R.string.status_no_overlay);
             stopSelf();
+            return;
         }
+        if (ballOn) {
+            addBall();
+            updateNotification(true);
+        }
+        // 排队接力（两条都消费；服务在跑时 followup 走热路径、不会进队列）
+        final String pfId = pendingFollowupId;
+        final String pfText = pendingFollowupText;
+        pendingFollowupId = null;
+        pendingFollowupText = null;
+        if (pfId != null && pfText != null) {
+            main.post(() -> {
+                // 已发出 = 服务冷启动的排队补发成功；否则给明确提示
+                if (!(engine.loadSession(pfId) && engine.sendFollowup(pfText))) {
+                    toastRes(R.string.busy_wait);
+                }
+            });
+        }
+        final String ppPath = pendingPhotoPath;
+        pendingPhotoPath = null;
+        if (ppPath != null) {
+            main.post(() -> launchRecords(CaptureService.this, startPhotoTurn(ppPath)));
+        }
+    }
+
+    /**
+     * 引擎模式收工：球没开、没有在途回合、也没排队 → 停服务。
+     * 拍照搜题答完就该走人（别留着 FGS 通知与空转的引擎线程）。
+     */
+    private void maybeStopEngineOnly() {
+        if (ballAttached || engine == null) {
+            return;
+        }
+        if (pendingPhotoPath != null || pendingFollowupId != null) {
+            return;
+        }
+        if (!engine.runningIds().isEmpty()) {
+            return;
+        }
+        stopSelf();
     }
 
     @Override
@@ -429,31 +508,40 @@ public class CaptureService extends Service {
         }
     }
 
-    private void startAsForeground() {
-        Notification n = buildNotification();
+    private void startAsForeground(boolean ballOn) {
+        Notification n = buildNotification(ballOn);
         if (Build.VERSION.SDK_INT >= 34) {
             // Android 14+ 硬规则（AVD 实测 SecurityException）：mediaProjection 类型的 FGS
             // 在持有投影授权前 startForeground 会崩 → 先以 specialUse 起前台，
             // 拿到授权后（handleProject）再切到 mediaProjection 类型
             startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else if (Build.VERSION.SDK_INT >= 29) {
+        } else if (Build.VERSION.SDK_INT >= 29 && ballOn) {
             startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
+            // 29-33 的引擎模式（压根没有投影）：别挂 mediaProjection 类型，走经典两参
             startForeground(NOTIF_ID, n);
         }
     }
 
-    private Notification buildNotification() {
+    private Notification buildNotification(boolean ballOn) {
         Intent open = new Intent(this, MainActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE);
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(getString(R.string.notif_title))
-                .setContentText(getString(R.string.notif_text))
+                .setContentTitle(getString(ballOn ? R.string.notif_title : R.string.notif_engine_title))
+                .setContentText(getString(ballOn ? R.string.notif_text : R.string.notif_engine_text))
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .build();
+    }
+
+    /** 球补上（引擎模式 → 球模式）后把通知文案换回来 */
+    private void updateNotification(boolean ballOn) {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) {
+            nm.notify(NOTIF_ID, buildNotification(ballOn));
+        }
     }
 
     // ---------- 悬浮球 ----------
@@ -570,7 +658,7 @@ public class CaptureService extends Service {
                 // 14+ 顺序铁律（AVD 两头实测）：授权框返回后必须**先**把 FGS 切成
                 // mediaProjection 类型（此刻对话框授权已登记，能过校验），
                 // **再** getMediaProjection（它反过来要求 MP 类型 FGS 在跑）
-                startForeground(NOTIF_ID, buildNotification(),
+                startForeground(NOTIF_ID, buildNotification(ballAttached),
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
             }
             // Android 14+：createVirtualDisplay 前必须注册回调，否则 SecurityException
@@ -585,7 +673,7 @@ public class CaptureService extends Service {
                         proj = null;
                         if (Build.VERSION.SDK_INT >= 34) {
                             // 14+ 规则：mediaProjection 类型却无投影 → 系统会杀服务 → 切回 specialUse
-                            startForeground(NOTIF_ID, buildNotification(),
+                            startForeground(NOTIF_ID, buildNotification(ballAttached),
                                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
                         }
                         toastRes(R.string.projection_missing);

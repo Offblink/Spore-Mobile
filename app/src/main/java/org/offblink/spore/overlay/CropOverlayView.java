@@ -17,9 +17,6 @@ import org.offblink.spore.R;
  * 顶部深色提示 pill（出错时转红 1.8s，同桌面 warn()）、左下 ✕（唯一关闭键）。
  * 判定沿用桌面契约：宽高**都**小于下限才拒，有其一过线就放行。
  * 松手即搜（拖完 / 调角 / 移动都直接 confirmSelection，与桌面两端「松手即采纳」同口径）。
- *
- * <p>拍照搜题模式（{@code allowRotate=true}，仅 PhotoActivity 传 true）：右上角多一个
- * 顺时针 90° 旋转键 —— 照片方向不对就地转，截屏路径不画这个键（屏幕帧永远是正的）。
  */
 public class CropOverlayView extends View {
 
@@ -31,11 +28,8 @@ public class CropOverlayView extends View {
         void onClose();
     }
 
-    /** 当前待裁的冻结帧；拍照模式旋转会整张换掉（截屏模式从不改） */
-    private Bitmap frame;
+    private final Bitmap frame;
     private final Listener listener;
-    /** 拍照搜题才画右上角旋转键（顺时针 90°）；截屏路径 false */
-    private final boolean allowRotate;
     private final float minW, minH;
     private final int minWdp, minHdp;
     private final float density;
@@ -59,8 +53,6 @@ public class CropOverlayView extends View {
      * （第五轮实测，b5e5206 加备用键的由来），左下永不被盖、也更好够。
      */
     private final RectF closeRect = new RectF();
-    /** 拍照模式的顺时针 90° 旋转键（右上，与左下 ✕ 对角）；allowRotate=false 时不画不命中 */
-    private final RectF rotateRect = new RectF();
     private final RectF hintRect = new RectF();
     private float scale = 1f;
 
@@ -75,8 +67,6 @@ public class CropOverlayView extends View {
     /** 缩放锚点 = 抓住的角的对角（拖动时固定） */
     private float anchorX, anchorY;
     private boolean closeHit;
-    /** 旋转键按下标记（同 closeHit 的按-抬语义：按下不拖、抬在键内才转） */
-    private boolean rotateHit;
     private float startX, startY;
     private float lastX, lastY;
 
@@ -92,16 +82,9 @@ public class CropOverlayView extends View {
     private String hintText;
 
     public CropOverlayView(Context context, Bitmap frame, Listener listener) {
-        this(context, frame, listener, false);
-    }
-
-    /** @param allowRotate 拍照搜题模式：画右上角顺时针 90° 旋转键（截屏路径用上面的三参构造） */
-    public CropOverlayView(Context context, Bitmap frame, Listener listener,
-                           boolean allowRotate) {
         super(context);
         this.frame = frame;
         this.listener = listener;
-        this.allowRotate = allowRotate;
         density = context.getResources().getDisplayMetrics().density;
         minW = Math.round(60 * density);
         minH = Math.round(40 * density);
@@ -140,19 +123,18 @@ public class CropOverlayView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        fitFrame();
+        float bw = frame.getWidth();
+        float bh = frame.getHeight();
+        scale = Math.min(w / bw, h / bh);
+        float offX = (w - bw * scale) / 2f;
+        float offY = (h - bh * scale) / 2f;
+        dst.set(offX, offY, offX + bw * scale, offY + bh * scale);
 
         // 唯一 ✕ 在左下（右上会被 SystemUI 提示卡盖住 → 见 closeRect 注释）
         float r = 22 * density;
         float cx = r + 16 * density;
         float cy = h - r - 16 * density;
         closeRect.set(cx - r, cy - r, cx + r, cy + r);
-
-        // 旋转键在右上（与 ✕ 对角，避开 SystemUI 提示卡与左下 ✕）；换了帧也要重算落位
-        if (allowRotate) {
-            float rcx = w - r - 16 * density;
-            rotateRect.set(rcx - r, cy - r, rcx + r, cy + r);
-        }
     }
 
     @Override
@@ -189,70 +171,6 @@ public class CropOverlayView extends View {
 
         // 左下 ✕（唯一关闭键）
         drawClose(canvas, closeRect);
-        // 拍照模式：右上顺时针 90° 旋转键
-        if (allowRotate) {
-            drawRotate(canvas, rotateRect);
-        }
-    }
-
-    /** 圆底 + 顺时针弧箭头（≈ ↻），与 ✕ 同底同描边 */
-    private void drawRotate(Canvas canvas, RectF rect) {
-        float cr = rect.width() / 2f;
-        float ccx = rect.centerX();
-        float ccy = rect.centerY();
-        canvas.drawCircle(ccx, ccy, cr, closeBgPaint);
-        float ar = cr * 0.42f;
-        RectF arc = new RectF(ccx - ar, ccy - ar, ccx + ar, ccy + ar);
-        canvas.drawArc(arc, -40, 300, false, closePaint);
-        // 箭头：弧终点（-40°+300°=260°）切向朝…直接在起点 -40° 处补一个 '>' 形箭头
-        double a = Math.toRadians(-40);
-        float ex = ccx + (float) (ar * Math.cos(a));
-        float ey = ccy + (float) (ar * Math.sin(a));
-        float hb = cr * 0.30f;
-        // 切向（顺时针）= (-sin a, cos a)；法向 = (cos a, sin a)
-        float tx = (float) -Math.sin(a);
-        float ty = (float) Math.cos(a);
-        float nx = (float) Math.cos(a);
-        float ny = (float) Math.sin(a);
-        canvas.drawLine(ex, ey, ex - tx * hb + nx * hb * 0.7f, ey - ty * hb + ny * hb * 0.7f, closePaint);
-        canvas.drawLine(ex, ey, ex - tx * hb - nx * hb * 0.7f, ey - ty * hb - ny * hb * 0.7f, closePaint);
-    }
-
-    /**
-     * 按当前视图尺寸把 frame 重新 fit-center（onSizeChanged 与旋转后共用）。
-     * 旋转后 frame 宽高对调、选区坐标失效 → 顺带清掉选区，让用户重新拖。
-     */
-    private void fitFrame() {
-        int w = getWidth();
-        int h = getHeight();
-        if (w <= 0 || h <= 0 || frame == null) {
-            return;
-        }
-        float bw = frame.getWidth();
-        float bh = frame.getHeight();
-        scale = Math.min(w / bw, h / bh);
-        float offX = (w - bw * scale) / 2f;
-        float offY = (h - bh * scale) / 2f;
-        dst.set(offX, offY, offX + bw * scale, offY + bh * scale);
-        hasSel = false;
-    }
-
-    /** 顺时针转 90°（仅拍照模式的旋转键调）：换帧 → 重排 → 选区作废 → 重绘 */
-    private void rotateFrame() {
-        if (frame == null || frame.isRecycled()) {
-            return;
-        }
-        android.graphics.Matrix m = new android.graphics.Matrix();
-        m.postRotate(90);
-        Bitmap rot = Bitmap.createBitmap(frame, 0, 0,
-                frame.getWidth(), frame.getHeight(), m, true);
-        if (rot == frame) {
-            return; // 理论到不了（90° 必产生新位图），防御一下
-        }
-        // 旧帧不 recycle：可能还有人（取证/落盘线程）拿着引用，交给 GC
-        frame = rot;
-        fitFrame();
-        invalidate();
     }
 
     private void drawClose(Canvas canvas, RectF rect) {
@@ -313,10 +231,6 @@ public class CropOverlayView extends View {
                 if (closeHit) {
                     return true;
                 }
-                rotateHit = allowRotate && rotateRect.contains(x, y);
-                if (rotateHit) {
-                    return true;
-                }
                 if (hasSel) {
                     int h = cornerHit(x, y);
                     if (h != H_NONE) {
@@ -343,7 +257,7 @@ public class CropOverlayView extends View {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                if (closeHit || rotateHit) {
+                if (closeHit) {
                     return true;
                 }
                 if (moving) {
@@ -377,13 +291,6 @@ public class CropOverlayView extends View {
                     closeHit = false;
                     if (closeRect.contains(x, y)) {
                         listener.onClose();
-                    }
-                    return true;
-                }
-                if (rotateHit) {
-                    rotateHit = false;
-                    if (rotateRect.contains(x, y)) {
-                        rotateFrame(); // 抬在键内才转（按-抬语义同 ✕）
                     }
                     return true;
                 }
@@ -437,7 +344,6 @@ public class CropOverlayView extends View {
                 resizeMoved = false;
                 handle = H_NONE;
                 closeHit = false;
-                rotateHit = false;
                 hasSel = false;
                 invalidate();
                 return true;

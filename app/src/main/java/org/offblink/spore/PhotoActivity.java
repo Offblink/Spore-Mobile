@@ -24,7 +24,7 @@ import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
-import org.offblink.spore.overlay.CropOverlayView;
+import org.offblink.spore.overlay.PhotoCropView;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -32,27 +32,29 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 拍照搜题（主页入口）：CameraX 取景按快门 → 冻结帧框选（带顺时针 90° 旋转键，
- * 仅本页的框选有，截屏路径没有）→ 落盘 → {@link CaptureService#openPhotoSearch}
- * <b>不进悬浮面板</b>，直接开搜题记录详情页看答案生成（用户拍板的流程）。
- * 框选是页内视图不是悬浮窗 —— 本页全程在前台，不需要悬浮窗权限；回答引擎在
- * CaptureService 里（与记录页追问同一条路），悬浮窗权限只在服务起不来时才拦。
+ * 拍照搜题（主页入口，全页跑在应用内，不走悬浮窗那套）：
+ * CameraX 取景按快门 → <b>立即关掉相机</b>、进应用内的框选页（PhotoCropView）：
+ * 左上「取消」、右上「↻ 旋转（顺时针 90°）」、底部只有「确定」一个按钮 →
+ * 确认后落盘 → {@link CaptureService#openPhotoSearch} 直接开搜题记录详情页看答案生成。
  */
 public class PhotoActivity extends AppCompatActivity {
 
     private static final int REQ_CAMERA = 1001;
-    /** 拍照帧长边上限：给框选留足裁剪余量（落盘还会再压到 1600），同时掐掉 12MP 全尺寸的内存峰值 */
+    /** 拍照帧长边上限：给框选留足裁剪余量（落盘还会再压到 1600），同时掐掉大帧的内存峰值 */
     private static final int FRAME_MAX_LONG = 2400;
 
     private FrameLayout root;
     private PreviewView preview;
     private View shutter;
     private android.widget.TextView hint;
+    private View cancelBtn;
+    private View rotateBtn;
+    private View confirmBtn;
     private ProcessCameraProvider provider;
     private ImageCapture imageCapture;
     private ExecutorService exec;
-    private CropOverlayView cropView;
-    private boolean capturing;
+    private PhotoCropView cropView;
+    private boolean busy;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,8 +65,25 @@ public class PhotoActivity extends AppCompatActivity {
         preview = findViewById(R.id.photo_preview);
         shutter = findViewById(R.id.photo_shutter);
         hint = findViewById(R.id.photo_hint);
-        findViewById(R.id.photo_close).setOnClickListener(v -> finish());
+        cancelBtn = findViewById(R.id.photo_cancel);
+        rotateBtn = findViewById(R.id.photo_rotate);
+        confirmBtn = findViewById(R.id.photo_confirm);
+
         shutter.setOnClickListener(v -> takePhoto());
+        rotateBtn.setOnClickListener(v -> {
+            if (cropView != null) {
+                cropView.rotate();
+            }
+        });
+        confirmBtn.setOnClickListener(v -> confirmCrop());
+        // 取消：框选态 = 这张重拍（回取景，相机重新起来）；取景态 = 退出本页
+        cancelBtn.setOnClickListener(v -> {
+            if (cropView != null) {
+                backToViewfinder();
+            } else {
+                finish();
+            }
+        });
 
         exec = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "spore-photo");
@@ -121,13 +140,13 @@ public class PhotoActivity extends AppCompatActivity {
 
     /**
      * 快门 → 后台解 JPEG + 旋转 + 降采样（一步矩阵完成，峰值只有原帧 + 小图）
-     → 主线程进框选。
+     * → 主线程进框选页，<b>顺手关掉相机</b>（拍完取景没用了，别白亮着）。
      */
     private void takePhoto() {
-        if (imageCapture == null || capturing || cropView != null) {
+        if (imageCapture == null || busy || cropView != null) {
             return;
         }
-        capturing = true;
+        busy = true;
         shutter.setAlpha(0.4f);
         imageCapture.takePicture(exec, new ImageCapture.OnImageCapturedCallback() {
             @Override
@@ -135,11 +154,11 @@ public class PhotoActivity extends AppCompatActivity {
                 try {
                     Bitmap frame = decodeFrame(ip);
                     if (frame == null) {
-                        runOnUiThread(() -> failShutter(R.string.photo_decode_failed));
+                        runOnUiThread(() -> failBusy(R.string.photo_decode_failed));
                         return;
                     }
                     runOnUiThread(() -> {
-                        capturing = false;
+                        busy = false;
                         shutter.setAlpha(1f);
                         showCrop(frame);
                     });
@@ -151,20 +170,20 @@ public class PhotoActivity extends AppCompatActivity {
             @Override
             public void onError(@NonNull ImageCaptureException e) {
                 Log.w("spore-photo", "capture failed: " + e);
-                runOnUiThread(() -> failShutter(
+                runOnUiThread(() -> failBusy(
                         getString(R.string.photo_failed, e.getClass().getSimpleName())));
             }
         });
     }
 
-    private void failShutter(int msgRes) {
-        capturing = false;
+    private void failBusy(int msgRes) {
+        busy = false;
         shutter.setAlpha(1f);
         Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show();
     }
 
-    private void failShutter(String msg) {
-        capturing = false;
+    private void failBusy(String msg) {
+        busy = false;
         shutter.setAlpha(1f);
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
@@ -201,48 +220,68 @@ public class PhotoActivity extends AppCompatActivity {
         return out;
     }
 
-    // ---------------------------------------------------------------- 框选（页内视图）
+    // ---------------------------------------------------------------- 框选页（应用内）
 
     private void showCrop(Bitmap frame) {
+        // 拍完立即关相机（用户拍板）：解绑即停预览与出帧，页内只剩这张冻结帧
+        if (provider != null) {
+            provider.unbindAll();
+        }
+        preview.setVisibility(View.GONE);
         hint.setVisibility(View.GONE);
         shutter.setVisibility(View.GONE);
-        cropView = new CropOverlayView(this, frame, cropListener, true);
+        rotateBtn.setVisibility(View.VISIBLE);
+        confirmBtn.setVisibility(View.VISIBLE);
+
+        cropView = new PhotoCropView(this, frame);
         root.addView(cropView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
-    private final CropOverlayView.Listener cropListener = new CropOverlayView.Listener() {
-        @Override
-        public void onCropped(Bitmap crop) {
-            // 落盘在后台（JPEG 压缩别背主线程），交活后本页即退 —— 记录详情页接力
-            exec.execute(() -> {
-                File saved = CaptureService.saveCrop(PhotoActivity.this, crop);
-                runOnUiThread(() -> {
-                    if (saved == null) {
-                        Toast.makeText(PhotoActivity.this,
-                                R.string.capture_failed_write, Toast.LENGTH_SHORT).show();
-                        backToViewfinder();
-                        return;
-                    }
-                    CaptureService.openPhotoSearch(PhotoActivity.this, saved.getAbsolutePath());
-                    finish();
-                });
+    /** 底栏「确定」：没框/太小先提示；过了就落盘 → 起回合并跳记录详情 */
+    private void confirmCrop() {
+        if (cropView == null || busy) {
+            return;
+        }
+        if (cropView.selectionTooSmall()) {
+            Toast.makeText(this, R.string.photo_warn_pick, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Bitmap crop = cropView.takeCrop();
+        if (crop == null) {
+            Toast.makeText(this, R.string.photo_warn_pick, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        busy = true;
+        confirmBtn.setAlpha(0.5f);
+        // 落盘在后台（JPEG 压缩别背主线程），交活后本页即退 —— 记录详情页接力
+        exec.execute(() -> {
+            File saved = CaptureService.saveCrop(PhotoActivity.this, crop);
+            runOnUiThread(() -> {
+                busy = false;
+                confirmBtn.setAlpha(1f);
+                if (saved == null) {
+                    Toast.makeText(PhotoActivity.this,
+                            R.string.capture_failed_write, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                CaptureService.openPhotoSearch(PhotoActivity.this, saved.getAbsolutePath());
+                finish();
             });
-        }
-
-        @Override
-        public void onClose() {
-            backToViewfinder(); // ✕ = 这张重拍（顶栏 ✕ 才是退出本页）
-        }
-    };
+        });
+    }
 
     private void backToViewfinder() {
         if (cropView != null) {
             root.removeView(cropView);
             cropView = null;
         }
+        rotateBtn.setVisibility(View.GONE);
+        confirmBtn.setVisibility(View.GONE);
         hint.setVisibility(View.VISIBLE);
         shutter.setVisibility(View.VISIBLE);
+        preview.setVisibility(View.VISIBLE);
+        startCamera(); // 相机在进框选时被解绑了，回取景再起
     }
 
     // ---------------------------------------------------------------- 生命周期

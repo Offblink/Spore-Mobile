@@ -76,9 +76,9 @@
      那两处要留给涂抹连选和追问输入。）
    - **点球** = 截屏取帧 → 框选题目 → 面板里看答案；
      拖完 / 调角 / 移动**松手就直接搜**（底部没有「搜」按钮）。
-   - **拍照搜题**（首页第二个按钮）= 开相机拍一张 → 框选题目（照片方向不对，右上角键
-     顺时针转 90°）→ **不进悬浮面板**，直接进「搜题记录」详情页看答案生成（那一页每秒轮询
-     生成中的现场）。相机权限首次进这一页时申请。
+   - **拍照搜题**（首页第二个按钮）= 开相机拍一张 → **立即关掉相机**、进应用内的框选页：
+     左上「取消」、右上「↻ 旋转（顺时针 90°）」、底部只有一个「确定」→ **不进悬浮面板**，
+     直接进「搜题记录」详情页看答案生成（那一页每秒轮询生成中的现场）。相机权限首次进这一页时申请。
    - **长按球** = 开 / 关面板；
    - 抽屉里 💬 开会话列表、★ 收藏、✎ 改名、✕ 删除；底部输入框随时追问；
    - 「搜题记录」页翻历史、按收藏筛选、点图放大 → 保存到相册（`Pictures/Spore`）；
@@ -119,13 +119,13 @@ cd Spore-Mobile
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
 - 2026-11-04 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**（95 条 warning），单测 **88/88 全绿**
+  lint **Error 0**（97 条 warning），单测 **88/88 全绿**
   （FrameQuality 7 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 7 · SubjectsStore 4 · LlmClient 3 ·
   LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5），
-  APK **33,287,212 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  APK **33,289,456 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（含 CameraX + ML Kit 条码模型与离线 KaTeX 公式字体；
-  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,287,212 B；
+  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,289,456 B；
   拍照搜题复用已有的 CameraX，不新增依赖）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

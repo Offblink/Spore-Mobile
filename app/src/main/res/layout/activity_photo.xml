@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 拍照搜题（PhotoActivity）：全屏相机预览 + 顶栏（✕ · 标题）+ 底部快门与提示。
-     框选层（CropOverlayView，带旋转键）由代码叠在 root 上，拍完才出现 -->
+<!-- 拍照搜题（PhotoActivity）：全屏相机预览（取景态）/ 冻结帧框选（拍完态，应用内不走悬浮窗）。
+     顶栏恒定三段：左「取消」· 标题 · 右「↻ 旋转」（仅拍完态出现）；
+     底部在两态间互斥：取景 = 快门 + 提示；拍完 = 只有一个「确定」 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/photo_root"
     android:layout_width="match_parent"
@@ -12,24 +13,28 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 顶栏：✕（退出） · 标题 · 占位（对齐扫码页的三段式） -->
+    <!-- 顶栏：取消 · 标题 · 旋转（↻ 字形顺时针，不手画弧箭头） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp">
 
         <TextView
-            android:id="@+id/photo_close"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:id="@+id/photo_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:gravity="center"
-            android:text="✕"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="@string/photo_cancel"
             android:textColor="#FFFFFF"
-            android:textSize="18sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:layout_width="0dp"
@@ -41,13 +46,22 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <View
-            android:layout_width="40dp"
-            android:layout_height="40dp" />
+        <TextView
+            android:id="@+id/photo_rotate"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/photo_rotate"
+            android:gravity="center"
+            android:text="@string/photo_rotate_glyph"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 底部：提示 + 快门 -->
+    <!-- 底部：取景态 = 提示 + 快门 -->
     <LinearLayout
+        android:id="@+id/photo_bottom_viewfinder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -74,4 +88,27 @@
             android:clickable="true"
             android:focusable="true" />
     </LinearLayout>
+
+    <!-- 拍完态：底部只有一个「确定」 -->
+    <TextView
+        android:id="@+id/photo_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="40dp"
+        android:background="@drawable/spore_btn_primary"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:paddingStart="18dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="14dp"
+        android:text="@string/photo_confirm"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </FrameLayout>

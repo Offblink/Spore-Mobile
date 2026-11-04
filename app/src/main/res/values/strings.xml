@@ -49,7 +49,6 @@
     <string name="photo_cancel">取消</string>
     <string name="photo_confirm">确定</string>
     <string name="photo_rotate">旋转</string>
-    <string name="photo_rotate_glyph">↻</string>
     <string name="photo_hint">对准题目，按快门拍照</string>
     <string name="photo_denied">未授予相机权限，无法拍照（可重新进入本页再授权）</string>
     <string name="photo_failed">拍照失败：%1$s</string>

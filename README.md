@@ -123,9 +123,9 @@ cd Spore-Mobile
   （FrameQuality 7 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 7 · SubjectsStore 4 · LlmClient 3 ·
   LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5），
-  APK **33,289,456 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  APK **33,289,484 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（含 CameraX + ML Kit 条码模型与离线 KaTeX 公式字体；
-  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,289,456 B；
+  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,289,484 B；
   拍照搜题复用已有的 CameraX，不新增依赖）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

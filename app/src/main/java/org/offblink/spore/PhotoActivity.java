@@ -236,6 +236,9 @@ public class PhotoActivity extends AppCompatActivity {
         cropView = new PhotoCropView(this, frame);
         root.addView(cropView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        // 全屏黑底的框选层会盖住顶栏与「确定」（真机实测：按钮全被吃掉）→ 显式提到最上层
+        root.bringChildToFront(findViewById(R.id.photo_topbar));
+        root.bringChildToFront(confirmBtn);
     }
 
     /** 底栏「确定」：没框/太小先提示；过了就落盘 → 起回合并跳记录详情 */

@@ -40,6 +40,14 @@
     <string name="capture_timeout">截屏超时，请重试</string>
     <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
     <string name="capture_failed">截屏失败：%1$s</string>
+    <string name="capture_failed_write">题图保存失败，请重试</string>
+
+    <!-- 拍照搜题（PhotoActivity） -->
+    <string name="photo_title">拍照搜题</string>
+    <string name="photo_hint">对准题目，按快门拍照</string>
+    <string name="photo_denied">未授予相机权限，无法拍照（可重新进入本页再授权）</string>
+    <string name="photo_failed">拍照失败：%1$s</string>
+    <string name="photo_decode_failed">照片解析失败，请重拍</string>
 
     <!-- 作答面板 -->
     <string name="panel_hint">追问…</string>

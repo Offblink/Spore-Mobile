@@ -29,6 +29,9 @@ import org.offblink.spore.agent.SubjectsStore;
  */
 public class RecordActivity extends AppCompatActivity {
 
+    /** 直入详情（拍照搜题交活后由 CaptureService 带进来）：值是会话 id，空 = 正常开列表 */
+    static final String EXTRA_SESSION = "openSession";
+
     private WebView web;
     /** JS 握过 ready() 才允许推 onState / 问 Host.back；JavaBridge 线程写、主线程读 */
     private volatile boolean webReady;
@@ -100,11 +103,20 @@ public class RecordActivity extends AppCompatActivity {
      * 整页平移的来源 tab（主页/设置开我们时经 {@link MainActivity#EXTRA_FROM} 带进来）：
      * 页内据此画出从那一格方向滑进来的入场。用 URL 片段（#）而不是 query——
      * file:///android_asset 的资源解析不认 query。白名单取值，别把外部串拼进 URL。
+     * 拍照搜题另带 {@code open=<会话 id>}：页内开机直入详情（会话 id 是纯时间戳格式，白名单校验）。
      */
     private String fromHash() {
         Intent it = getIntent();
         String from = it == null ? null : it.getStringExtra(MainActivity.EXTRA_FROM);
-        return ("home".equals(from) || "settings".equals(from)) ? "#from=" + from : "";
+        String open = it == null ? null : it.getStringExtra(EXTRA_SESSION);
+        StringBuilder sb = new StringBuilder();
+        if ("home".equals(from) || "settings".equals(from)) {
+            sb.append("#from=").append(from);
+        }
+        if (open != null && open.matches("[0-9A-Za-z-]{8,40}")) {
+            sb.append(sb.length() > 0 ? "&" : "#").append("open=").append(open);
+        }
+        return sb.toString();
     }
 
     @Override

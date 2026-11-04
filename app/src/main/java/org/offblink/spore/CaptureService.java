@@ -81,6 +81,8 @@ public class CaptureService extends Service {
     /** 服务冷启动时排队的追问（记录详情页在服务未运行时提交的追问） */
     private static volatile String pendingFollowupId;
     private static volatile String pendingFollowupText;
+    /** 拍照搜题排队的题图（PhotoActivity 在服务未运行时交的活；onCreate 接力起回合） */
+    private static volatile String pendingPhotoPath;
 
     public static boolean isRunning() {
         return running;
@@ -131,6 +133,41 @@ public class CaptureService extends Service {
     public static boolean hasProjection() {
         CaptureService s = self;
         return s != null && s.proj != null;
+    }
+
+    /**
+     * 拍照搜题落地（用户拍板：<b>不进悬浮面板</b>，直接开搜题记录详情页看答案生成）：
+     * 服务在跑 → 当场起两阶段回合并开记录详情；没跑 → 排队题图、起服务，
+     * onCreate 接力（同 pendingFollowup 的冷启动机制）。会话 id 由引擎当场定
+     * （{@code newCaptureTurn} 同步换视图），详情页经 liveSession 看生成中的现场。
+     */
+    public static void openPhotoSearch(Context c, String imagePath) {
+        CaptureService s = self;
+        if (s != null) {
+            launchRecords(c, s.startPhotoTurn(imagePath));
+            return;
+        }
+        pendingPhotoPath = imagePath;
+        start(c);
+    }
+
+    /** 起拍照回合 → 返回会话 id（newCaptureTurn 同步定会话，跑回合在引擎线程） */
+    private String startPhotoTurn(String imagePath) {
+        engine.newCaptureTurn(imagePath, "");
+        return engine.session().id;
+    }
+
+    /**
+     * 开搜题记录页并直入详情。服务冷启动路径没有 Activity 上下文 → NEW_TASK；
+     * PhotoActivity 路径走它自己的转场（记录页 web 无 #from 不放整页平移，原生主题滑入即一次）。
+     */
+    private static void launchRecords(Context c, String sessionId) {
+        Intent i = new Intent(c, RecordActivity.class)
+                .putExtra(RecordActivity.EXTRA_SESSION, sessionId);
+        if (!(c instanceof android.app.Activity)) {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        c.startActivity(i);
     }
 
     /** 收藏切换走服务侧（同 rename/delete 的理由：引擎内存态优先，防被下次 persist 盖回） */
@@ -321,6 +358,12 @@ public class CaptureService extends Service {
                         toastRes(R.string.busy_wait);
                     }
                 });
+            }
+            // 拍照搜题排队（PhotoActivity 交的活）：接力起回合 → 直开记录详情页
+            final String ppPath = pendingPhotoPath;
+            pendingPhotoPath = null;
+            if (ppPath != null) {
+                main.post(() -> launchRecords(CaptureService.this, startPhotoTurn(ppPath)));
             }
         } else {
             toastRes(R.string.status_no_overlay);
@@ -822,7 +865,7 @@ public class CaptureService extends Service {
         @Override
         public void onCropped(Bitmap crop) {
             bg.post(() -> {
-                File saved = saveCrop(crop);
+                File saved = saveCrop(CaptureService.this, crop);
                 main.post(() -> {
                     removeCropView();
                     if (saved != null) {
@@ -841,7 +884,8 @@ public class CaptureService extends Service {
         }
     };
 
-    private File saveCrop(Bitmap crop) {
+    /** 裁剪落盘（截屏与拍照搜题共用）：长边 1600、JPEG 0.82，写 files/captures/cap_*.jpg */
+    static File saveCrop(Context ctx, Bitmap crop) {
         Bitmap out = crop;
         int longest = Math.max(crop.getWidth(), crop.getHeight());
         if (longest > MAX_CROP_LONG) {
@@ -850,7 +894,7 @@ public class CaptureService extends Service {
                     Math.round(crop.getWidth() * scale),
                     Math.round(crop.getHeight() * scale), true);
         }
-        File dir = new File(getFilesDir(), "captures");
+        File dir = new File(ctx.getFilesDir(), "captures");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
         String name = "cap_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)

@@ -288,6 +288,20 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(MainActivity.this::startBallWithConsent);
         }
 
+        /** 拍照搜题：相机拍一张 → 框选（可旋转）→ 直接进记录详情页看答案。
+         *  回答引擎在 CaptureService 里而服务起不来就没有悬浮窗权限 → 先拦一道，别让用户拍完才发现白拍。 */
+        @JavascriptInterface
+        public void photoSearch() {
+            runOnUiThread(() -> {
+                if (!Settings.canDrawOverlays(MainActivity.this)) {
+                    Toast.makeText(MainActivity.this, R.string.status_no_overlay,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                startActivity(new Intent(MainActivity.this, PhotoActivity.class));
+            });
+        }
+
         /** 搜题记录页。转场交给 web 层的整页平移（navbar.css）——原生 SporeAnim 必须显式关掉，
          *  否则「原生滑一次 + 页面加载完再滑一次」双动画（records/settings 互开与回主页早就是
          *  这么关的，唯独从主页开出这两跳漏了）。EXTRA_FROM 供目标页定入场方向（从「首页」过来）。 */

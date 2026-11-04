@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 拍照搜题快门：白圈 + 粉心（与扫码页/主页同一套粉系） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <stroke android:width="4dp" android:color="#FFFFFF" />
+            <solid android:color="#33FFFFFF" />
+            <size android:width="72dp" android:height="72dp" />
+        </shape>
+    </item>
+    <item
+        android:bottom="10dp"
+        android:left="10dp"
+        android:right="10dp"
+        android:top="10dp">
+        <shape android:shape="oval">
+            <solid android:color="@color/spore_pink" />
+        </shape>
+    </item>
+</layer-list>

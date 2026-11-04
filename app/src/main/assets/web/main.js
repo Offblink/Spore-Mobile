@@ -72,6 +72,8 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     $("btnBall").addEventListener("click", pokeBall);
+    // 拍照搜题：原生开相机页（拍完 → 框选可旋转 → 直接进记录详情页，不开悬浮窗）
+    $("btnPhoto").addEventListener("click", function () { bridge("photoSearch"); });
     // 重授权提示：专用 reauth（球照跑）；走 pokeBall 会撞 toggleBall 把运行中的球关掉
     $("projHint").addEventListener("click", function () { bridge("reauth"); });
     // 握手：调过 ready 原生才开始推；返回值就是首帧

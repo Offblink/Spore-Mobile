@@ -57,6 +57,12 @@
             android:name=".RecordActivity"
             android:exported="false" />
 
+        <!-- 拍照搜题（相机取景 → 页内框选（带顺时针 90° 旋转）→ 记录详情页看答案） -->
+        <activity
+            android:name=".PhotoActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- 扫码配对（相机取景扫 Spore-GUI 主窗头像二维码 → 连通校验 → 落配对态） -->
         <activity
             android:name=".PairActivity"

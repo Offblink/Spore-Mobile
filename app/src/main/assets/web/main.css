@@ -51,6 +51,8 @@
 /* ---- 单一主 CTA + 投影次级提示 ---- */
 .cta { display: flex; flex-direction: column; }
 #btnBall { width: 100%; padding: 14px 18px; font-size: 16px; }
+/* 拍照搜题：次级软按钮，与主粉 CTA 留 12px 呼吸 */
+#btnPhoto { width: 100%; margin-top: 12px; padding: 13px 18px; font-size: 15px; }
 #projHint {
   width: 100%;
   margin-top: 10px;

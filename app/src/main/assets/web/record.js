@@ -1136,4 +1136,13 @@
   }
   renderChips();
   renderList(false);
+
+  // 拍照搜题直达（URL 片段 open=<id>，由原生 RecordActivity.fromHash 白名单拼进来）：
+  // 会话是引擎当场开的、文件要等回合结束才落盘——sentAt 置位借追问那条 15s 宽限，
+  // 让轮询从 status 还没翻 busy 的窗口起就跟上（乱序时也不会卡死在空详情）。
+  const openM = /(?:^|[#&])open=([\w-]+)/.exec(location.hash || "");
+  if (openM) {
+    sentAt = Date.now();
+    openDetail(openM[1]);
+  }
 })();

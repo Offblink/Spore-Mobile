@@ -20,9 +20,11 @@
         </div>
       </header>
 
-      <!-- 单一粉主 CTA：空闲 = 主粉「显示悬浮球」，运行 = 软「隐藏悬浮球」 -->
+      <!-- 单一粉主 CTA：空闲 = 主粉「显示悬浮球」，运行 = 软「隐藏悬浮球」；
+           拍照搜题 = 次级软按钮（不开悬浮窗：拍完直接进记录详情页） -->
       <section class="cta anim-fade-up" style="animation-delay: 0.07s">
         <button type="button" class="btn btn-primary" id="btnBall">显示悬浮球</button>
+        <button type="button" class="btn btn-soft" id="btnPhoto">拍照搜题</button>
         <!-- 投影没在手时的次级提示：投影授权只在开关时过桥 → 点它同 toggleBall -->
         <button type="button" id="projHint" hidden>截屏授权已失效 · 点此重新授权</button>
       </section>

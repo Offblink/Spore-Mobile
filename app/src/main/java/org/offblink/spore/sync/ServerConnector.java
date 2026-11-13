@@ -16,16 +16,17 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 
 /**
- * 「账号直连」配对：不扫码，直接对 Spore-Cloud 微服务后端登录。
+ * 扫码登录 Spore-Cloud 微服务后端（2026-11 重构：删掉账号口令直连与桌面扫码配对）。
  *
- * <p>扫码那条路（{@link PairActivity}）载荷来自桌面端，token 是 LAN token；这条路
- * 走 {@code POST {api}/auth/login} 换普通 JWT —— 与扫码得到的凭据同一 Bearer 通道，
- * 同步代码（{@link SyncEngine}）零改动。
+ * <p>流程：服务器登录页展示二维码 → 手机扫 → 载荷 {@code {v:1, api, ticket}} →
+ * {@code POST {api}/auth/qr/exchange} 换 JWT → {@code GET /users/me} 取 uid/昵称 →
+ * 落 {@link SporeSyncState}（双游标清零，下轮全量交换）。协议文档见
+ * {@code docs/qr-login-server.md}。
  *
- * <p>地址归一：用户填 {@code 192.168.1.5:8080} / {@code http://192.168.1.5:8080}
- * 都可，末尾缺 {@code /api} 自动补上（协议约定 api base 含 /api）。
+ * <p>地址归一：二维码里的 {@code api} 可写 {@code 192.168.1.5:19080} /
+ * {@code http://192.168.1.5:19080}，末尾缺 {@code /api} 自动补上。
  *
- * <p>红线：token 只落本机 prefs（{@link SporeSyncState#token}），不进日志、不进 toJson。
+ * <p>红线：ticket 与 token 都不进日志；token 只落本机 prefs。
  */
 public final class ServerConnector {
 
@@ -36,18 +37,17 @@ public final class ServerConnector {
     }
 
     /**
-     * 登录并落配对态。阻塞调用（由宿主放在后台线程跑）。
+     * 用二维码里的一次性 ticket 换登录态。阻塞调用（由宿主放在后台线程跑）。
      *
      * @return {@code {"ok":true,"api":..,"nick":..,"uid":..}} 或 {@code {"ok":false,"message":..}}
      */
-    public static JSONObject connect(Context c, String rawApi, String username, String password) {
+    public static JSONObject exchangeQr(Context c, String rawApi, String ticket) {
         String api = normalizeApi(rawApi);
         if (api.isEmpty()) {
-            return fail("服务器地址为空");
+            return fail("二维码里没有服务器地址");
         }
-        if (username == null || username.trim().isEmpty()
-                || password == null || password.isEmpty()) {
-            return fail("账号与口令必填");
+        if (ticket == null || ticket.trim().isEmpty()) {
+            return fail("二维码里没有登录票据");
         }
         OkHttpClient http = new OkHttpClient.Builder()
                 .connectTimeout(5, TimeUnit.SECONDS)
@@ -55,13 +55,12 @@ public final class ServerConnector {
                 .writeTimeout(10, TimeUnit.SECONDS)
                 .build();
         try {
-            JSONObject loginBody = new JSONObject();
-            loginBody.put("username", username.trim());
-            loginBody.put("password", password);
+            JSONObject body = new JSONObject();
+            body.put("ticket", ticket.trim());
 
-            JSONObject login = call(http, api + "/auth/login", null,
-                    RequestBody.create(loginBody.toString(), JSON));
-            String token = login.optString("token", "");
+            JSONObject ex = call(http, api + "/auth/qr/exchange", null,
+                    RequestBody.create(body.toString(), JSON));
+            String token = ex.optString("token", "");
             if (token.isEmpty()) {
                 return fail("登录成功但没拿到 token");
             }
@@ -85,12 +84,12 @@ public final class ServerConnector {
             state.pullCursor = 0;
             state.pushCursor = 0;
             state.lastSyncAt = 0;
-            state.lastSyncMsg = "账号直连";
+            state.lastSyncMsg = "扫码登录";
             state.lastUp = -1;
             state.lastDown = -1;
             state.save(c);
 
-            SporeLog.i(c, "sync: 账号直连成功 " + api + " uid=" + uid);
+            SporeLog.i(c, "sync: 扫码登录成功 " + api + " uid=" + uid);
 
             JSONObject ok = new JSONObject();
             ok.put("ok", true);
@@ -99,18 +98,18 @@ public final class ServerConnector {
             ok.put("uid", uid);
             return ok;
         } catch (SyncClient.SyncException e) {
-            SporeLog.i(c, "sync: 账号直连失败 code=" + e.code);
-            return fail(e.getMessage() == null ? "连接失败" : e.getMessage());
+            SporeLog.i(c, "sync: 扫码登录失败 code=" + e.code);
+            return fail(e.getMessage() == null ? "登录失败" : e.getMessage());
         } catch (IOException e) {
-            SporeLog.e(c, "sync: 账号直连网络错误", e);
+            SporeLog.e(c, "sync: 扫码登录网络错误", e);
             return fail("连不上服务器（检查地址与同一 Wi-Fi）");
         } catch (Exception e) {
-            SporeLog.e(c, "sync: 账号直连异常", e);
-            return fail("连接失败：" + e.getClass().getSimpleName());
+            SporeLog.e(c, "sync: 扫码登录异常", e);
+            return fail("登录失败：" + e.getClass().getSimpleName());
         }
     }
 
-    /** 兼容用户手填的几种写法：裸 host:port / 带 http:// / 末尾带不带斜杠与 /api */
+    /** 兼容几种写法：裸 host:port / 带 http:// / 末尾带不带斜杠与 /api */
     static String normalizeApi(String raw) {
         if (raw == null) {
             return "";

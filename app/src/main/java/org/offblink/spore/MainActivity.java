@@ -64,6 +64,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         web = findViewById(R.id.web);
+        // WebView 默认白底：页面首帧前会露白，跟着窗口底设同色（切页白闪根治）
+        web.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.spore_window_bg));
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setSupportZoom(false);
         // web 皮排错入口：chrome://inspect 可挂 + 页面 console 落 logcat（桥断/JS 异常不再盲猜）
@@ -266,6 +268,12 @@ public class MainActivity extends AppCompatActivity {
         public String ready() {
             webReady = true;
             return stateJson();
+        }
+
+        /** 页面首帧主题：解析后的 "light" / "dark"（HTML <head> 引导脚本同步取） */
+        @JavascriptInterface
+        public String theme() {
+            return SporeSettings.load(MainActivity.this).resolvedTheme(MainActivity.this);
         }
 
         /** 几何时间线回写（**临时诊断，定位后删**，口径同 SettingsActivity.geomLog：

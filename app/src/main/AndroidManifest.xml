@@ -8,7 +8,7 @@
     <!-- 悬浮球/浮层 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- 扫码配对（PairActivity 取景） -->
+    <!-- 扫码登录服务器（QrLoginActivity 取景） -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -24,6 +24,7 @@
         android:name=".SporeApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Spore"
@@ -57,15 +58,20 @@
             android:name=".RecordActivity"
             android:exported="false" />
 
+        <!-- 运行日志（设置页入口进入；正文/刷新/复制/清空都在 logs.html） -->
+        <activity
+            android:name=".LogActivity"
+            android:exported="false" />
+
         <!-- 拍照搜题（相机取景 → 页内框选（带顺时针 90° 旋转）→ 记录详情页看答案） -->
         <activity
             android:name=".PhotoActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- 扫码配对（相机取景扫 Spore-GUI 主窗头像二维码 → 连通校验 → 落配对态） -->
+        <!-- 扫码登录服务器（相机扫登录页二维码 → POST /auth/qr/exchange 换 JWT） -->
         <activity
-            android:name=".PairActivity"
+            android:name=".QrLoginActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 

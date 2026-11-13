@@ -44,6 +44,20 @@
     }
   };
 
+  /**
+   * 首帧兜底后再校准一次主题：部分 WebView 在 <head> 内联脚本执行时还没注入 Spore 对象，
+   * 会退到 prefers-color-scheme（系统深色）→ 页面变深、但应用档位其实是浅色。
+   * common.js 在 body 末尾执行，此时桥一定可用；拿到解析值就覆盖。
+   */
+  (function syncThemeFromBridge() {
+    try {
+      var t = window.bridge("theme");
+      if (t === "light" || t === "dark") {
+        document.documentElement.setAttribute("data-theme", t);
+      }
+    } catch (e) { /* 无桥（启动页/冒烟）时保持首帧判断 */ }
+  })();
+
   /** 事件落点：页面按需覆写钩子，没覆写的默认空实现 */
   window.Host = {
     onEvent: function () {},

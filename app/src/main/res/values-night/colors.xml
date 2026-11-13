@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色板：与 web spore.css 的 html[data-theme="dark"] 逐值对齐
+     （Fungi style.css 的暗色 token：粉 → 青 #2DD4BF，底 #12141C / 面 #1B1E29）。 -->
+<resources>
+    <!-- 主色：青绿（accent / hover / deep / 两层 tint） -->
+    <color name="spore_pink">#2DD4BF</color>
+    <color name="spore_pink_dark">#4BE0CD</color>
+    <color name="spore_pink_deep">#99F6E4</color>
+    <color name="spore_pink_tint">#1E2E32</color>
+    <color name="spore_pink_tint2">#24403F</color>
+
+    <!-- 危险 -->
+    <color name="spore_danger">#F87171</color>
+    <color name="spore_danger_dark">#FCA5A5</color>
+    <color name="spore_danger_text">#FCA5A5</color>
+    <color name="spore_danger_tint">#2A1D20</color>
+
+    <!-- 墨色梯度 -->
+    <color name="spore_ink">#E6E8F2</color>
+    <color name="spore_ink2">#E6E8F2</color>
+    <color name="spore_muted">#A6ACC4</color>
+    <color name="spore_muted2">#7B82A0</color>
+    <color name="spore_muted3">#7B82A0</color>
+    <color name="spore_muted4">#5C6382</color>
+    <color name="spore_placeholder">#666D8C</color>
+
+    <!-- 线 -->
+    <color name="spore_line">#2A2E3E</color>
+    <color name="spore_line2">#242836</color>
+    <color name="spore_line3">#2A2E3E</color>
+    <color name="spore_line4">#363B4E</color>
+
+    <!-- 面 -->
+    <color name="spore_surface">#1B1E29</color>
+    <color name="spore_bg">#12141C</color>
+    <color name="spore_bg2">#161923</color>
+    <color name="spore_chip">#272B38</color>
+    <color name="spore_chip_text">#A6ACC4</color>
+
+    <!-- 收藏行（暖色弱提示，暗底上不提亮） -->
+    <color name="spore_fav_row">#2B2413</color>
+    <color name="spore_fav_row_hover">#332B16</color>
+
+    <!-- 内容色 -->
+    <color name="spore_label">#5C6382</color>
+    <color name="spore_think">#7B82A0</color>
+    <color name="spore_userchip">#22252F</color>
+    <color name="spore_tool">#1E2636</color>
+    <color name="spore_ok_bg">#15251A</color>
+    <color name="spore_ok_text">#4ADE80</color>
+    <color name="spore_fix_text">#FCA5A5</color>
+    <color name="spore_vnote">#A6ACC4</color>
+    <color name="spore_row_title">#E6E8F2</color>
+    <color name="spore_row_action">#5C6382</color>
+    <color name="spore_row_hover">#22252F</color>
+
+    <!-- 交互辅助 -->
+    <color name="spore_ink_92">#EBE6E8F2</color>
+    <color name="spore_ripple_press">#33FFFFFF</color>
+    <color name="spore_ghost_press">#272B38</color>
+    <color name="spore_pair_btn_bg">#66000000</color>
+
+    <!-- 系统栏 / 窗口底 / 成分色 -->
+    <color name="spore_statusbar">#12141C</color>
+    <color name="spore_navbar">#12141C</color>
+    <color name="spore_window_bg">#12141C</color>
+    <color name="spore_splash_bg">#12141C</color>
+    <color name="spore_accent_38">#5F2DD4BF</color>
+    <color name="spore_on_accent">#08131A</color>
+</resources>

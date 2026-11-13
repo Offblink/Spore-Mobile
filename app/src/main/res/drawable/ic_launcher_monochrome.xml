@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13 主题图标（单色）：系统取此层做染色。只留双眼剪影，别放辉光。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M43.5,39.5a7.5,7.5 0 0,1 7.5,7.5v6a7.5,7.5 0 0,1 -7.5,7.5a7.5,7.5 0 0,1 -7.5,-7.5v-6a7.5,7.5 0 0,1 7.5,-7.5z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M64.5,39.5a7.5,7.5 0 0,1 7.5,7.5v6a7.5,7.5 0 0,1 -7.5,7.5a7.5,7.5 0 0,1 -7.5,-7.5v-6a7.5,7.5 0 0,1 7.5,-7.5z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

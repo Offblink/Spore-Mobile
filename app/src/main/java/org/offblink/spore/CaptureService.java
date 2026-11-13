@@ -39,7 +39,6 @@ import org.offblink.spore.agent.SubjectsStore;
 import org.offblink.spore.overlay.BallView;
 import org.offblink.spore.overlay.CropOverlayView;
 import org.offblink.spore.panel.AnswerPanel;
-import org.offblink.spore.panel.NativeAnswerPanel;
 import org.offblink.spore.panel.Panel;
 
 import java.io.File;
@@ -61,6 +60,8 @@ import java.util.Locale;
 public class CaptureService extends Service {
 
     public static final String ACTION_PROJECT = "org.offblink.spore.action.PROJECT";
+    /** 主题档位变了：球/面板就地换色（服务不随 Activity 重建） */
+    public static final String ACTION_THEME = "org.offblink.spore.action.THEME";
     public static final String EXTRA_RESULT_CODE = "resultCode";
     public static final String EXTRA_RESULT_DATA = "resultData";
 
@@ -340,7 +341,7 @@ public class CaptureService extends Service {
 
     /** 两阶段作答引擎与浮动作答面板（截图落盘后接力，handoff §9.2） */
     private AgentEngine engine;
-    /** 第五轮分叉：web（默认）/ 原生（auto 判定华为鸿蒙，见 SporeSettings.panelNative） */
+    /** 面板只有 WebView 一皮（2026-11 重构删掉原生备选皮） */
     private Panel panel;
 
     private BallView ball;
@@ -387,9 +388,7 @@ public class CaptureService extends Service {
         bg.post(() -> SessionStore.loadMeta(this));
 
         engine = new AgentEngine(this);
-        panel = SporeSettings.load(this).panelNative()
-                ? new NativeAnswerPanel(this, wm, engine)
-                : new AnswerPanel(this, wm, engine);
+        panel = new AnswerPanel(this, wm, engine);
         // 包一层监听：回合结束时若球没开（引擎模式）就把服务收掉，别留着 FGS 通知
         engine.setListener(new AgentEngine.Listener() {
             @Override
@@ -452,6 +451,14 @@ public class CaptureService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_THEME.equals(intent.getAction())) {
+            if (ball != null) {
+                ball.invalidate(); // onDraw 里按 prefs 重取资源色
+            }
+            if (panel instanceof AnswerPanel) {
+                ((AnswerPanel) panel).reloadForTheme();
+            }
+        }
         if (intent != null && ACTION_PROJECT.equals(intent.getAction())) {
             int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED);
             Intent data = intent.getParcelableExtra(EXTRA_RESULT_DATA);
@@ -462,6 +469,14 @@ public class CaptureService extends Service {
         // 用户看到的就是「悬浮窗崩了」且无 Java 栈。STICKY 拉回后 onCreate 重建一切：
         // 无投影 → 走已有的「授权失效」提示，下次点球重授权。
         return START_STICKY;
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (ball != null) {
+            ball.invalidate();
+        }
     }
 
     @Override

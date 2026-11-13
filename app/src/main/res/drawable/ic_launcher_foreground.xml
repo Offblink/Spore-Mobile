@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 前景 = 浅色主题的粉色孢子球 + AA-Design PetFace 的发光双眼。
+     粉球是浅色主题主色（#EC4899）；球外一圈青绿辉光代表深色主题（#2DD4BF）。
+     眼形 15×21、间距 6，与主页 .orb-core 同源。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 深色主题的青绿辉光（球外） -->
+    <path android:pathData="M54,12 A40,40 0 1,0 54,92 A40,40 0 1,0 54,12 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="50"
+                android:gradientRadius="40">
+                <item android:offset="0" android:color="#662DD4BF" />
+                <item android:offset="0.6" android:color="#262DD4BF" />
+                <item android:offset="1" android:color="#002DD4BF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 粉色孢子球 r=27：左上高光 → 主粉 → 深粉 -->
+    <path android:pathData="M54,23 A27,27 0 1,0 54,77 A27,27 0 1,0 54,23 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="45"
+                android:centerY="41"
+                android:gradientRadius="34">
+                <item android:offset="0" android:color="#FFFFC7E1" />
+                <item android:offset="0.42" android:color="#FFEC4899" />
+                <item android:offset="1" android:color="#FFB0185A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 球面高光（极淡） -->
+    <path
+        android:pathData="M36,36 A13,9 0 1,0 36,54 A13,9 0 1,0 36,36 Z"
+        android:fillColor="#33FFFFFF" />
+    <!-- 左眼 15×21，r=7.5 -->
+    <path android:pathData="M43.5,39.5a7.5,7.5 0 0,1 7.5,7.5v6a7.5,7.5 0 0,1 -7.5,7.5a7.5,7.5 0 0,1 -7.5,-7.5v-6a7.5,7.5 0 0,1 7.5,-7.5z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="43.5"
+                android:startY="39.5"
+                android:endX="43.5"
+                android:endY="60.5">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFE9ECFA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 右眼 15×21，r=7.5 -->
+    <path android:pathData="M64.5,39.5a7.5,7.5 0 0,1 7.5,7.5v6a7.5,7.5 0 0,1 -7.5,7.5a7.5,7.5 0 0,1 -7.5,-7.5v-6a7.5,7.5 0 0,1 7.5,-7.5z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="64.5"
+                android:startY="39.5"
+                android:endX="64.5"
+                android:endY="60.5">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFE9ECFA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

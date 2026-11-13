@@ -42,6 +42,7 @@ public class SplashActivity extends AppCompatActivity {
         setContentView(R.layout.activity_splash);
 
         WebView web = findViewById(R.id.web);
+        web.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.spore_splash_bg));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         // 排错入口同记录页：chrome://inspect + console 落 logcat（tag spore-web）
@@ -61,7 +62,10 @@ public class SplashActivity extends AppCompatActivity {
                 host.postDelayed(goMain, SHOW_MS);
             }
         });
-        web.loadUrl("file:///android_asset/web/splash.html");
+        // 主题走片段：老 WebView 的 prefers-color-scheme 不一定跟随应用 uiMode，
+        // 由原生把解析好的明暗直接带给页面，首帧就正确。
+        String theme = SporeSettings.load(this).resolvedTheme(this);
+        web.loadUrl("file:///android_asset/web/splash.html#t=" + theme);
         host.postDelayed(goMain, DEADLINE_MS); // 死线：加载失败也绝不白屏卡死
     }
 

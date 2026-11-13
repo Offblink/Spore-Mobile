@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 扫码配对（PairActivity）：全屏相机预览 + 半透暗幕 + 粉框取景窗 + 顶栏 + 底部提示 -->
+<!-- 扫码登录（QrLoginActivity）：全屏相机预览 + 半透暗幕 + 粉框取景窗 + 顶栏 + 底部提示 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"

@@ -95,16 +95,22 @@ public class CropOverlayView extends View {
         dimPaint.setColor(0x8C000000); // 桌面 box-shadow 环 = 55% 黑
         dimPaint.setStyle(Paint.Style.FILL);
 
-        selFillPaint.setColor(0x1AEC4899); // rgba(236,72,153,.10)
+        // 选区色跟主题（浅色粉 / 深色青）：主色 + 10% 填充
+        // Service/Activity 都能取到「手动档位」的配色（AppCompat 只改 Activity Resources）
+        android.content.Context themeCtx =
+                org.offblink.spore.SporeSettings.themedContext(context);
+        int accent = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_pink);
+        int onAccent = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_on_accent);
+        selFillPaint.setColor((accent & 0x00FFFFFF) | 0x1A000000); // rgba(236,72,153,.10)
         selFillPaint.setStyle(Paint.Style.FILL);
 
-        borderPaint.setColor(0xFFEC4899); // border:2px solid #ec4899
+        borderPaint.setColor(accent); // border:2px solid #ec4899
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(2 * density);
 
-        labelBgPaint.setColor(0xFFEC4899); // 尺寸牌：粉底 6px 圆角
+        labelBgPaint.setColor(accent); // 尺寸牌：粉底 6px 圆角
         labelBgPaint.setStyle(Paint.Style.FILL);
-        labelPaint.setColor(Color.WHITE);
+        labelPaint.setColor(onAccent);
         labelPaint.setTextAlign(Paint.Align.CENTER);
         labelPaint.setTextSize(12 * density);
 

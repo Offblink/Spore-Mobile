@@ -1,6 +1,7 @@
 package org.offblink.spore.overlay;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
@@ -8,6 +9,9 @@ import android.graphics.Shader;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+
+import org.offblink.spore.R;
+import org.offblink.spore.SporeSettings;
 
 /**
  * 悬浮球：圆形 + 白色放大镜（第八轮从 🔍 emoji 换回手绘并修对齐：
@@ -51,6 +55,8 @@ public class BallView extends View {
     private final int hPx;
     private final int glowPx;
     private final int touchSlop;
+    /** 当前配色对应的解析主题（切主题不必重启服务，下一帧就地换色） */
+    private String themeName = "";
 
     private float downRawX, downRawY;
     private long downTime;
@@ -79,14 +85,34 @@ public class BallView extends View {
         // 光晕要出界外 → 软件层 shadowLayer
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         bgPaint.setStyle(Paint.Style.FILL);
-        bgPaint.setShadowLayer(glowPx * 1.5f, 0, 0, 0x52EC4899);
-        // 渐变一次成形（尺寸构造期已知，避免每次 onDraw 分配）
-        bgPaint.setShader(new LinearGradient(0, glowPx, 0, hPx - glowPx,
-                0xFFDB2777, 0xFFEC4899, Shader.TileMode.CLAMP));
+        applyThemeColors();
         lensPaint.setStyle(Paint.Style.STROKE);
         lensPaint.setStrokeCap(Paint.Cap.ROUND);
         lensPaint.setStrokeWidth(Math.max(2f, density * 2.6f));
         lensPaint.setColor(0xFFFFFFFF);
+    }
+
+    /** 球色跟主题：浅色粉 / 深色青。onDraw 每帧只做一次 int 比较，配置变了才重建 shader。 */
+    private void applyThemeColors() {
+        String theme = SporeSettings.load(getContext()).resolvedTheme(getContext());
+        if (theme.equals(themeName)) {
+            return;
+        }
+        themeName = theme;
+        android.content.Context themeCtx = SporeSettings.themedContext(getContext());
+        int accentTop = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_pink_dark);
+        int accentBottom = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_pink);
+        bgPaint.setShadowLayer(glowPx * 1.5f, 0, 0,
+                (accentBottom & 0x00FFFFFF) | 0x52000000);
+        bgPaint.setShader(new LinearGradient(0, glowPx, 0, hPx - glowPx,
+                accentTop, accentBottom, Shader.TileMode.CLAMP));
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applyThemeColors();
+        invalidate();
     }
 
     /** 圆球对称，朝向无视觉差异；服务侧吸边仍回调（接口兼容，无视觉效果） */
@@ -101,6 +127,7 @@ public class BallView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        applyThemeColors(); // 主题切换后第一帧就地换色
         float cx = wPx / 2f;
         float cy = hPx / 2f;
         float r = Math.min(wPx, hPx) / 2f - glowPx;

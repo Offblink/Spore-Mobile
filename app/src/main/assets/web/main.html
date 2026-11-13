@@ -1,8 +1,23 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      /* 首帧主题：桥可用就信原生（跟随系统/手动档位的最终解析值），否则按系统偏好兜底。
+         必须早于样式表，避免亮色闪一帧。 */
+      (function () {
+        try {
+          var t = window.Spore && window.Spore.theme ? window.Spore.theme() : null;
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) { /* 主题只是外观，失败就留浅色 */ }
+      })();
+    </script>
     <title>Spore 主页</title>
     <link rel="stylesheet" href="spore.css" />
     <link rel="stylesheet" href="navbar.css" />
@@ -10,27 +25,50 @@
     <link rel="stylesheet" href="main.css" />
   </head>
   <body data-tab="home">
+    <div class="ambient" aria-hidden="true"><i></i><i></i></div>
+
     <main class="page sheet">
-      <!-- 品牌头：「Spore.」字标 + 状态胶囊 -->
-      <header class="brand anim-fade-up">
+      <!-- 品牌头：呼吸孢子球 + 字标 + 状态胶囊 -->
+      <header class="hero">
+        <div class="orb" id="orb" aria-hidden="true">
+          <i class="orb-halo"></i>
+          <i class="orb-core"></i>
+        </div>
+        <p class="eyebrow">SCREENSHOT · ANSWER</p>
         <h1 class="wordmark">Spore<span class="dot">.</span></h1>
-        <div class="pill status-pill">
+        <p class="lede">截一道题，先快答，再联网核实。</p>
+        <div class="pill status-pill glass">
           <i class="status-dot" id="statusDot"></i>
           <span id="statusText">悬浮球已停止</span>
         </div>
       </header>
 
-      <!-- 单一粉主 CTA：空闲 = 主粉「显示悬浮球」，运行 = 软「隐藏悬浮球」；
-           拍照搜题 = 次级软按钮（不开悬浮窗：拍完直接进记录详情页） -->
-      <section class="cta anim-fade-up" style="animation-delay: 0.07s">
-        <button type="button" class="btn btn-primary" id="btnBall">显示悬浮球</button>
-        <button type="button" class="btn btn-soft" id="btnPhoto">拍照搜题</button>
-        <!-- 投影没在手时的次级提示：投影授权只在开关时过桥 → 点它同 toggleBall -->
+      <!-- 主 CTA：空闲 = 主粉「显示悬浮球」，运行 = 软「隐藏悬浮球」；
+           拍照搜题 = 次级入口（不开悬浮窗：拍完直接进记录详情页） -->
+      <section class="cta stagger">
+        <button type="button" class="btn btn-primary hero-cta" id="btnBall">
+          <svg class="cta-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M12 4.2c1.9 0 3.2 1.5 3.2 3.4M12 19.8c-1.9 0-3.2-1.5-3.2-3.4" />
+            <path d="M4.2 12c0-1.9 1.5-3.2 3.4-3.2M19.8 12c0 1.9-1.5 3.2-3.4 3.2" />
+          </svg>
+          <span class="cta-txt" id="btnBallTxt">显示悬浮球</span>
+        </button>
+        <button type="button" class="btn btn-ghost hero-cta" id="btnPhoto">
+          <svg class="cta-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 8.5h3l1.6-2.2h6.8L17 8.5h3a1.5 1.5 0 011.5 1.5v7.5A1.5 1.5 0 0120 19H4a1.5 1.5 0 01-1.5-1.5V10A1.5 1.5 0 014 8.5z" />
+            <circle cx="12" cy="13.4" r="3.4" />
+          </svg>
+          <span class="cta-txt">拍照搜题</span>
+        </button>
+        <!-- 投影没在手时的次级提示：投影授权只在开关时过桥 → 点它同 reauth -->
         <button type="button" id="projHint" hidden>截屏授权已失效 · 点此重新授权</button>
       </section>
     </main>
 
-    <!-- 底部玻璃导航条（Mobile-Design liquid-glass · glass-tab-bar）：浮在内容上的控件层。
+    <!-- 底部玻璃导航条：浮在内容上的控件层。
          必须在 .sheet 之外 + position: fixed（见 glassbar.css 头注释） -->
     <nav class="lg-tabbar" aria-label="页面切换">
       <button type="button" class="lg-tab on" data-tab="home">
@@ -42,7 +80,7 @@
         <span class="lg-lb">记录</span>
       </button>
       <button type="button" class="lg-tab" data-tab="settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
         <span class="lg-lb">设置</span>
       </button>
     </nav>

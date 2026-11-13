@@ -14,7 +14,6 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.offblink.spore.sync.ServerConnector;
 import org.offblink.spore.sync.SporeSyncState;
 import org.offblink.spore.sync.SyncEngine;
 
@@ -23,8 +22,8 @@ import java.util.concurrent.Executors;
 
 /**
  * 设置页（web 皮）：读写 SporeSettings（端点/key/模型/检索代理/两阶段开关），
- * 外加「配对与同步」卡的桥（pairInfo/scan/syncStart/unpair，见 settings.js）。
- * 9+7 字段经桥 ready/save 落本机 SharedPreferences；
+ * 外加「服务器与同步」卡的桥（pairInfo/qrLogin/syncStart/unpair，见 settings.js）。
+ * 10+7 字段经桥 ready/save 落本机 SharedPreferences；
  * apiKey 红线同 SporeSettings——只活在本机，绝不进日志/仓库。
  * isConfigured() 的判定仍归 SporeSettings，页面只做「空了会拦」的警示提示。
  * 同步状态里的 token 不出 {@link SporeSyncState#toJson()}（红线同 apiKey）。
@@ -40,28 +39,14 @@ public class SettingsActivity extends AppCompatActivity {
         return t;
     });
 
-    /** 「账号直连」结果（null = 还没跑过 / 正在跑看 connectRunning）：页面 300ms 轮询一次 */
-    private static volatile JSONObject connectResult = null;
-    private static volatile boolean connectRunning = false;
-
-    /** 桥入参坏掉时的统一失败帧（形状与 ServerConnector 的失败帧一致） */
-    private static JSONObject connectFail(String message) {
-        JSONObject o = new JSONObject();
-        try {
-            o.put("ok", false);
-            o.put("message", message);
-        } catch (JSONException ignored) {
-            // JSONObject.put(String,String) 不会真抛
-        }
-        return o;
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
         web = findViewById(R.id.web);
+        // 同上：先铺主题底，避免切页露白
+        web.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.spore_window_bg));
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setSupportZoom(false);
         web.setWebViewClient(new WebViewClient());
@@ -97,7 +82,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     /**
      * JS → 原生宿主对象 {@code window.Spore}（跑在 JavaBridge 线程）。
-     * ready/save 都是 prefs 读写不碰 UI；只有 close/scan/unpair 的 UI 动作要切主线程。
+     * ready/save 都是 prefs 读写不碰 UI；只有 close/qrLogin/unpair 的 UI 动作要切主线程。
      */
     public class Host {
 
@@ -107,10 +92,40 @@ public class SettingsActivity extends AppCompatActivity {
             return SporeSettings.load(SettingsActivity.this).toJson().toString();
         }
 
+        /** 页面首帧主题：解析后的 "light" / "dark" */
+        @JavascriptInterface
+        public String theme() {
+            return SporeSettings.load(SettingsActivity.this).resolvedTheme(SettingsActivity.this);
+        }
+
+        /** 外观卡：落档位 + 立即应用夜间模式；返回解析后的明暗供页面当帧换色 */
+        @JavascriptInterface
+        public String themeSet(String mode) {
+            SporeSettings s = SporeSettings.load(SettingsActivity.this);
+            s.theme = SporeSettings.normalizeTheme(mode);
+            s.save(SettingsActivity.this);
+            SporeApp.applyNightMode(SettingsActivity.this);
+            notifyServiceTheme();
+            return "light".equals(s.theme) || "dark".equals(s.theme)
+                    ? s.theme
+                    : SporeSettings.systemTheme(SettingsActivity.this);
+        }
+
         /** 只覆盖传入 JSON 里出现的键；脏入参由 applyJson 自己拦（不落盘） */
         @JavascriptInterface
         public void save(String json) {
             SporeSettings.applyJson(SettingsActivity.this, json == null ? "{}" : json);
+            // theme 也在保存 JSON 里：档位变了就让原生跟着重建（同档位时 AppCompat 是 no-op）
+            SporeApp.applyNightMode(SettingsActivity.this);
+            notifyServiceTheme();
+        }
+
+        /** 主题变了且球在跑：通知服务就地换色（服务不随 Activity 重建） */
+        private void notifyServiceTheme() {
+            if (CaptureService.isBallOn()) {
+                startService(new Intent(SettingsActivity.this, CaptureService.class)
+                        .setAction(CaptureService.ACTION_THEME));
+            }
         }
 
         /** 配对与同步卡状态帧：{paired, api, nick, lastSyncAt, lastSyncMsg, running}（无 token） */
@@ -124,15 +139,9 @@ public class SettingsActivity extends AppCompatActivity {
             return o.toString();
         }
 
-        /** 操作日志尾部（spore.log ≤64KB）；红线：日志本身不含 token/apiKey */
-        @JavascriptInterface
-        public String logRead() {
-            return SporeLog.read(SettingsActivity.this);
-        }
-
         /** 几何时间线回写（**临时诊断，定位后删**）：navbar.js 把「视口/条落位的变化点」塞进来，
-         *  三页里只有设置页有日志卡 → 用户复现后到 设置页 → 日志 → 复制 取数。
-         *  只含数字与状态字串，不含 token/apiKey（红线同 logRead）。 */
+         *  用户复现后到 设置页 → 运行日志 → 复制 取数。
+         *  只含数字与状态字串，不含 token/apiKey。 */
         @JavascriptInterface
         public void geomLog(String msg) {
             if (msg != null && !msg.isEmpty() && msg.length() <= 2000) {
@@ -140,33 +149,18 @@ public class SettingsActivity extends AppCompatActivity {
             }
         }
 
-        /** 清空操作日志 */
+        /** 运行日志独立页 */
         @JavascriptInterface
-        public void logClear() {
-            SporeLog.clear(SettingsActivity.this);
-        }
-
-        /** 复制整份日志到剪贴板（剪贴板 API 必须走原生；日志本身不含 token/apiKey）。
-         * @return true = 已复制；false = 日志为空（页面据此提示） */
-        @JavascriptInterface
-        public boolean logCopy() {
-            final String text = SporeLog.read(SettingsActivity.this);
-            if (text == null || text.isEmpty()) {
-                return false;
-            }
-            runOnUiThread(() -> {
-                android.content.ClipboardManager cm = (android.content.ClipboardManager)
-                        getSystemService(CLIPBOARD_SERVICE);
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("spore-log", text));
-            });
-            return true;
-        }
-
-        /** 扫码配对页（相机权限在 PairActivity 里要） */
-        @JavascriptInterface
-        public void scan() {
+        public void openLogs() {
             runOnUiThread(() -> startActivity(
-                    new Intent(SettingsActivity.this, PairActivity.class)));
+                    new Intent(SettingsActivity.this, LogActivity.class)));
+        }
+
+        /** 扫码登录页（相机权限在 QrLoginActivity 里要） */
+        @JavascriptInterface
+        public void qrLogin() {
+            runOnUiThread(() -> startActivity(
+                    new Intent(SettingsActivity.this, QrLoginActivity.class)));
         }
 
         /** 立即同步（后台线程跑一轮；重复点由 isRunning 挡） */
@@ -177,44 +171,6 @@ public class SettingsActivity extends AppCompatActivity {
             }
             final android.content.Context app = getApplicationContext();
             SYNC_EXEC.execute(() -> SyncEngine.run(app));
-        }
-
-        /**
-         * 「账号直连」配对：入参 JSON {api, username, password}，后台登录 Spore-Cloud 后端并落配对态。
-         * 页面用 {@link #connectPoll()} 轮询结果——网络调用不能卡在 JS 桥线程上。
-         * 红线：口令只在本机内存里过一遍，不写日志、不落 prefs。
-         */
-        @JavascriptInterface
-        public void connectStart(String json) {
-            if (connectRunning) {
-                return;
-            }
-            final JSONObject in;
-            try {
-                in = new JSONObject(json == null || json.length() == 0 ? "{}" : json);
-            } catch (JSONException e) {
-                connectResult = connectFail("参数格式错误");
-                return;
-            }
-            final String api = in.optString("api", "");
-            final String username = in.optString("username", "");
-            final String password = in.optString("password", "");
-            connectRunning = true;
-            connectResult = null;
-            final Context app = getApplicationContext();
-            SYNC_EXEC.execute(() -> {
-                connectResult = ServerConnector.connect(app, api, username, password);
-                connectRunning = false;
-            });
-        }
-
-        /** 账号直连结果：{state:"pending"} / {ok:true,api,nick,uid} / {ok:false,message} */
-        @JavascriptInterface
-        public String connectPoll() {
-            if (connectRunning) {
-                return "{\"state\":\"pending\"}";
-            }
-            return connectResult == null ? "{\"state\":\"idle\"}" : connectResult.toString();
         }
 
         /** 取消配对：应用皮确认框（SporePairDialog + dialog_unpair，零原生 chrome） */

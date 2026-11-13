@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 设置页整页 WebView：8 字段分组卡全在 assets/web/settings.html -->
+<!-- 设置页整页 WebView：设置分组卡全在 assets/web/settings.html -->
 <WebView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/web"
     android:layout_width="match_parent"

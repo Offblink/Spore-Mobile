@@ -6,10 +6,10 @@
      直接五字母动画）。 -->
 <resources>
     <style name="Theme.Spore.Splash" parent="Theme.Spore">
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:statusBarColor">@android:color/white</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
-        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowBackground">@color/spore_splash_bg</item>
+        <item name="android:statusBarColor">@color/spore_splash_bg</item>
+        <item name="android:navigationBarColor">@color/spore_splash_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/spore_splash_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
     </style>
 </resources>

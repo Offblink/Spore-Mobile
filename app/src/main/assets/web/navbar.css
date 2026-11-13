@@ -1,23 +1,17 @@
 /* 页面切换的入场动画（玻璃 Tab 条在 glassbar.css；点击/滑动切页的逻辑在 navbar.js）。
  *
- * 整页平移：`.sheet`（各页的内容根）从来源方向滑进来 —— 方向 = 来源格与目标格的先后，
- * 往后走（索引变大）自右边进、往回走自左边进，与「往左滑去右边那页」的手势方向天然一致。
+ * 整页平移：`.sheet`（各页的内容根）从来源方向滑进来 —— 方向 = 来源格与目标格的先后。
  * 来源 tab 由原生 loadUrl 的片段带进来（`#from=<tab>`，navboot.js 在首帧前落到 <html>）；
- * 回主页时主页是被「恢复」不是重载，由 navbar.js 的 window.__navEnter 重播一次。 */
+ * 回主页时主页是被「恢复」不是重载，由 navbar.js 的 window.__navEnter 重播一次。
+ */
 
 :root {
-  --nav-move: 300ms;                             /* 整页平移时长（唯一旋钮） */
-  --nav-ease: cubic-bezier(0.2, 0.75, 0.25, 1);  /* 快起、缓收（fast_out_slow_in 手感） */
+  --nav-move: 320ms;                             /* 整页平移时长（唯一旋钮） */
+  --nav-ease: cubic-bezier(0.2, 0.75, 0.25, 1);  /* 快起、缓收 */
 }
 
-/* 横向溢出必须掐掉（2026-10-11 真机：那根灰/「粉红」进度条就是它）。
- * `.sheet` 平移到 translateX(±100%) 时会探出视口右缘 → 文档比视口宽 → Chromium 画一条
- * **横向滚动条**（实测：切页那 300ms 里 scrollWidth 最多比 innerWidth 宽一整个视口，
- * 19/84 帧有溢出）。它只在动画期间出现、动画一完就消失 —— 正是用户看到的
- * 「进度条到一半 / 进度条消失后位置才对」；滚动条一出现还可能抢走布局高度，让 `bottom`
- * 锚定的玻璃条当场位移。溢出的部分本来就全在视口外，裁掉视觉零差别。
- * 只在动画期间生效（`html[data-from]`，navboot 在首帧前落好）：静止时不留这个约束，
- * 将来真有内容横向撑破视口时还能被看见。 */
+/* 横向溢出必须掐掉：`.sheet` 平移到 translateX(±100%) 时会探出视口右缘 → Chromium 画一条
+ * 横向滚动条（2026-10-11 真机实测，只在动画期间出现）。只在动画期间生效。 */
 html[data-from] { overflow-x: hidden; }
 
 html[data-from] .sheet {
@@ -34,7 +28,6 @@ html[data-from="settings"] body[data-tab="records"] .sheet { animation-name: she
 @keyframes sheet-in-right { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes sheet-in-left { from { transform: translateX(-100%); } to { transform: none; } }
 
-/* 不要动效就都不动（静止位置本来就是终点） */
 @media (prefers-reduced-motion: reduce) {
   html[data-from] .sheet { animation: none; }
 }

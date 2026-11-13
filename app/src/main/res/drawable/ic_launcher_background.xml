@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标背景：深空底 + 中央青绿孢子辉光（深色主题色 #2DD4BF）。
+     粉色主体在 foreground 的孢子球上，保证浅色主题的粉一眼可见。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="2"
+                android:endX="102"
+                android:endY="108">
+                <item android:offset="0" android:color="#FF1C2131" />
+                <item android:offset="0.52" android:color="#FF10141F" />
+                <item android:offset="1" android:color="#FF080B12" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M54,12 A40,40 0 1,0 54,92 A40,40 0 1,0 54,12 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="50"
+                android:gradientRadius="40">
+                <item android:offset="0" android:color="#4D2DD4BF" />
+                <item android:offset="0.55" android:color="#1F2DD4BF" />
+                <item android:offset="1" android:color="#002DD4BF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

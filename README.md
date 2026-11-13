@@ -25,7 +25,7 @@
 |---|---|---|
 | 形态 | 浏览器扩展（Manifest V3，装上就能用） | Android 原生 App（Java + XML Views） |
 | 取图 | `Alt+S` 冻结视口后框选网页 | 悬浮球点一下 → `MediaProjection` 取帧 → 冻结帧框选 |
-| 界面 | 网页右缘抽屉 +「搜题记录」整页 | 同款抽屉面板 + 同款搜题记录页（WebView 皮 / 原生皮） |
+| 界面 | 网页右缘抽屉 +「搜题记录」整页 | 同款抽屉面板 + 同款搜题记录页（WebView 皮） |
 | 存档 | 扩展本地存档 | `filesDir/sessions/<id>.json`，两边**不互通** |
 
 三条对齐口径：
@@ -40,12 +40,12 @@
   （没有「全部」，各组总和就是全部会话），会话行 ⇥ 移入/移出科目（iOS 底部弹层，
   从顶部刻痕下滑可关），新建/重命名/删除科目复用页内模态；删科目只把会话移出、一个不删，
   `subjects.json` 原子落盘。
-- **扫码配对 · 与 Spore-GUI 双向同步**：设置页「配对与同步」→ 扫
-  [Spore-GUI](https://github.com/Offblink/Spore-GUI) 桌面端头像二维码 → 记录、收藏、科目
-  按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传（协议对齐 Spore-GUI `SyncController`）。
-- **没有桌面端也能同步**：同一张卡里展开「账号直连服务器」，填 Spring Cloud 微服务后端
-  （[Spore-Cloud](https://github.com/Offblink/Spore-Cloud)）的网关地址（`<电脑IP>:19080`）+ 账号口令即可——登录换 JWT 后走的还是同一套
-  同步协议，换服务器会把双游标清零、下轮全量交换。
+- **明暗双主题**：设置页「外观」跟随系统 / 浅色 / 深色即时切换——浅色 = 孢子粉
+  `#EC4899`，深色 = Fungi 青 `#2DD4BF`；图标、悬浮球、截屏/拍照框选、面板、日志页一起跟色。
+- **扫码登录 · 与 Spore-Cloud 双向同步**：设置页「服务器与同步」→ 扫码登录 → 扫服务器
+  登录页上的二维码（`{v:1, api, ticket}`）→ `POST /auth/qr/exchange` 换 JWT → 记录、收藏、
+  科目按**游标增量 + LWW + 删除墓碑**双向同步，题图按需上/下传；换服务器会把双游标清零、
+  下轮全量交换。服务端改造说明见 [`docs/qr-login-server.md`](docs/qr-login-server.md)。
 - **作答内核是移植的**：阶段 A 直答 → 阶段 B 联网核实的两阶段协议、`<<ok>>` 自评跳过核实、
   「答案与解析必须同向」的极性自检 —— 逐语义移植自 MV3 版 `src/lib/agent.js`
   （本项目 `app/src/main/java/org/offblink/spore/agent/Phases.java`，两边字段与分支一一对应）。
@@ -67,7 +67,7 @@
 ## 安装与用法
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
-   （v1.6，2026-11-05 构建，31.7 MB），允许「安装未知应用」后安装。
+   （v1.7，2026-11-13 构建，31.7 MB），允许「安装未知应用」后安装。
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限
    （只用「拍照搜题」的话这两项都不需要，相机权限进拍照页时申请）。
 3. 日常：
@@ -86,8 +86,7 @@
    - 「搜题记录」页翻历史、按收藏筛选、点图放大 → 保存到相册（`Pictures/Spore`）；
    - 记录页按**未分组 / 科目**分组查看：顶部 chips 切组、行内 ⇥ 移入（弹层里完成新建 /
      改名 / 删除，从顶部刻痕下滑可关）。
-   - **同步到电脑**：设置页「配对与同步」→ 扫码配对 Spore-GUI → 「立即同步」。
-     扫到的接口地址可以改（桌面端二维码里给的是它自己的回环地址时，改成电脑的局域网 IP）。
+   - **同步到服务器**：设置页「服务器与同步」→ 扫码登录（扫服务器登录页二维码）→ 「立即同步」。
 
 ## 截图
 
@@ -105,7 +104,7 @@
 | 屏幕录制（`MediaProjection`） | 点球取当前屏幕的帧 —— 这是本 App 拿到题目的唯一方式 |
 | 前台服务 + 通知 | 悬浮球常驻，被系统回收就再也截不了屏（`FGS` 类型 `mediaProjection`） |
 | 相册写入 | 「保存到相册」把截图存进 `Pictures/Spore` |
-| 相机 | 拍照搜题取景（首页「拍照搜题」）+ 扫码配对（识别 Spore-GUI 的配对二维码） |
+| 相机 | 拍照搜题取景（首页「拍照搜题」）+ 扫码登录服务器（识别登录二维码） |
 
 API Key 只存在本机设置页（不进 git、不进日志）；会话、截图都留在应用私有目录里。
 
@@ -120,14 +119,14 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-11-04 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**（97 条 warning），单测 **88/88 全绿**
+- 2026-11-13 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+  lint **Error 0**（149 条 warning），单测 **88/88 全绿**
   （FrameQuality 7 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 7 · SubjectsStore 4 · LlmClient 3 ·
   LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5），
-  APK **33,289,904 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  APK **33,267,247 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（含 CameraX + ML Kit 条码模型与离线 KaTeX 公式字体；
-  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,289,904 B；
+  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,267,247 B；
   拍照搜题复用已有的 CameraX，不新增依赖）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

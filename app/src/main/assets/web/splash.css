@@ -1,6 +1,6 @@
 /* 启动页专属样式：五字母字标（原小字升主体，保持粉）+ 飞点。令牌来自 spore.css。 */
 
-body { background: #fff; overflow: hidden; }
+body { background: var(--bg); overflow: hidden; }
 
 /* 整页舞台：字标 + 小字纵向一列居中；offset-path 坐标相对本容器原点。
    padding-bottom 上抬构图（用户：整体还是太靠下，收到 ~45% 高度处） */

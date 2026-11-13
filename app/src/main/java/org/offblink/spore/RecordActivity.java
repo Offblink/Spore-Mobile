@@ -82,6 +82,8 @@ public class RecordActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, backCb);
 
         web = findViewById(R.id.web);
+        // 页面首帧前 WebView 是白底 → 切页/入场会闪一下，先铺主题底
+        web.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.spore_window_bg));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setSupportZoom(false);
@@ -143,6 +145,12 @@ public class RecordActivity extends AppCompatActivity {
      * 文件 IO 直跑；finish 必须主线程。
      */
     public class Host {
+
+        /** 页面首帧主题：解析后的 "light" / "dark" */
+        @JavascriptInterface
+        public String theme() {
+            return SporeSettings.load(RecordActivity.this).resolvedTheme(RecordActivity.this);
+        }
 
         @JavascriptInterface
         public String ready() {

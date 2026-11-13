@@ -28,9 +28,17 @@
       : running ? TXT.running : TXT.idle;
     $("statusDot").classList.toggle("on", running);
     var cta = $("btnBall");
-    cta.textContent = running ? TXT.stop : TXT.start;
+    // 按钮含图标，只换文案节点；旧结构（纯文本按钮）兜底
+    var ctaTxt = $("btnBallTxt");
+    if (ctaTxt) {
+      ctaTxt.textContent = running ? TXT.stop : TXT.start;
+    } else {
+      cta.textContent = running ? TXT.stop : TXT.start;
+    }
     cta.classList.toggle("btn-soft", running);
     cta.classList.toggle("btn-primary", !running);
+    // 孢子球呼吸频率 / 光晕强度跟着运行态走（CSS：body.running .orb）
+    document.body.classList.toggle("running", running);
     // 投影授权只在开球开关时过桥；running && 授权没读到 = 可能需重授。
     // 第六轮：授权落库是异步的，false 稳定满 2s 才亮提示（防授权刚过就短闪）；
     // 复查轮询照常跑（1.5s 一拉，projection 到手即停，别把误报挂死）。

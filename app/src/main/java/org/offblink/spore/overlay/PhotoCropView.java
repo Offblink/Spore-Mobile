@@ -10,6 +10,8 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.View;
 
+import org.offblink.spore.R;
+
 /**
  * 应用内的拍照框选层（拍照搜题专用，不走悬浮窗那套 {@code CropOverlayView}）：
  * 冻结照片 fit-center + 拖拽框选（可挪动 / 角把手改大小）+ W×H 尺寸牌。
@@ -48,16 +50,22 @@ public class PhotoCropView extends View {
         minW = Math.round(60 * density);
         minH = Math.round(40 * density);
 
-        selFillPaint.setColor(0x1AEC4899);
+        // 选区色跟主题（浅色粉 / 深色青）：主色 + 10% 填充
+        // Service/Activity 都能取到「手动档位」的配色（AppCompat 只改 Activity Resources）
+        android.content.Context themeCtx =
+                org.offblink.spore.SporeSettings.themedContext(context);
+        int accent = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_pink);
+        int onAccent = androidx.core.content.ContextCompat.getColor(themeCtx, R.color.spore_on_accent);
+        selFillPaint.setColor((accent & 0x00FFFFFF) | 0x1A000000);
         selFillPaint.setStyle(Paint.Style.FILL);
 
-        borderPaint.setColor(0xFFEC4899);
+        borderPaint.setColor(accent);
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(2 * density);
 
-        labelBgPaint.setColor(0xFFEC4899);
+        labelBgPaint.setColor(accent);
         labelBgPaint.setStyle(Paint.Style.FILL);
-        labelPaint.setColor(Color.WHITE);
+        labelPaint.setColor(onAccent);
         labelPaint.setTextAlign(Paint.Align.CENTER);
         labelPaint.setTextSize(12 * density);
     }

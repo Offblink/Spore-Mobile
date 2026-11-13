@@ -1,8 +1,24 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<script>
+  /* 启动页没有桥：按系统 / 应用夜间模式兜底（AppCompatDelegate 已把 uiMode 落到 WebView） */
+  (function () {
+    try {
+      var h = location.hash || "";
+      var m = /(?:^|[#&])t=(light|dark)/.exec(h);
+      var t = m ? m[1] : null;
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { /* 留浅色 */ }
+  })();
+</script>
 <title>Spore</title>
 <link rel="stylesheet" href="spore.css">
 <link rel="stylesheet" href="splash.css">

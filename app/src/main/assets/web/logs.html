@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<script>
+  (function () {
+    try {
+      var t = window.Spore && window.Spore.theme ? window.Spore.theme() : null;
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { /* 留浅色 */ }
+  })();
+</script>
+<title>运行日志</title>
+<link rel="stylesheet" href="spore.css">
+<link rel="stylesheet" href="logs.css">
+</head>
+<body>
+<header class="topbar">
+  <button type="button" class="back-btn" id="btnBack" aria-label="返回">‹</button>
+  <span class="title">运行日志</span>
+</header>
+
+<main class="logmain">
+  <p class="logmeta">同步 / 配对的逐步时序 · 尾部 64KB 环形 · 不记 token 与 key</p>
+  <pre id="logBody" class="logbody">（空）</pre>
+</main>
+
+<footer class="logbar">
+  <button type="button" class="btn btn-soft" id="btnRefresh">刷新</button>
+  <button type="button" class="btn btn-soft" id="btnCopy">复制</button>
+  <button type="button" class="btn btn-danger-soft" id="btnClear">清空</button>
+</footer>
+
+<script src="common.js"></script>
+<script src="logs.js"></script>
+</body>
+</html>

@@ -1,13 +1,17 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- MV3 桌面只有浅色一套 → 锁 Light，杜绝系统深色把粉系咬坏（Page Theme Lock） -->
-    <style name="Base.Theme.Spore" parent="Theme.Material3.Light.NoActionBar">
+    <!-- 明暗双板（2026-11 重构）：DayNight 父主题 + @bool 亮暗图标 +
+         values-night/colors.xml 接管所有 spore_* token。
+         主题档位由 SporeApp.applyNightMode() 落到 AppCompatDelegate：
+         system 跟系统、light/dark 强制重建。 -->
+    <style name="Base.Theme.Spore" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/spore_pink</item>
-        <item name="colorOnPrimary">@color/spore_surface</item>
+        <item name="colorOnPrimary">@color/spore_on_accent</item>
         <item name="colorSecondary">@color/spore_pink</item>
-        <item name="android:statusBarColor">@color/spore_bg</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">@color/spore_surface</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowBackground">@color/spore_window_bg</item>
+        <item name="android:statusBarColor">@color/spore_statusbar</item>
+        <item name="android:windowLightStatusBar">@bool/spore_light_system_bars</item>
+        <item name="android:navigationBarColor">@color/spore_navbar</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/spore_light_system_bars</item>
         <!-- 页面平移切页（page-transition-spec）：主题一处接管，所有页面不用逐个调 -->
         <item name="android:windowAnimationStyle">@style/SporeAnim</item>
     </style>
@@ -22,14 +26,13 @@
 
     <style name="Theme.Spore" parent="Base.Theme.Spore" />
 
-    <!-- 启动页：纯白窗口底（系统 splash → 本页无缝），内容见 splash.html。
-         31+ 的两条 windowSplashScreen* 属性挪到 values-v31（见同名文件）：
-         那两个属性是 API 31 才有的，放基线里 minSdk 26 过不了 lint 的 NewApi，
-         且 lint 明确要求走 values-vNN（OEM 自定义属性 id 可能撞车）。 -->
+    <!-- 启动页：窗口底跟主题（浅白 / 深 #12141C），HTML 侧同色，系统 splash → 本页无缝。
+         31+ 的 windowSplashScreen* 属性挪到 values-v31（API 31 才有的属性，
+         放基线里 minSdk 26 过不了 lint 的 NewApi）。 -->
     <style name="Theme.Spore.Splash" parent="Theme.Spore">
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:statusBarColor">@android:color/white</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowBackground">@color/spore_splash_bg</item>
+        <item name="android:statusBarColor">@color/spore_splash_bg</item>
+        <item name="android:navigationBarColor">@color/spore_splash_bg</item>
     </style>
 
     <!-- 题图圆角：原生面板 user 行的 ShapeableImageView 用（web .msg.user .shot
@@ -41,7 +44,7 @@
 
     <!-- 应用皮对话框（扫码配对 / 取消配对）：透明窗口 + 布局自带暗幕，
          零原生 chrome——Material alert 的标题栏与系统按钮一概不出现（2026-10-03 用户拍板） -->
-    <style name="SporePairDialog" parent="Theme.Material3.Light.NoActionBar">
+    <style name="SporePairDialog" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:backgroundDimEnabled">false</item>

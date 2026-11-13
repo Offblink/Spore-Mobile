@@ -1,67 +1,137 @@
-/* 主页专属样式：字标 / 状态胶囊 / 主 CTA。令牌与组件类来自 spore.css。 */
+/* 主页专属样式：呼吸孢子球 / 字标 / 状态胶囊 / 双 CTA。令牌与组件类来自 spore.css。 */
 
-/* 主页只剩「字标 + 状态胶囊 + 主 CTA」三块，整组上下居中（记录/设置的入口在底部玻璃条上）；
-   padding-bottom 让出玻璃条的地盘（条浮在视口底，内容不钻到它下面）：
-   条高 74 + 下边距 14 = 88，垫 112 留出呼吸。 */
+:root { --ball-lift: 0px; }
+
+body { min-height: 100vh; }
+
+/* 整组上下居中；底栏是浮层，垫出它的地盘（条高 74 + 下边距 14 = 88，再留呼吸 → 118） */
 .page {
+  position: relative; z-index: 1;
   min-height: 100vh;
-  padding: 40px 24px 112px;
-  display: flex;
-  flex-direction: column;
+  padding: 40px 24px 118px;
+  display: flex; flex-direction: column;
   justify-content: center;
-  justify-content: safe center; /* 内容超高时从顶部起排，别被裁掉（不认这个关键字的浏览器忽略本行） */
-  gap: 18px;
+  justify-content: safe center;
+  gap: 34px;
 }
-
-/* 逐卡入场：shared .anim-fade-up 没有 fill-mode，延迟期间会先亮后跳——本页补 backwards */
+/* .anim-fade-up 无 fill-mode 时延迟期会先亮后跳 —— 本页统一补 backwards */
 .anim-fade-up { animation-fill-mode: both; }
 
-/* ---- 品牌头 ---- */
-.brand { display: flex; flex-direction: column; gap: 14px; }
+/* ---------------- 品牌头 ---------------- */
+.hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+
+/* 呼吸孢子球：外晕（breathe）+ 内核。运行中由 body.running 提亮。 */
+.orb {
+  position: relative; width: 128px; height: 128px; margin-bottom: 4px;
+  display: grid; place-items: center;
+  animation: breathe 5.2s var(--damped) infinite;
+  transition: filter var(--t-panel) var(--damped);
+}
+.orb-halo {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%,
+    color-mix(in srgb, var(--accent) 34%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 8%, transparent) 46%,
+    transparent 70%);
+  filter: blur(6px);
+}
+.orb-core {
+  position: relative;
+  width: 54px; height: 54px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255, 255, 255, .85), transparent 46%),
+    linear-gradient(150deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: 0 8px 28px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, .5);
+  transition: transform var(--t-panel) var(--spring), opacity var(--t-panel) var(--damped);
+}
+/* 吉祥物双眼（与图标同源：AA-Design PetFace 的发光眼） */
+.orb-core::before, .orb-core::after {
+  content: ""; position: absolute; top: 50%;
+  width: 9px; height: 13px; border-radius: 5px;
+  background: #F6F8FF;
+  transform: translateY(-50%);
+  box-shadow: 0 0 10px rgba(255, 255, 255, .55);
+  animation: mascot-blink 5.4s var(--damped) infinite;
+}
+.orb-core::before { left: 13px; }
+.orb-core::after { right: 13px; }
+@keyframes mascot-blink {
+  0%, 92%, 100% { transform: translateY(-50%) scaleY(1); }
+  95% { transform: translateY(-50%) scaleY(.14); }
+}
+body.running .orb-core::before,
+body.running .orb-core::after { animation-duration: 3.2s; }
+body.running .orb { animation-duration: 2.8s; }
+body.running .orb-core { transform: scale(1.08); }
+
+.eyebrow {
+  margin: 0;
+  font-size: 10.5px; font-weight: 650; letter-spacing: .30em;
+  color: var(--ink-4);
+  text-indent: .30em; /* 字距把整行推右，缩回来 */
+}
 .wordmark {
   margin: 0;
-  font-size: 42px;
+  font-size: clamp(40px, 13vw, 52px);
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+  background: linear-gradient(135deg, var(--ink) 32%, var(--accent) 118%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
 }
-.wordmark .dot { color: var(--pink); }
+.wordmark .dot { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+.lede {
+  margin: 0;
+  max-width: 21em;
+  font-size: 14px; line-height: 1.65;
+  color: var(--ink-2);
+  text-wrap: balance;
+}
 
-/* ---- 状态胶囊（长权限文案允许换行） ---- */
+/* 状态胶囊：玻璃 + 呼吸点 */
 .status-pill {
-  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 4px;
   max-width: 100%;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--muted);
+  padding: 8px 14px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ink-2);
   line-height: 1.5;
+  text-align: left;
 }
 .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--line4);
-  flex: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-4); flex: none;
+  transition: background-color var(--t-pop) var(--damped), box-shadow var(--t-pop) var(--damped);
 }
-.status-dot.on { background: var(--pink); }
+.status-dot.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px var(--accent-glow);
+}
 
-/* ---- 单一主 CTA + 投影次级提示 ---- */
-.cta { display: flex; flex-direction: column; }
-#btnBall { width: 100%; padding: 14px 18px; font-size: 16px; }
-/* 拍照搜题：次级软按钮，与主粉 CTA 留 12px 呼吸 */
-#btnPhoto { width: 100%; margin-top: 12px; padding: 13px 18px; font-size: 15px; }
+/* ---------------- 双 CTA ---------------- */
+.cta { display: flex; flex-direction: column; gap: 12px; }
+.hero-cta {
+  width: 100%;
+  min-height: 56px;
+  padding: 15px 20px;
+  font-size: 16px;
+  gap: 10px;
+}
+.hero-cta .cta-ic { width: 20px; height: 20px; flex: none; }
+.hero-cta .cta-txt { letter-spacing: .01em; }
+#btnPhoto { min-height: 50px; font-size: 15px; }
+
 #projHint {
   width: 100%;
-  margin-top: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--pink-deep);
+  margin-top: 2px;
+  padding: 10px 12px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: var(--r-sm);
   text-align: center;
-  border-radius: var(--r12);
 }
-#projHint:active { background: var(--pink-tint); }
+#projHint:active { filter: brightness(.96); }
 #projHint[hidden] { display: none; }
-

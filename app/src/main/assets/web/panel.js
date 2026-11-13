@@ -168,6 +168,15 @@
     return (st.sessions || []).find((x) => x.id === id) || null;
   }
 
+  /** 局部改元数据：收藏/改名/删除只动这一行，别再整包 state 往返（真机操作慢的主因） */
+  function patchMeta(id, patch) {
+    const m = (st.sessions || []).find((x) => x.id === id);
+    if (m) {
+      Object.assign(m, patch);
+    }
+    return m;
+  }
+
   function renderFav() {
     const m = curMeta();
     favBtn.classList.toggle('on', !!(m && m.fav));
@@ -431,11 +440,21 @@
     const id = row.dataset.id;
     const op = e.target.closest('[data-op]');
     if (op && op.dataset.op === 'fav') {
+      const meta = (st.sessions || []).find((x) => x.id === id);
+      const wasFav = !!(meta && meta.fav);
       const ok = bridge('fav', id);
       if (ok === true) {
-        const meta = (st.sessions || []).find((x) => x.id === id);
-        toast(meta && meta.fav ? '已取消收藏' : '已收藏');
-        refresh();
+        // 桥只回布尔 → 本地翻转这一行，不拉全量 state（省一轮序列化 + 全流重绘）
+        if (meta) {
+          meta.fav = !wasFav;
+        }
+        if (st.session && st.session.id === id) {
+          st.session.fav = !wasFav;
+        }
+        toast(wasFav ? '已取消收藏' : '已收藏');
+        renderFav();
+        renderList();
+        renderUnread();
       } else if (ok === false) {
         toast('找不到这条会话');
       }
@@ -515,8 +534,10 @@
     }
     const ok = bridge('delete', t.id);
     if (ok === true) {
+      st.sessions = (st.sessions || []).filter((x) => x.id !== t.id);
       toast('删除成功');
-      refresh(); // 列表留着，只换数据
+      renderList();
+      renderUnread();
     } else if (ok === false) {
       toast('正在回答，稍等片刻再操作');
     }
@@ -544,8 +565,14 @@
     }
     const ok = bridge('rename', t.id, name);
     if (ok === true) {
+      patchMeta(t.id, { title: name });
+      if (st.session && st.session.id === t.id) {
+        st.session.title = name;
+        renderTitle();
+      }
       toast('重命名成功');
-      refresh(); // 列表留着
+      renderList();
+      renderUnread();
     } else if (ok === false) {
       toast('正在回答，稍等片刻再操作');
     }
@@ -583,8 +610,13 @@
     const turningOn = !(meta && meta.fav);
     const ok = bridge('fav', cur);
     if (ok === true) {
+      if (meta) {
+        meta.fav = turningOn;
+      }
+      st.session.fav = turningOn;
       toast(turningOn ? '已收藏' : '已取消收藏');
-      refresh();
+      renderFav();
+      renderList();
     } else if (ok === false) {
       toast('正在回答，稍等片刻再操作');
     }

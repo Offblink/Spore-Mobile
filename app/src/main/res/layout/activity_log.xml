@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 运行日志整页 WebView：内容与底部三按钮全在 assets/web/logs.html -->
+<WebView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/web"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/spore_bg" />

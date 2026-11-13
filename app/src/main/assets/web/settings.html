@@ -1,8 +1,21 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function () {
+        try {
+          var t = window.Spore && window.Spore.theme ? window.Spore.theme() : null;
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) { /* 主题只是外观，失败就留浅色 */ }
+      })();
+    </script>
     <title>Spore 设置</title>
     <link rel="stylesheet" href="spore.css" />
     <link rel="stylesheet" href="navbar.css" />
@@ -19,6 +32,18 @@
     </header>
 
     <main class="form sheet">
+      <!-- 外观（即时生效，不用按保存） -->
+      <section class="card group">
+        <div class="group-title">外观</div>
+        <div class="segmented" id="themeSeg" role="group" aria-label="主题">
+          <i class="seg-ind" id="segInd" aria-hidden="true"></i>
+          <button type="button" class="seg" data-theme-mode="system">跟随系统</button>
+          <button type="button" class="seg" data-theme-mode="light">浅色</button>
+          <button type="button" class="seg" data-theme-mode="dark">深色</button>
+        </div>
+        <div class="hint">浅色 = 孢子粉，深色 = Fungi 青；点一下立即换，所有页面同步</div>
+      </section>
+
       <!-- 模型与密钥 -->
       <section class="card group">
         <div class="group-title">模型与密钥</div>
@@ -101,82 +126,39 @@
           <span class="switch" id="swAutoVerify"></span>
         </button>
 
-        <div class="field">
-          <label>悬浮面板渲染</label>
-          <label class="pradio"
-            ><input type="radio" name="panelRender" value="web" /> WebView（默认）</label
-          >
-          <label class="pradio"
-            ><input type="radio" name="panelRender" value="native" /> 原生（备选皮）</label
-          >
-          <div class="hint">改完重启悬浮球生效；崩溃根因已修，两皮通用</div>
-        </div>
       </section>
 
-      <!-- 配对与同步 -->
+      <!-- 服务器与同步（2026-11：删桌面扫码配对与账号口令直连，统一为扫码登录） -->
       <section class="card group">
-        <div class="group-title">配对与同步</div>
+        <div class="group-title">服务器与同步</div>
 
         <div class="field">
-          <div class="sync-state" id="syncState">未配对</div>
-          <div class="hint" id="syncHint">扫码接入 Spore 桌面端（记录与科目双向同步）</div>
+          <div class="sync-state" id="syncState">未登录</div>
+          <div class="hint" id="syncHint">扫服务器登录页上的二维码（记录与科目双向同步）</div>
         </div>
 
         <div class="sync-btns">
-          <button type="button" class="btn btn-soft" id="btnScan">扫码配对</button>
+          <button type="button" class="btn btn-soft" id="btnQr">扫码登录</button>
           <button type="button" class="btn btn-primary" id="btnSync" disabled>立即同步</button>
-          <button type="button" class="btn btn-danger" id="btnUnpair" hidden>取消配对</button>
+          <button type="button" class="btn btn-danger" id="btnUnpair" hidden>退出登录</button>
         </div>
-
-        <!-- 账号直连：不扫码，直接登上 Spore-Cloud 网关（微服务后端）换 JWT 后落配对态 -->
-        <details class="acct" id="acctBox">
-          <summary>账号直连服务器（不用扫码）</summary>
-          <div class="field">
-            <label for="srvApi">服务器地址</label>
-            <input
-              id="srvApi"
-              class="input"
-              type="url"
-              spellcheck="false"
-              autocomplete="off"
-              placeholder="http://192.168.1.5:19080"
-            />
-            <div class="hint">填到端口即可，自动补 /api；与手机同一个 Wi-Fi</div>
-          </div>
-          <div class="field">
-            <label for="srvUser">账号</label>
-            <input id="srvUser" class="input" type="text" spellcheck="false" autocomplete="off" />
-          </div>
-          <div class="field">
-            <label for="srvPass">口令</label>
-            <input id="srvPass" class="input" type="password" autocomplete="off" />
-            <div class="hint">只用于这次登录换 token，不落盘、不进日志</div>
-          </div>
-          <div class="sync-btns">
-            <button type="button" class="btn btn-soft" id="btnConnect">连接并配对</button>
-          </div>
-        </details>
       </section>
 
-      <!-- 日志（三端对齐：MV3 主页日志卡 / GUI 日志页 / 这里的设置底部日志卡） -->
-      <section class="card group">
-        <div class="group-title">日志</div>
-        <div class="field">
-          <div class="hint">同步/配对的逐步时序，尾部 64KB 环形；红线：不记 token 与 key</div>
-          <pre id="logBody" class="logbody">（空）</pre>
-        </div>
-        <div class="sync-btns">
-          <button type="button" class="btn btn-soft" id="btnLogRefresh">刷新</button>
-          <button type="button" class="btn btn-soft" id="btnLogCopy">复制</button>
-          <button type="button" class="btn btn-danger" id="btnLogClear">清空</button>
-        </div>
+      <!-- 运行日志：只留入口，正文与刷新/复制/清空在独立页（LogActivity + logs.html） -->
+      <section class="card group log-entry">
+        <button type="button" class="nav-row" id="btnLogs">
+          <span class="nav-row-txt">
+            <span class="nav-row-t">运行日志</span>
+            <span class="nav-row-s">同步 / 配对的逐步时序，点开查看</span>
+          </span>
+          <span class="nav-row-arrow" aria-hidden="true">›</span>
+        </button>
       </section>
 
       <button type="button" class="btn btn-primary save" id="btnSave">保存</button>
     </main>
 
-    <!-- 底部玻璃导航条（Mobile-Design liquid-glass · glass-tab-bar）：浮在内容上的控件层，
-         必须在 .sheet 之外 + position: fixed（见 glassbar.css 头注释） -->
+    <!-- 底部玻璃导航条：浮在内容上的控件层，必须在 .sheet 之外 + position: fixed -->
     <nav class="lg-tabbar" aria-label="页面切换">
       <button type="button" class="lg-tab" data-tab="home">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.2L12 3l9 8.2V21h-6v-6H9v6H3z" /></svg>
@@ -187,7 +169,7 @@
         <span class="lg-lb">记录</span>
       </button>
       <button type="button" class="lg-tab on" data-tab="settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
         <span class="lg-lb">设置</span>
       </button>
     </nav>

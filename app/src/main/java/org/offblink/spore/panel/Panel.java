@@ -6,7 +6,7 @@ import java.io.File;
 
 /**
  * 面板契约（第五轮分叉）：CaptureService 只认这 6 个方法 + 引擎事件。
- * 默认走 WebView 面板；设置或设备判定（华为/鸿蒙）为原生时走 NativeAnswerPanel
+ * 只有一个实现：WebView 面板（{@link AnswerPanel}）
  * （round-3 原生、实测零 WebView 崩溃）。两皮同事件源，记录页桥全走引擎、互不感知。
  */
 public interface Panel extends AgentEngine.Listener {

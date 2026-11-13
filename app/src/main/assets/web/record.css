@@ -1,60 +1,54 @@
-/* 记录页专属样式：长列表（多选模式 + 批量底栏）+ 独立详情视图。组件层走 spore.css。 */
+/* 记录页专属样式：长列表（多选模式 + 批量底栏）+ 独立详情视图。
+ * 令牌、按钮、消息气泡来自 spore.css；这里只管本页布局。 */
 
 body { background: var(--bg); }
 
-/* 列表整页 = 纵向 flex：一滑到底的长页面，不设分页；底部让出浮动玻璃条的地盘
-   （条高 74 + 下边距 14 = 88，垫 96 让最后一行能滚到条上方） */
-#listView { display: flex; flex-direction: column; min-height: 100vh;
-  padding-bottom: 96px; }
+/* 列表整页 = 纵向 flex：一滑到底，不设分页；底部让出浮动玻璃条的地盘 */
+#listView { display: flex; flex-direction: column; min-height: 100vh; padding-bottom: 96px; }
 
-/* 底栏让位：详情视图自带追问栏、多选模式自带批量底栏——两处都贴在视口底，
-   同时挂着玻璃条就是叠罗汉。收起只要一条 CSS，别让 record.js 去管这套显示逻辑。 */
+/* 底栏让位：详情视图自带追问栏、多选模式自带批量底栏——两处都贴视口底 */
 #detailView:not([hidden]) ~ .lg-tabbar,
 #listView.sel ~ .lg-tabbar { display: none; }
 
-/* ---------------- 顶栏（玻璃控件层：压在滚动内容上 = Liquid Glass 合法位） ---------------- */
+/* ---------------- 顶栏（玻璃控件层：压在滚动内容上） ---------------- */
 .topbar {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 8px;
-  padding: 12px 10px;
-  background: rgba(255, 255, 255, .58);
+  padding: 12px 12px;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
-  border-bottom: .5px solid rgba(20, 23, 42, .12);
+  border-bottom: .5px solid color-mix(in srgb, var(--ink) 12%, transparent);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .topbar { background: var(--surface); }
+  .topbar { background: var(--bg); }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .topbar {
-    background: var(--surface);
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
+  .topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
-/* scroll-edge 渐隐带：内容撞向玻璃条时的缓冲垫（内容层，非玻璃）。
-   大标题滚过顶栏（.scrolled）才现身——静止时不能在标题上盖一层灰 */
+/* scroll-edge 渐隐带：大标题滚过顶栏（.scrolled）才现身 */
 .topbar::after {
-  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 34px;
-  background: linear-gradient(180deg, rgba(244, 246, 253, .55), rgba(244, 246, 253, 0));
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 30px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 60%, transparent), transparent);
   pointer-events: none;
   opacity: 0;
   transition: opacity .2s var(--damped);
 }
 .topbar.scrolled::after { opacity: 1; }
 .topbar .icon {
-  flex: none; width: 36px; height: 36px; border-radius: 10px;
-  font-size: 24px; line-height: 1; color: var(--muted);
+  flex: none; width: 36px; height: 36px; border-radius: var(--r-xs);
+  font-size: 23px; line-height: 1; color: var(--ink-2);
+  transition: background-color var(--t-fast) var(--damped);
 }
-.topbar .icon:active { background: var(--chip); }
-.topbar .icon.star { font-size: 18px; color: var(--muted4); }
-.topbar .icon.star.on { color: var(--pink); }
+.topbar .icon:active { background: var(--surface-3); }
+.topbar .icon.star { font-size: 18px; color: var(--ink-4); }
+.topbar .icon.star.on { color: var(--accent); }
 .ptitle {
   flex: 1; min-width: 0; margin: 0;
-  font-size: 17px; font-weight: 700; color: var(--ink);
+  font-size: 17px; font-weight: 750; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-align: center;
+  text-align: center; letter-spacing: -.01em;
 }
-/* 列表页紧凑标题：大标题在场（未滚过、非多选）时隐身，滚动越线/进多选淡入（详情视图标题不受影响） */
 #listView .topbar .ptitle {
   opacity: 0;
   transition: opacity .2s var(--damped), transform .25s var(--spring);
@@ -62,137 +56,146 @@ body { background: var(--bg); }
 #listView .topbar.scrolled .ptitle,
 #listView.sel .topbar .ptitle { opacity: 1; }
 
-/* HIG Large Title：34pt 大标题随内容滚走，滚过后紧凑标题收进顶栏 */
+/* HIG Large Title：随内容滚走，滚过后紧凑标题收进顶栏 */
 .largetitle {
-  margin: 10px 16px 2px;
-  font-size: 34px; line-height: 41px; font-weight: 700;
-  letter-spacing: .2px; color: var(--ink);
+  margin: 14px 18px 2px;
+  font-size: 34px; line-height: 1.15; font-weight: 800;
+  letter-spacing: -.03em; color: var(--ink);
 }
 
-/* 全部 ⇄ 收藏：开关左右两侧都有字，激活侧高亮（第三轮定稿的原设计） */
+/* 全部 ⇄ 收藏 */
 .scope { flex: none; display: flex; align-items: center; gap: 7px; }
-.scope-label { font-size: 13px; color: var(--muted3); font-weight: 600; transition: color var(--t-fast); }
-.scope-label.on { color: var(--pink); font-weight: 700; }
+.scope-label { font-size: 12.5px; color: var(--ink-4); font-weight: 600; transition: color var(--t-fast) var(--damped); }
+.scope-label.on { color: var(--accent); font-weight: 700; }
 
-/* ---------------- 科目 chips（按科目筛选 + 新建入口） ---------------- */
+/* ---------------- 科目 chips ---------------- */
 .chips {
-  display: flex; gap: 8px; padding: 10px 10px 2px;
+  display: flex; gap: 8px; padding: 12px 14px 4px;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   scrollbar-width: none; flex: none;
 }
 .chips::-webkit-scrollbar { display: none; }
 .fchip {
-  flex: none; border: 1px solid var(--line); background: var(--surface);
-  border-radius: var(--r999); padding: 6px 14px;
-  font-size: 13px; font-weight: 600; color: var(--muted);
-  white-space: nowrap; transition: background var(--t-fast), color var(--t-fast);
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r999); padding: 7px 15px;
+  font-size: 13px; font-weight: 650; color: var(--ink-2);
+  white-space: nowrap;
+  transition: background-color var(--t-fast) var(--damped), color var(--t-fast) var(--damped),
+              border-color var(--t-fast) var(--damped), transform .14s var(--spring);
 }
-.fchip:active { background: var(--chip); }
-.fchip.on { background: var(--pink-tint); border-color: var(--pink); color: var(--pink-deep); }
+.fchip:active { transform: scale(.95); }
+.fchip.on {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 46%, transparent);
+  color: var(--accent-deep);
+}
 
 /* ---------------- 列表 ---------------- */
-.rows { padding: 10px 10px 4px; display: flex; flex-direction: column; gap: 8px; }
+.rows { padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 9px; }
 .rrow {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r16); padding: 13px 12px;
-  transition: background var(--t-fast);
-  user-select: none; -webkit-user-select: none; /* 长按进多选，不许触发文字选择 */
+  display: flex; align-items: center; gap: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: 14px 12px;
+  box-shadow: var(--shadow-1);
+  transition: background-color var(--t-fast) var(--damped), transform .14s var(--spring),
+              border-color var(--t-fast) var(--damped);
+  user-select: none; -webkit-user-select: none;
 }
-.rrow:active { background: var(--row-hover); }
-.rrow.is-fav { background: var(--fav-row); border-color: #F5E7C8; }
+.rrow:active { transform: scale(.985); background: var(--surface-2); }
+.rrow.is-fav { border-color: color-mix(in srgb, var(--warn) 22%, var(--line)); }
 .rrow .col { flex: 1; min-width: 0; }
 .rrow .t {
-  font-size: 15px; font-weight: 600; color: var(--row-title);
+  font-size: 15px; font-weight: 650; color: var(--row-title);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.rrow .ts { margin-top: 3px; font-size: 12px; color: var(--muted3); }
+.rrow .ts { margin-top: 4px; font-size: 12px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
 .rrow .acts { flex: none; display: flex; gap: 2px; }
 .rrow .act {
-  width: 34px; height: 34px; border-radius: 9px;
-  color: var(--row-action); font-size: 16px; line-height: 1;
+  width: 34px; height: 34px; border-radius: var(--r-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-4); font-size: 16px; line-height: 1;
+  transition: background-color var(--t-fast) var(--damped), color var(--t-fast) var(--damped);
 }
-.rrow .act.f { color: var(--muted4); font-size: 17px; }
-.rrow.is-fav .act.f { color: var(--pink); }
-.rrow .act.m { color: var(--muted4); font-size: 17px; }
-.rrow .act.m:active { background: var(--pink-tint); color: var(--pink-deep); }
-.rrow .act.r:active { background: #EEF1FF; color: #4A5BD8; }
-.rrow .act.x:active { background: #FFEEF2; color: var(--danger); }
+.rrow .act.f { color: var(--ink-4); font-size: 17px; }
+.rrow.is-fav .act.f { color: var(--accent); }
+.rrow .act.m { font-size: 17px; }
+.rrow .act.m:active { background: var(--accent-soft); color: var(--accent-deep); }
+.rrow .act.r:active { background: var(--accent-soft); color: var(--accent-deep); }
+.rrow .act.x:active { background: var(--danger-bg); color: var(--danger); }
 
-.empty {
-  margin: 12vh auto 0; max-width: 76vw;
-  text-align: center; color: var(--muted3); font-size: 15px; line-height: 1.9;
+.empty { margin: 14vh auto 0; max-width: 76vw; }
+/* 空态给一个呼吸圆点（纯 CSS，不加 DOM） */
+.empty::before {
+  content: ""; display: block; width: 54px; height: 54px; margin: 0 auto 16px;
+  border-radius: 50%;
+  background: var(--accent-soft-2);
+  box-shadow: 0 0 0 10px var(--accent-soft);
+  animation: breathe 4.4s var(--damped) infinite;
 }
 
-/* ---------------- 多选模式（长按进入） ---------------- */
-/* 单选框只在模式里现身（卡片左侧圆圈，选中 = 粉底白勾）；卡片区域的拖动仍留给
-   滚动，涂抹只认单选框起笔（touch-action:none 在这儿把滚动让给涂抹） */
+/* ---------------- 多选模式 ---------------- */
 .ck {
   display: none; flex: none;
   width: 34px; height: 34px; margin-left: -3px;
   border-radius: 50%;
-  border: 2px solid var(--line4); background: var(--surface);
+  border: 2px solid var(--line-strong); background: var(--surface);
   color: transparent;
   align-items: center; justify-content: center;
   touch-action: none;
-  transition: background var(--t-fast), border-color var(--t-fast);
+  transition: background-color var(--t-fast) var(--damped), border-color var(--t-fast) var(--damped);
 }
 .ck svg { width: 16px; height: 16px; display: block; }
 #listView.sel .ck { display: flex; }
-.rrow.on { background: var(--pink-tint); border-color: var(--pink); }
-.rrow.on .ck { background: var(--pink); border-color: var(--pink); color: #fff; }
-/* 模式里让位：行内操作按钮与筛选开关隐藏，顶栏右侧换「取消」（文案由 JS 换成「已选 N 项」） */
+.rrow.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 52%, transparent); }
+.rrow.on .ck { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 #listView.sel .rrow .acts { display: none; }
 #listView.sel .scope { display: none; }
-/* 底栏是 fixed：行区垫出高度，最后一行不被压住 */
 #listView.sel .rows { padding-bottom: 76px; }
 .selx {
   display: none; flex: none;
-  padding: 7px 12px; border-radius: var(--r999);
-  font-size: 14px; font-weight: 600; color: var(--muted);
+  padding: 8px 13px; border-radius: var(--r999);
+  font-size: 14px; font-weight: 650; color: var(--ink-2);
 }
-.selx:active { background: var(--chip); }
+.selx:active { background: var(--surface-3); }
 #listView.sel .selx { display: block; }
 
-/* ---------------- 批量底栏（模式里浮在视口底；玻璃控件层，滚动内容从下缘滑过） ---------------- */
+/* ---------------- 批量底栏（玻璃控件层） ---------------- */
 .batchbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, .58);
+  background: var(--glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
-  border-top: .5px solid rgba(255, 255, 255, .7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 -10px 34px rgba(30, 30, 60, .10);
+  border-top: .5px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-inner), 0 -10px 34px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .batchbar { background: var(--surface); box-shadow: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .batchbar {
-    background: var(--surface);
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-    box-shadow: none;
-  }
+  .batchbar { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
 }
 .batchbar[hidden] { display: none; }
-.bcount { flex: none; min-width: 54px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.bcount { flex: none; min-width: 54px; font-size: 13px; font-weight: 750; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .bbtn {
-  flex: 1; border-radius: var(--r999); padding: 10px 0;
-  font-size: 13.5px; font-weight: 600;
-  background: var(--pink-tint); color: var(--pink-deep);
-  transition: background var(--t-fast);
+  flex: 1; border-radius: var(--r999); padding: 11px 0;
+  font-size: 13.5px; font-weight: 650;
+  background: var(--accent-soft); color: var(--accent-deep);
+  transition: background-color var(--t-fast) var(--damped), transform .14s var(--spring);
 }
-.bbtn:active { background: var(--pink-tint2); }
-.bbtn.danger { background: var(--danger-tint); color: var(--danger-text); }
-.bbtn.danger:active { background: #FFE4EA; }
+.bbtn:active { transform: scale(.96); background: var(--accent-soft-2); }
+.bbtn.danger { background: var(--danger-bg); color: var(--danger-strong); }
 .bbtn:disabled { opacity: .4; pointer-events: none; }
-/* 全选：次级文字动作，不吃 flex——让三个实心批量键保持原宽（四键挤一行会把「移入科目」压折行） */
 .batchbar .selall {
-  flex: none; padding: 10px 8px;
-  background: transparent; color: var(--pink-deep);
+  flex: none; padding: 11px 8px;
+  background: transparent; color: var(--accent-deep);
 }
-.batchbar .selall:active { background: var(--pink-tint); }
+.batchbar .selall:active { background: var(--accent-soft); }
 
 /* ---------------- 详情视图 ---------------- */
 #detailView {
@@ -203,109 +206,57 @@ body { background: var(--bg); }
 #detailView[hidden] { display: none; }
 .dstream {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 14px 12px; display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 16px;
 }
 .dfoot {
-  flex: none; background: var(--surface); border-top: 1px solid var(--line2);
-  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  flex: none;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+  border-top: .5px solid var(--line);
+  padding: 9px 12px calc(11px + env(safe-area-inset-bottom));
   display: flex; flex-direction: column; gap: 8px;
 }
 .soft-action {
   align-self: flex-start;
-  border: 1px solid var(--pink); background: var(--pink-tint); color: #C2185B;
-  border-radius: var(--r999); padding: 6px 14px;
-  font-size: 12.5px; font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: var(--accent-soft); color: var(--accent-deep);
+  border-radius: var(--r999); padding: 7px 15px;
+  font-size: 12.5px; font-weight: 650;
 }
-.soft-action:active { background: var(--pink-tint2); }
-.composer { display: flex; align-items: center; gap: 8px; }
-.composer .input { flex: 1; }
+.soft-action:active { background: var(--accent-soft-2); }
+.composer { display: flex; align-items: center; gap: 9px; }
+.composer .input { flex: 1; min-height: 44px; padding: 10px 14px; }
 .composer .send {
-  flex: none; width: 40px; height: 40px; border-radius: 12px;
-  background: var(--pink); color: #fff; font-size: 16.5px; line-height: 1;
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(160deg, var(--accent), var(--accent-strong)); color: var(--on-accent);
+  font-size: 17px; line-height: 1; box-shadow: var(--shadow-accent);
+  transition: transform .14s var(--spring), opacity var(--t-fast) var(--damped);
 }
-.composer .send:active { background: var(--pink-dark); }
-.composer .send:disabled { background: var(--line); color: var(--muted3); }
+.composer .send:active { transform: scale(.94); }
+.composer .send:disabled { background: var(--surface-3); color: var(--ink-4); box-shadow: none; }
 
-/* ---------------- 详情消息流（与面板同款 DOM 语义） ---------------- */
-.msg { max-width: 100%; font-size: 15.5px; line-height: 1.66; word-break: break-word; }
-.msg.user { display: flex; flex-direction: column; gap: 6px; }
-.msg.user .shot {
-  align-self: flex-start; max-width: 68%;
-  border-radius: 12px; border: 1px solid var(--line);
-  box-shadow: 0 2px 10px rgba(20, 24, 48, .10);
-}
-.msg.user .utext {
-  align-self: flex-start; font-size: 14.5px; color: var(--chip-text);
-  background: var(--userchip);
-  border-radius: 10px 10px 10px 3px; padding: 6px 10px; white-space: pre-wrap;
-}
-.msg.bot { position: relative; padding-left: 12px; }
-.msg.bot::before {
-  content: ''; position: absolute; left: 0; top: 3px; bottom: 3px;
-  width: 3px; border-radius: 99px; background: var(--pink);
-}
-.msg.bot .ans { font-size: 17px; font-weight: 650; color: var(--ink); white-space: pre-wrap; }
-.msg.bot .why { color: var(--chip-text); font-size: 15px; white-space: pre-wrap; margin-top: 3px; }
-.msg.bot .chat { color: var(--ink); white-space: pre-wrap; }
-.msg.bot code { font-family: Consolas, monospace; font-size: 14px; background: var(--bg);
-  border: 1px solid var(--line2); border-radius: 5px; padding: 0 4px; }
-.msg.bot strong { font-weight: 650; }
-
-.think { margin: 0 0 7px; border-left: 2px solid #E9EAF4; padding: 2px 0 3px 10px; }
-.think-h { display: flex; align-items: center; gap: 5px; border: 0; background: transparent;
-  padding: 0; color: var(--label); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; }
-.think-h::before { content: '▸'; font-size: 10px; transition: transform .18s; }
-.think.fold .think-h::before { transform: rotate(90deg); }
-.think-b { font-size: 13.5px; line-height: 1.62; color: var(--think); white-space: pre-wrap;
-  margin-top: 4px; max-height: 240px; overflow-y: auto; }
-.think.fold .think-b { display: none; }
-
-.verify { margin-top: 9px; border: 1px solid var(--line); border-radius: 10px;
-  padding: 9px 11px; background: #FBFCFF; }
-.verify .vhead { display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
-  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--label); margin-bottom: 5px; }
-.vnote { font-size: 15px; color: var(--vnote); white-space: pre-wrap; }
-
-.tools { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-.tool { font-size: 13px; color: var(--muted2); background: var(--tool);
-  border-radius: 7px; padding: 3px 8px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tool::before { content: '⌕ '; color: var(--pink); }
-
-.dempty { margin: auto; text-align: center; color: var(--muted3); }
-
-/* ---------------- 模态显隐覆写（spore.css 的 mask 默认 display:flex，不覆写会一直挂着） ---------------- */
+/* ---------------- 模态显隐（spore.css 的 mask 默认 display:flex，不覆写会一直挂着） ---------------- */
 .modal-mask { display: none; opacity: 1; animation: none; z-index: 50; }
-.modal-mask.on { display: flex; animation: maskIn var(--t-fast); }
-.modal-box { animation: popIn .24s var(--pop-ease); }
+.modal-mask.on { display: flex; animation: maskIn var(--t-fast) var(--damped); }
+.modal-box { animation: popIn .28s var(--spring); }
 
-/* ---------------- 移入科目 → iOS 底部弹层（mobile-design bottom-sheet 配方） ----------------
-   遮罩纯色压暗不模糊；白面板贴底、上圆角、grabber 弱提示；spring 弹起、damped 滑下。
-   #confirm/#rename 是警报语义，保持居中不动。 */
-#subpick { align-items: flex-end; background: rgba(20, 16, 10, .32); }
+/* ---------------- 移入科目 → iOS 底部弹层 ---------------- */
+#subpick { align-items: flex-end; padding: 0; background: rgba(10, 12, 20, .44); }
 #subpick .modal-box {
   width: 100%; max-width: none;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
   animation: sheetUp .5s var(--spring);
-  /* 整层起笔的前提（2026-10-08 StringPhone 实战回灌）：不设 touch-action:none，
-     浏览器会在 touch 拖动时抢手势、发 pointercancel 把拖拽腰斩（=拖不动），
-     抢走的纵向手势还会穿透去滚背后的页面。桌面鼠标测不出来，必须 touch 验。 */
   touch-action: none;
 }
-/* 刻痕做成了真元素（#pickGrab，手势要命中它 + touch-action:none，原 ::before 已删）：
-   样式照抄原 ::before，视觉不变；标题带同属抓手区（刻痕 5px 太细，指头对不准） */
 #subpick .grab {
   width: 36px; height: 5px; border-radius: 3px;
-  background: rgba(20, 23, 42, .18);
+  background: var(--line-strong);
   margin: 0 auto 12px;
   touch-action: none; cursor: grab;
 }
-#subpick .modal-title {
-  user-select: none; -webkit-user-select: none;
-  touch-action: none; cursor: grab;
-}
+#subpick .modal-title { user-select: none; -webkit-user-select: none; touch-action: none; cursor: grab; }
 #subpick.out { animation: maskOut .3s var(--damped) forwards; }
 #subpick.out .modal-box { animation: sheetDown .3s var(--damped) forwards; }
 @keyframes sheetUp { from { transform: translateY(110%); } to { transform: none; } }
@@ -313,87 +264,32 @@ body { background: var(--bg); }
 @keyframes maskOut { from { opacity: 1; } to { opacity: 0; } }
 
 /* ---------------- 移入科目弹层（单选行 + 行内重命名/删除） ---------------- */
-/* 可见滚动条：科目攒多后 overflow 出 46vh 即显示（第三轮反馈）；触屏保留惯性 */
 .sublist {
-  display: flex; flex-direction: column; gap: 7px;
+  display: flex; flex-direction: column; gap: 8px;
   max-height: 46vh; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin; scrollbar-color: var(--line) transparent;
-  /* 父级 .modal-box 是 touch-action:none（整层拖拽），这里单独放回纵向滚动：
-     实测 Chromium 子级 pan-y 可盖过父级 none，scrollTop 生效 */
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   touch-action: pan-y;
 }
 .sublist::-webkit-scrollbar { width: 6px; }
-.sublist::-webkit-scrollbar-track { background: transparent; }
-.sublist::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
-.sublist::-webkit-scrollbar-thumb:active { background: var(--muted3); }
+.sublist::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 99px; }
 .prow {
   display: flex; align-items: center; gap: 8px;
   border: 1px solid var(--line); background: var(--surface);
-  border-radius: var(--r12); padding: 10px 12px;
-  font-size: 14.5px; font-weight: 600; color: var(--row-title);
+  border-radius: var(--r-sm); padding: 11px 13px;
+  font-size: 14.5px; font-weight: 650; color: var(--ink);
   text-align: left; width: 100%;
+  transition: background-color var(--t-fast) var(--damped), border-color var(--t-fast) var(--damped);
 }
-.prow:active { background: var(--row-hover); }
-.prow.on { background: var(--pink-tint); border-color: var(--pink); color: var(--pink-deep); }
+.prow:active { background: var(--surface-2); }
+.prow.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--accent-deep); }
 .prow .pn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prow .pcur { flex: none; font-size: 11px; font-weight: 700; color: var(--pink); }
+.prow .pcur { flex: none; font-size: 11px; font-weight: 750; color: var(--accent); }
 .prow .pact {
-  flex: none; width: 30px; height: 30px; border-radius: 8px;
+  flex: none; width: 30px; height: 30px; border-radius: var(--r-xs);
   display: inline-flex; align-items: center; justify-content: center;
-  color: var(--row-action); font-size: 15px;
+  color: var(--ink-4); font-size: 15px;
 }
-.prow .pact:active { background: #EEF1FF; color: #4A5BD8; }
-.prow .pact.danger:active { background: #FFEEF2; color: var(--danger); }
-.pempty { padding: 14px 6px; text-align: center; color: var(--muted3); font-size: 13.5px; }
-
-
-/* ---------------- md 行结构（md.js 产出：标题/表格/列表/分隔线） ---------------- */
-.msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
-  margin: 10px 0 6px; font-weight: 700; color: var(--ink); line-height: 1.45;
-}
-.msg h1 { font-size: 1.3em; }
-.msg h2 { font-size: 1.2em; }
-.msg h3 { font-size: 1.1em; }
-.msg h4, .msg h5, .msg h6 { font-size: 1em; }
-.msg table {
-  border-collapse: collapse; width: 100%; margin: 7px 0;
-  font-size: 14.5px; font-weight: 400; border: 1px solid var(--line);
-}
-/* 表格外面包一层滚动壳（md.js 产出 <div class="tablewrap">）：列多/内容宽时横向滚，不撑破气泡 */
-.msg .tablewrap { overflow-x: auto; margin: 7px 0; -webkit-overflow-scrolling: touch; }
-.msg .tablewrap > table { margin: 0; width: auto; min-width: 100%; }
-.msg th, .msg td {
-  border: 1px solid var(--line); padding: 5px 9px;
-  text-align: left; overflow-wrap: break-word;
-}
-.msg th { background: var(--chip); color: var(--ink); font-weight: 650; }
-.msg td { color: var(--chip-text); }
-/* 斜体（md.js：`*x*` / `_x_`，python 口径） */
-.msg em { font-style: italic; }
-/* 图片（md.js：`![alt](https://…)`，只放行 https?://；按块级落地、限宽不溢屏） */
-.msg img {
-  display: block; max-width: 100%; height: auto; margin: 6px 0;
-  border-radius: 6px; border: 1px solid var(--line);
-}
-.msg ul { margin: 6px 0; padding-left: 1.4em; }
-.msg li { margin: 2px 0; }
-.msg hr { border: 0; border-top: 1px solid var(--line); margin: 9px 0; }
-/* 引用块（md.js：行首 `> ` 起块，可嵌套；块内仍走同一套行结构） */
-.msg blockquote {
-  margin: 7px 0; padding: 3px 10px 3px 11px;
-  border-left: 3px solid var(--line4); border-radius: 0 6px 6px 0;
-  background: var(--bg2); color: var(--chip-text);
-}
-.msg blockquote blockquote { margin: 4px 0 2px; padding-left: 9px; border-left-width: 2px; }
-/* 有序列表与围栏代码（md.js：`1. ` 与 ``` / ~~~ 顶格起块） */
-.msg ol { margin: 6px 0; padding-left: 1.6em; }
-.msg ol li { margin: 2px 0; }
-.msg pre {
-  margin: 7px 0; padding: 8px 10px; overflow-x: auto;
-  background: var(--bg2); border: 1px solid var(--line); border-radius: 6px;
-}
-.msg pre code {
-  font-family: Consolas, monospace; font-size: 13px; color: var(--chip-text);
-  background: none; padding: 0; white-space: pre;
-}
+.prow .pact:active { background: var(--accent-soft); color: var(--accent-deep); }
+.prow .pact.danger:active { background: var(--danger-bg); color: var(--danger); }
+.pempty { padding: 14px 6px; text-align: center; color: var(--ink-4); font-size: 13.5px; }

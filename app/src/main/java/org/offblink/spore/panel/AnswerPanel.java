@@ -158,6 +158,16 @@ public final class AnswerPanel implements Panel {
         }
     }
 
+    /** 主题变了（服务收到 ACTION_THEME）：重载页面让 CSS 重新取 data-theme；状态由 ready 回填 */
+    public void reloadForTheme() {
+        main.post(() -> {
+            if (visible && web != null) {
+                webReady = false;
+                web.loadUrl(PAGE);
+            }
+        });
+    }
+
     /** 服务 onDestroy 时调：WebView 是重对象，必须显式销毁 */
     public void destroy() {
         visible = false;
@@ -336,6 +346,13 @@ public final class AnswerPanel implements Panel {
     @JavascriptInterface
     public String state() {
         return bridge("state", "{}", () -> stateJson());
+    }
+
+    /** 面板首帧主题：解析后的 "light" / "dark"（面板 WebView 在服务进程里，同样走 prefs） */
+    @JavascriptInterface
+    public String theme() {
+        return bridge("theme", "light", () ->
+                org.offblink.spore.SporeSettings.load(ctx).resolvedTheme(ctx));
     }
 
     /** 截图 data URL：按 path 只取一次，前端缓存（见 common.js imageFor） */

@@ -2,6 +2,7 @@ package org.offblink.spore;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -24,9 +25,8 @@ public final class SporeSettings {
     public boolean autoVerify = true;
     /** 检索代理（可选）：填了 = 引擎链 ddg→bing→brave；留空 = 只走 bing（Fungi §71 替身闸） */
     public String proxy = "";
-    /** 面板渲染分叉（第六轮拍板）：web（默认）| native——auto/设备探测已删除，
-     *  「一检索就崩」根因是 URLEncoder API33 重载、与 WebView 无关，鸿蒙可放心走 web */
-    public String panelRender = "web";
+    /** 主题档位：system（默认，跟系统）| light | dark；解析后的明暗由 resolvedTheme() 给 */
+    public String theme = "system";
 
     private SporeSettings() {
     }
@@ -42,7 +42,7 @@ public final class SporeSettings {
         s.model = p.getString("model", s.model);
         s.apiKey = p.getString("apiKey", s.apiKey);
         s.proxy = p.getString("proxy", s.proxy);
-        s.panelRender = p.getString("panelRender", s.panelRender);
+        s.theme = normalizeTheme(p.getString("theme", s.theme));
         s.maxToolRounds = p.getInt("maxToolRounds", s.maxToolRounds);
         s.historyLimit = p.getInt("historyLimit", s.historyLimit);
         s.fastNoThink = p.getBoolean("fastNoThink", s.fastNoThink);
@@ -56,7 +56,7 @@ public final class SporeSettings {
                 .putString("model", model)
                 .putString("apiKey", apiKey)
                 .putString("proxy", proxy)
-                .putString("panelRender", panelRender)
+                .putString("theme", theme)
                 .putInt("maxToolRounds", maxToolRounds)
                 .putInt("historyLimit", historyLimit)
                 .putBoolean("fastNoThink", fastNoThink)
@@ -72,7 +72,7 @@ public final class SporeSettings {
             o.put("model", model);
             o.put("apiKey", apiKey);
             o.put("proxy", proxy);
-            o.put("panelRender", panelRender);
+            o.put("theme", theme);
             o.put("maxToolRounds", maxToolRounds);
             o.put("historyLimit", historyLimit);
             o.put("fastNoThink", fastNoThink);
@@ -95,7 +95,7 @@ public final class SporeSettings {
             s.model = str(o, "model", s.model);
             s.apiKey = str(o, "apiKey", s.apiKey);
             s.proxy = str(o, "proxy", s.proxy);
-            s.panelRender = str(o, "panelRender", s.panelRender);
+            s.theme = normalizeTheme(str(o, "theme", s.theme));
             s.maxToolRounds = o.optInt("maxToolRounds", s.maxToolRounds);
             s.historyLimit = o.optInt("historyLimit", s.historyLimit);
             s.fastNoThink = o.optBoolean("fastNoThink", s.fastNoThink);
@@ -106,17 +106,41 @@ public final class SporeSettings {
         }
     }
 
-    private static String str(JSONObject o, String key, String def) {
-        Object v = o.opt(key);
-        return v instanceof String ? (String) v : def;
+    // ---------------------------------------------------------------- 主题
+
+    /** 只认三档；脏值一律回 system（prefs / JS 入参都过这道闸） */
+    public static String normalizeTheme(String t) {
+        return "light".equals(t) || "dark".equals(t) ? t : "system";
+    }
+
+    /** 系统当前明暗（AppCompatDelegate 的档位会改写应用 Configuration，跟随档时它就是答案） */
+    public static String systemTheme(Context c) {
+        int mode = c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return mode == Configuration.UI_MODE_NIGHT_YES ? "dark" : "light";
     }
 
     /**
-     * 面板渲染分叉：只有显式 "native" 走原生（含历史遗留的 "auto" 等一律按 web）。
-     * 第六轮拍板删 auto/华为探测——崩溃根因是检索侧 API 兼容，不是 WebView。
+     * 非 Activity 的 Context（Service / 悬浮窗 View）专用：AppCompatDelegate 只改 Activity 的
+     * Resources，Service 的 getColor 可能仍按系统 uiMode 取色 → 手动档位在悬浮球/框选上失效。
+     * 这里把 prefs 里的解析值强制塞回 Configuration，再 createConfigurationContext。
      */
-    public boolean panelNative() {
-        return "native".equals(panelRender);
+    public static Context themedContext(Context c) {
+        String t = load(c).resolvedTheme(c);
+        Configuration cfg = new Configuration(c.getResources().getConfiguration());
+        int night = "dark".equals(t)
+                ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
+        cfg.uiMode = (cfg.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | night;
+        return c.createConfigurationContext(cfg);
+    }
+
+    /** 页面/原生面板要的最终明暗（桥 Spore.theme() 的返回值） */
+    public String resolvedTheme(Context c) {
+        return "light".equals(theme) || "dark".equals(theme) ? theme : systemTheme(c);
+    }
+
+    private static String str(JSONObject o, String key, String def) {
+        Object v = o.opt(key);
+        return v instanceof String ? (String) v : def;
     }
 
     /** 端点与 key 都填了才可发起作答；缺配置时面板给引导而不是抛异常 */

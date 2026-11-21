@@ -32,6 +32,10 @@ public class SettingsActivity extends AppCompatActivity {
 
     private WebView web;
 
+    /** 上次拉起扫码页的时刻（主线程读写）：连点/重复桥调用只放一页——两个取景页叠着时，
+     *  上面那页关页的解绑会连带掐掉下面那页的预览，回来就是黑屏。 */
+    private long qrLaunchAt;
+
     /** 同步专用单线程（静态：跑在后台，不挂在页面生命周期上） */
     private static final ExecutorService SYNC_EXEC = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "spore-sync");
@@ -156,11 +160,18 @@ public class SettingsActivity extends AppCompatActivity {
                     new Intent(SettingsActivity.this, LogActivity.class)));
         }
 
-        /** 扫码登录页（相机权限在 QrLoginActivity 里要） */
+        /** 扫码登录页（相机权限在 QrLoginActivity 里要）。1s 内只放一次：两页叠着时，
+         *  上面那页扫完关页会连带解绑下面那页的相机 → 回到的是黑屏取景页。 */
         @JavascriptInterface
         public void qrLogin() {
-            runOnUiThread(() -> startActivity(
-                    new Intent(SettingsActivity.this, QrLoginActivity.class)));
+            runOnUiThread(() -> {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - qrLaunchAt < 1000) {
+                    return;
+                }
+                qrLaunchAt = now;
+                startActivity(new Intent(SettingsActivity.this, QrLoginActivity.class));
+            });
         }
 
         /** 立即同步（后台线程跑一轮；重复点由 isRunning 挡） */

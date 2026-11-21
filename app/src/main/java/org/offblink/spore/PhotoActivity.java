@@ -69,6 +69,12 @@ public class PhotoActivity extends AppCompatActivity {
         rotateBtn = findViewById(R.id.photo_rotate);
         confirmBtn = findViewById(R.id.photo_confirm);
 
+        // 取景全屏，只把顶栏/底部控件挪出系统栏（edge-to-edge 下否则压在状态栏/导航栏里）
+        SafeInsets.lightSystemBars(this);
+        SafeInsets.pad(findViewById(R.id.photo_topbar), true, false);
+        SafeInsets.pad(findViewById(R.id.photo_bottom_viewfinder), false, true);
+        SafeInsets.marginBottom(confirmBtn);
+
         shutter.setOnClickListener(v -> takePhoto());
         rotateBtn.setOnClickListener(v -> {
             if (cropView != null) {

@@ -63,8 +63,10 @@ final class WebInsets {
             }
         });
         ViewCompat.setOnApplyWindowInsetsListener(web, (v, insets) -> {
-            // 只借派发当时机，不消费、不改布局（返回原 insets 让系统照旧处理）
+            // 借派发当时机（不消费、不改布局语义）记时序，同时把系统栏高度落到页面的外边距上
+            // （targetSdk 37 / Android 15+ 强制 edge-to-edge：不垫就钻到状态栏底下）
             lastInset[0] = System.currentTimeMillis();
+            SafeInsets.applyMargin(v, insets);
             return insets;
         });
         web.postDelayed(poll, 30);

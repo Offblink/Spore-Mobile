@@ -58,6 +58,9 @@ public class QrLoginActivity extends AppCompatActivity {
     private TextView torchBtn;
     private ProcessCameraProvider provider;
     private Camera camera;
+    /** 本页自己的两个用例：解绑只解它们（见 startCamera 注释） */
+    private Preview previewUse;
+    private ImageAnalysis analysis;
     private BarcodeScanner scanner;
     private ExecutorService analyzeExec;
     private final AtomicBoolean handled = new AtomicBoolean(false);
@@ -75,6 +78,10 @@ public class QrLoginActivity extends AppCompatActivity {
         preview = findViewById(R.id.pair_preview);
         status = findViewById(R.id.pair_status);
         torchBtn = findViewById(R.id.pair_torch);
+        // 取景全屏，只把顶栏与底部提示挪出系统栏（edge-to-edge 下否则压在状态栏里）
+        SafeInsets.lightSystemBars(this);
+        SafeInsets.pad(findViewById(R.id.pair_top), true, false);
+        SafeInsets.pad(findViewById(R.id.pair_bottom), false, true);
         findViewById(R.id.pair_close).setOnClickListener(v -> finish());
         torchBtn.setOnClickListener(v -> toggleTorch());
 
@@ -115,10 +122,10 @@ public class QrLoginActivity extends AppCompatActivity {
                         e.getClass().getSimpleName()));
                 return;
             }
-            Preview previewUse = new Preview.Builder().build();
-            previewUse.setSurfaceProvider(preview.getSurfaceProvider());
+            Preview p = new Preview.Builder().build();
+            p.setSurfaceProvider(preview.getSurfaceProvider());
 
-            ImageAnalysis analysis = new ImageAnalysis.Builder()
+            ImageAnalysis a = new ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build();
             analyzeExec = Executors.newSingleThreadExecutor(r -> {
@@ -129,11 +136,16 @@ public class QrLoginActivity extends AppCompatActivity {
             scanner = BarcodeScanning.getClient(new BarcodeScannerOptions.Builder()
                     .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
                     .build());
-            analysis.setAnalyzer(analyzeExec, this::analyzeFrame);
+            a.setAnalyzer(analyzeExec, this::analyzeFrame);
 
-            provider.unbindAll();
-            camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA,
-                    previewUse, analysis);
+            // 只解绑本页自己的用例：provider 是进程级单例，unbindAll() 会把另一个取景页
+            // （重复启动时）刚绑好的预览一起掐掉——它已 RESUMED，不会再触发重绑，画面永久黑。
+            if (previewUse != null && analysis != null) {
+                provider.unbind(previewUse, analysis);
+            }
+            previewUse = p;
+            analysis = a;
+            camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, p, a);
         }, ContextCompat.getMainExecutor(this));
     }
 
@@ -259,8 +271,8 @@ public class QrLoginActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (provider != null) {
-            provider.unbindAll();
+        if (provider != null && previewUse != null && analysis != null) {
+            provider.unbind(previewUse, analysis);
         }
         if (scanner != null) {
             scanner.close();

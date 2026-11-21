@@ -234,21 +234,8 @@
     });
 
     // 服务器与同步：扫码进原生取景页；同步靠轮询拉状态（页内无事件通道）
-    refreshSync();
-    $("btnQr").addEventListener("click", function () {
-      bridge("qrLogin");
-    });
-    $("btnSync").addEventListener("click", function () {
-      bridge("syncStart");
-      $("btnSync").disabled = true;
-      $("btnSync").textContent = "同步中…";
-      setTimeout(pollSync, 400);
-    });
-    $("btnUnpair").addEventListener("click", function () {
-      bridge("unpair"); // 确认框在原生（页面无模态）
-    });
-
-    // 服务器与同步：扫码进原生取景页；同步靠轮询拉状态（页内无事件通道）
+    // ⚠️ 每颗按钮只能挂一次监听：这个块曾被整段复制成两份，点一次「扫码登录」起两个
+    // 取景页——上面那个扫完关页时把下面那个的相机用例一起解绑，回来就是黑屏取景页。
     refreshSync();
     $("btnQr").addEventListener("click", function () {
       bridge("qrLogin");

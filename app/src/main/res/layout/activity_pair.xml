@@ -22,8 +22,9 @@
         android:layout_gravity="center"
         android:background="@drawable/spore_pair_frame" />
 
-    <!-- 顶栏：✕（关闭） · 标题 · ⚡（闪光灯） -->
+    <!-- 顶栏：✕（关闭） · 标题 · ⚡（闪光灯）。pad 在 SafeInsets 里叠加状态栏高度 -->
     <LinearLayout
+        android:id="@+id/pair_top"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
@@ -68,8 +69,9 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- 底部提示 -->
+    <!-- 底部提示（pad 在 SafeInsets 里叠加导航栏高度） -->
     <LinearLayout
+        android:id="@+id/pair_bottom"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"

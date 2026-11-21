@@ -34,7 +34,7 @@ public class LogActivity extends AppCompatActivity {
         WebView.setWebContentsDebuggingEnabled(true);
         web.setWebViewClient(new WebViewClient());
         web.addJavascriptInterface(new Host(), "Spore");
-        web.loadUrl("file:///android_asset/web/logs.html");
+        WebInsets.loadWhenReady(web, "file:///android_asset/web/logs.html");
     }
 
     /** JS → 原生（JavaBridge 线程）；剪贴板必须回主线程 */

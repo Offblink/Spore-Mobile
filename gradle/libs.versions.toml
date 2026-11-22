@@ -14,6 +14,9 @@ jlatexmath = "0.2.0"
 # 扫码配对：CameraX 预览/分析 + ML Kit 条码（bundled 模型进 APK，不依赖 GMS）
 camerax = "1.6.2"
 barcode = "17.3.0"
+# 模型 ↔ JSON（会话存档、删除墓碑账本）：DTO 绑定，见 agent/SessionJson。
+# 协议帧/SSE 增量解析仍走 android.jar 的 org.json——那是「逐事件取字段」的活，绑不上 DTO。
+gson = "2.11.0"
 # 只进 testImplementation：单测里要真 org.json（mockable android.jar 的 JSONObject 不可用）。
 # 钉 LlmClient.wireStr 契约（Android optString 把 JSON null 变 "null" 的坑）。
 json = "20240303"
@@ -37,6 +40,7 @@ camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.r
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "barcode" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 json = { group = "org.json", name = "json", version.ref = "json" }
 
 [plugins]

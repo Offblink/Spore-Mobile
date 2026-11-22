@@ -115,7 +115,7 @@ public final class SessionStore {
             File f = new File(dir(ctx), s.id + ".json");
             File tmp = new File(dir(ctx), s.id + ".json.tmp");
             try (FileOutputStream out = new FileOutputStream(tmp)) {
-                out.write(toJson(s).toString().getBytes(StandardCharsets.UTF_8));
+                out.write(SessionJson.encode(s).getBytes(StandardCharsets.UTF_8));
             }
             if (!tmp.renameTo(f)) {
                 //noinspection ResultOfMethodCallIgnored
@@ -125,7 +125,7 @@ public final class SessionStore {
                 }
             }
             cachePut(f, s); // 落盘成功 → 喂元数据缓存（本类是唯一写入口，读端免重解析）
-        } catch (IOException | org.json.JSONException ignored) {
+        } catch (IOException | RuntimeException ignored) {
             // 记录是次要品：失败不打断主链路（下次回合结束再试）
         }
     }
@@ -292,41 +292,22 @@ public final class SessionStore {
                 }
                 off += n;
             }
-            return fromJson(new JSONObject(new String(buf, 0, off, StandardCharsets.UTF_8)));
-        } catch (IOException | org.json.JSONException e) {
+            return fromJsonString(new String(buf, 0, off, StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException e) {
             return null;
         }
     }
 
     /**
-     * 会话完整 JSON（持久化与 web bridge 共用）。
-     * bridge 会在自己的线程调它，引擎线程同时往 session.messages 里 append →
-     * 先拷贝再序列化：会话对象内 messages 只 append 不移除，拷贝即安全快照
-     * （直连遍历在 bridge 线程上有 CME 风险，别改回去）。
+     * 会话完整 JSON（持久化与 web bridge 共用）。实体化交给 {@link SessionJson}（Gson DTO），
+     * 这里只把结果包成 org.json 对象 —— bridge 帧、同步上行都要把会话嵌进别的 JSONObject，
+     * 没有「直接嵌一段 JSON 原文」的 API，包一层仍是一次解析。
+     *
+     * <p>并发口径不变：bridge 线程调它时引擎线程正往 session.messages 里 append，
+     * 快照拷贝在 {@link SessionJson#encode} 里（定长 + 逐个 get，别改回整体拷贝）。
      */
     public static JSONObject toJson(Session s) throws org.json.JSONException {
-        JSONObject o = new JSONObject();
-        o.put("id", s.id);
-        o.put("created", s.created);
-        o.put("updated", s.updated);
-        o.put("touched", s.touched);
-        o.put("fav", s.fav);
-        // 显式判空（不依赖 put 对 null 的实现差异）；键缺席 = 未分组，兼容老 JSON
-        if (s.subjectId != null) {
-            o.put("subjectId", s.subjectId);
-        }
-        o.put("title", s.title);
-        o.put("status", s.status);
-        JSONArray msgs = new JSONArray();
-        // 快照拷贝：messages 是**只 append** 的，进场先取定长、再逐个 get —— 回合线程正在
-        // append 也不会撞到失效下标。别改回 new ArrayList<>(s.messages)：并发扩容时它可能
-        // 用「新 size + 旧数组」拷出越界（第九轮并行后，生成中改名/收藏会真的并发走到这里）。
-        int n = s.messages.size();
-        for (int i = 0; i < n; i++) {
-            msgs.put(msgToJson(s.messages.get(i)));
-        }
-        o.put("messages", msgs);
-        return o;
+        return new JSONObject(SessionJson.encode(s));
     }
 
     /**
@@ -472,87 +453,20 @@ public final class SessionStore {
         }
     }
 
-    private static JSONObject msgToJson(Session.Msg m) throws org.json.JSONException {
-        JSONObject o = new JSONObject();
-        o.put("role", m.role);
-        o.put("kind", m.kind == null ? "" : m.kind);
-        o.put("text", m.text);
-        o.put("think", m.think);
-        o.put("no", m.no);
-        o.put("title", m.title);
-        o.put("ans", m.ans);
-        o.put("why", m.why);
-        o.put("hasImage", m.hasImage);
-        o.put("imagePath", m.imagePath);
-        o.put("ts", m.ts);
-        o.put("verifyRan", m.verifyRan);
-        o.put("verifySkipped", m.verifySkipped);
-        o.put("verifyPending", m.verifyPending);
-        o.put("verifyVerdict", m.verifyVerdict);
-        o.put("verifyNote", m.verifyNote);
-        o.put("verifyThink", m.verifyThink);
-        o.put("tools", new JSONArray(m.tools));
-        return o;
-    }
-
     /**
-     * 会话反序列化（本包与同步回写共用）。包私有契约由 SessionStoreTest 钉住：
-     * subjectId 无键 → null；{@code touched} 无键（老 JSON / 服务端行）→ 回落 {@code updated}。
+     * 会话反序列化（本包与同步回写共用）。契约由 SessionStoreTest 钉住：
+     * subjectId 无键/null/空串 → null；{@code touched} 无键（老 JSON / 服务端行）→ 回落 {@code updated}。
+     * {@code throws} 保留：{@link org.offblink.spore.sync.SyncEngine#mergeFromServer} 的 catch 契约靠它。
      */
     public static Session fromJson(JSONObject o) throws org.json.JSONException {
-        Session s = new Session();
-        s.id = o.optString("id", s.id);
-        s.created = o.optLong("created", s.created);
-        s.updated = o.optLong("updated", s.updated);
-        s.touched = o.optLong("touched", s.updated);
-        s.fav = o.optBoolean("fav", false);
-        // 必须先 isNull：org.json 的 optString 会把 JSON null 变成字面量 "null"
-        s.subjectId = o.isNull("subjectId") ? null : o.optString("subjectId", "");
-        if (s.subjectId != null && s.subjectId.isEmpty()) {
-            s.subjectId = null;
-        }
-        s.title = o.optString("title", "新会话");
-        s.status = o.optString("status", "");
-        // 回合跑一半进程死了（华为杀后台真实发生）→ 展示层按已结束处理（与 metaOf 同一口径）
-        s.status = normalizeStatus(s.status);
-        JSONArray msgs = o.optJSONArray("messages");
-        if (msgs != null) {
-            for (int i = 0; i < msgs.length(); i++) {
-                JSONObject row = msgs.optJSONObject(i);
-                if (row == null) {
-                    continue; // 畸形行跳过（GUI session.py 同口径）：一条坏行不拖垮整会话
-                }
-                s.messages.add(msgFromJson(row));
-            }
-        }
-        return s;
+        return fromJsonString(o.toString());
     }
 
-    private static Session.Msg msgFromJson(JSONObject o) throws org.json.JSONException {
-        Session.Msg m = new Session.Msg();
-        m.role = o.optString("role", "user");
-        m.kind = o.optString("kind", "");
-        m.text = o.optString("text", "");
-        m.think = o.optString("think", "");
-        m.no = o.optString("no", "");
-        m.title = o.optString("title", "");
-        m.ans = o.optString("ans", "");
-        m.why = o.optString("why", "");
-        m.hasImage = o.optBoolean("hasImage", false);
-        m.imagePath = o.optString("imagePath", "");
-        m.ts = o.optLong("ts", 0);
-        m.verifyRan = o.optBoolean("verifyRan", false);
-        m.verifySkipped = o.optBoolean("verifySkipped", false);
-        m.verifyPending = o.optBoolean("verifyPending", false);
-        m.verifyVerdict = o.optString("verifyVerdict", "");
-        m.verifyNote = o.optString("verifyNote", "");
-        m.verifyThink = o.optString("verifyThink", "");
-        JSONArray tools = o.optJSONArray("tools");
-        if (tools != null) {
-            for (int i = 0; i < tools.length(); i++) {
-                m.tools.add(tools.getString(i));
-            }
-        }
-        return m;
+    /** 文件读路径：直接吃原文，避免「先 JSONObject 再 toString 再 Gson」的来回搬运 */
+    static Session fromJsonString(String raw) {
+        Session s = SessionJson.decode(raw);
+        // 回合跑一半进程死了（华为杀后台真实发生）→ 展示层按已结束处理（与 metaOf 同一口径）
+        s.status = normalizeStatus(s.status);
+        return s;
     }
 }

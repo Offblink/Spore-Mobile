@@ -59,6 +59,9 @@
 
 - **Java + XML Views + Material Components**，不使用 Kotlin、不使用 Jetpack Compose；
 - 单模块 `app`，包名 `org.offblink.spore`，`minSdk 26` / `targetSdk 37` / Java 11；
+- **JSON**：模型序列化用 **Gson**（`agent/SessionJson` 的 DTO 层：会话存档 + 同步上行形状；
+  `sync/SyncTombstones` 账本）；流式协议帧与 SSE 增量解析走 `android.jar` 自带的 `org.json`——
+  那是「逐事件取字段」的活，绑不上 DTO，也不该为它多引一层；
 - 关键链路自己接，不靠框架兜底：
   `MediaProjection` 取帧 → `ImageReader` 出位图 →
   黑帧/画质自检 → 裁剪落盘（长边 1600、JPEG 0.82）→ `WebView` 面板 + `addJavascriptInterface` 桥 →

@@ -790,7 +790,11 @@ public class CaptureService extends Service {
         //   ① 多帧取「最亮的一张」：半黑帧必然比完整帧暗，取最亮 = 取最完整；
         //   ② 可疑帧重建虚拟显示强制重新合成再取（静态屏下 VD 可能不再产新帧，重抓=同一张）。
         // 干净帧（正常屏幕）第一次就返回：正常路径零额外耗时，可疑帧多花几百毫秒。
-        if (frame == null || best.suspect()) {
+        // 第十轮补：预取帧/首帧已经判成安全窗口（整屏死黑）就不再重建 VD —— 重抓只会拿到
+        // 同一张黑帧，而 Android 17 对同一投影反复 createVirtualDisplay 会判 token 复用
+        // （SecurityException: Don't re-use the resultData），把好投影弄失效。
+        boolean secure = best != null && best.blocked();
+        if (!secure && (frame == null || best.suspect())) {
             for (int i = tries; i < GRAB_TRIES; i++) {
                 Bitmap f = grabFrame(p, w, h, seen);
                 grabs++;
@@ -809,6 +813,11 @@ public class CaptureService extends Service {
                     best = q;
                 } else {
                     f.recycle();
+                }
+                if (best.blocked()) {
+                    // 直到这里拿到的最亮帧仍是整屏死黑 = FLAG_SECURE 安全窗口，不是合成没完成。
+                    // 再建 VD 也只会拿到同一张；Android 17 复用投影建 VD 会直接抛 SecurityException。
+                    break;
                 }
                 if (!q.suspect()) {
                     break;

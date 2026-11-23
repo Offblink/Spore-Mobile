@@ -70,7 +70,7 @@
 ## 安装与用法
 
 1. 到 [Releases](https://github.com/Offblink/Spore-Mobile/releases) 下 `Spore-debug.apk`
-   （v1.8，2026-11-21 构建，31.7 MB），允许「安装未知应用」后安装。
+   （v1.9，2026-11-23 构建，31.8 MB），允许「安装未知应用」后安装。
 2. 首次打开 → 点「显示悬浮球」→ 授予**悬浮窗**权限；再按提示授予**屏幕录制**权限
    （只用「拍照搜题」的话这两项都不需要，相机权限进拍照页时申请）。
 3. 日常：
@@ -122,14 +122,14 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-11-21 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
-  lint **Error 0**（149 条 warning），单测 **88/88 全绿**
-  （FrameQuality 7 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
-  SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 7 · SubjectsStore 4 · LlmClient 3 ·
+- 2026-11-23 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+  lint **Error 0**（149 条 warning），单测 **96/96 全绿**
+  （FrameQuality 8 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
+  SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 14 · SubjectsStore 4 · LlmClient 3 ·
   LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5），
-  APK **33,267,487 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  APK **33,365,867 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（含 CameraX + ML Kit 条码模型与离线 KaTeX 公式字体；
-  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,267,487 B；
+  中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,365,867 B；
   拍照搜题复用已有的 CameraX，不新增依赖）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），

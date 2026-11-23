@@ -762,7 +762,9 @@ public class CaptureService extends Service {
     private void captureFrame(int w, int h, int attempt) {
         MediaProjection p = proj;
         if (p == null) {
-            return; // 授权中途被收回 → 下次点球重新授权
+            // 按下之后、取帧之前授权被收回：给用户明确出口，别「点了没反应」
+            toastRes(R.string.projection_missing);
+            return;
         }
         final long t0 = SystemClock.uptimeMillis();
         Bitmap[] seen = new Bitmap[1];
@@ -840,6 +842,15 @@ public class CaptureService extends Service {
         // 第七轮用户拍板：整屏 meanLuma「屏幕太暗」闸**撤掉**——屏幕没问题时它误杀。
         // 纯黑兜底交给裁剪级 crop_warn_dark（区域判定，比整屏均值准）。
         // 第九轮：只因大片死黑多取几帧，**绝不因此拒绝进框选**（不回头加闸）。
+        // 第十轮（用户实测「被应用屏蔽」）：**真正整屏死黑**是 FLAG_SECURE 安全窗口，
+        // 不是暗主题——这种帧进框选只能裁出黑图，直接取消并提示改用拍照搜题。
+        if (best != null && best.blocked()) {
+            FrameDiag.save(this, frame, best, dup, "blocked");
+            frame.recycle();
+            SporeLog.i(this, "capture blocked by secure window: " + best.describe(","));
+            toastRes(R.string.capture_black);
+            return;
+        }
         final Bitmap show = frame;
         final FrameQuality fq = best;
         final int dupCount = dup;
@@ -865,6 +876,16 @@ public class CaptureService extends Service {
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     reader.getSurface(), null, null);
             return awaitFrame(reader, w, h, lastSeen);
+        } catch (SecurityException se) {
+            // 用户实测：截屏被系统/对方安全窗口挡下时，createVirtualDisplay/取帧会抛
+            // java.lang.SecurityException。旧代码只 toast 原始异常并**保留坏句柄** →
+            // 之后每次点球都继续抛同样的 java-security，只能杀 App 才好。
+            // 这里把句柄作废 + FGS 切回 specialUse，下次点球给出可执行的「重新授权」提示。
+            CrashLog.write(this, se, "capture security");
+            SporeLog.e(this, "capture SecurityException", se);
+            invalidateProjection("security");
+            toastRes(R.string.projection_missing);
+            return null;
         } catch (Exception e) {
             toast(getString(R.string.capture_failed, String.valueOf(e)));
             return null;
@@ -877,6 +898,24 @@ public class CaptureService extends Service {
             }
             // 不再 proj.stop()：授权持久持有，投影生命周期归服务与 onStop 回调管
         }
+    }
+
+    /**
+     * 作废当前投影句柄（系统收回 / SecurityException）。
+     * Android 14+ 必须同时把 FGS 类型切回 specialUse：mediaProjection 类型却没有
+     * 有效投影会被系统判违规并杀服务（球和面板都挂在服务上，杀了就全没了）。
+     */
+    private void invalidateProjection(String why) {
+        proj = null;
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                startForeground(NOTIF_ID, buildNotification(ballAttached),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } catch (Throwable t) {
+                CrashLog.write(this, t, "invalidateProjection." + why);
+            }
+        }
+        SporeLog.i(this, "projection invalidated: " + why);
     }
 
     /**

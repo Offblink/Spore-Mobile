@@ -78,6 +78,21 @@ public class FrameQualityTest {
         assertEquals(30, q.mean); // 0x1E=30，三通道等值 → BT.601 均值仍是 30
     }
 
+    /**
+     * 安全窗口（FLAG_SECURE）：整屏死黑、只留顶部状态栏一窄条 → blocked()。
+     * 这就是用户实测「被应用屏蔽、第二次直接截到黑屏」的帧：不许进框选。
+     */
+    @Test
+    public void secureWindowFrameIsBlocked() {
+        FrameQuality q = of((x, y) -> y < H / 10 ? 0xFF808080 : BLACK);
+        assertEquals(90, q.deadPercent);
+        assertTrue(q.blocked());
+        // 对照：暗色界面（无真 0 像素）与半黑合成帧**不许**被误判成安全窗口
+        assertFalse(flat(0xFF1E1E1E).blocked());
+        assertFalse(of((x, y) -> x < W / 2 ? BLACK : WHITE).blocked());
+        assertFalse(flat(WHITE).blocked());
+    }
+
     /** 左半黑 / 右半亮 = 「图层只合成了一半」的形态：可疑，且网格左两列 0、右两列 255 */
     @Test
     public void halfBlackFrameIsSuspectAndGridSplitsIt() {

@@ -62,6 +62,16 @@ public final class FrameQuality {
         return deadPercent >= SUSPECT_DEAD_PERCENT;
     }
 
+    /**
+     * 整屏近乎死黑 = 目标应用的安全窗口在挡截屏（FLAG_SECURE / 受保护界面）。
+     * 比 {@link #suspect()} 严得多：只认「哪里都黑」，且均值也低。
+     * 夜间深色界面（0x1E1E1E：mean=30、dead=0）与半黑半亮帧（dead=50）都不命中——
+     * 「不许因为暗就拒绝进框选」那条用户拍板不动，这里只拦 FLAG_SECURE 的黑窗口。
+     */
+    public boolean blocked() {
+        return deadPercent >= 75 && mean < 24;
+    }
+
     /** 一行统计（文件名 / 日志 / 弹窗共用）；sep 由调用方给（文件名不能带空格）。 */
     public String describe(String sep) {
         StringBuilder sb = new StringBuilder(96);

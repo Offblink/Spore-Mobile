@@ -40,7 +40,7 @@
     <string name="busy_wait">正在回答，稍等片刻再操作</string>
     <string name="session_gone">找不到这条会话</string>
     <string name="capture_timeout">截屏超时，请重试</string>
-    <string name="capture_black">截到黑屏（对方可能禁止截屏），已取消</string>
+    <string name="capture_black">对方应用禁止截屏（安全窗口），截出来是黑屏。请改用「拍照搜题」（打开 Spore → 拍照搜题）</string>
     <string name="capture_failed">截屏失败：%1$s</string>
     <string name="capture_failed_write">题图保存失败，请重试</string>
 

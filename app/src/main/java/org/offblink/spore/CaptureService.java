@@ -954,6 +954,13 @@ public class CaptureService extends Service {
                 return null;
             }
         }
+        // 等满超时仍然只有死黑帧，且最亮的一张也判成安全窗口（dead≥75、mean<24）：
+        // 把这张黑帧交回去，让 captureFrame 走 blocked 分支（一次 VD 就收手）。
+        // 不能一看到黑帧就返回——首帧可能只是「合成还没上屏」，等满超时才说明真的一直黑。
+        Bitmap last = lastSeen[0];
+        if (last != null && FrameQuality.of(last).blocked()) {
+            return last;
+        }
         return null;
     }
 

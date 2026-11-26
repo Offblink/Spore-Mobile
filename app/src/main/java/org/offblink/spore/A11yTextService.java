@@ -1,6 +1,8 @@
 package org.offblink.spore;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -16,8 +18,9 @@ import java.util.Set;
  * 节点树里的文本属于另一半数据（无障碍读的是 View 内容，不是渲染结果）。
  * 所以「安全窗口」下的题目文本在这里仍然拿得到——这是本服务存在的唯一理由。
  *
- * 现阶段只做最小闭环：读到 → 写 {@link SporeLog}（设置 → 运行日志可见）+ logcat，
- * 并把最近一次结果留在静态字段里，供后续搜题流水线按需取用。
+ * 现阶段：点球命中安全窗口时由 {@link CaptureService#startScreenTextTurn()} 调 {@link #readNow()}
+ * 取文本起回合；事件回调只负责写 {@link SporeLog}（设置 → 运行日志可见）+ logcat 留痕。
+ * 设置页的「读屏搜题」卡用 {@link #isEnabled(Context)} 显示系统开关状态。
  * 红线同 SporeLog：绝不把 token/apiKey 之类的窗口内容落盘；本类只登记「读到了多少字」，
  * 正文截断进日志，避免把用户屏幕上的隐私整段抄进日志文件。
  */
@@ -41,6 +44,34 @@ public class A11yTextService extends AccessibilityService {
     /** 服务是否已被用户在系统设置里启用（未启用 = 读不到任何窗口）。 */
     public static boolean isConnected() {
         return instance != null;
+    }
+
+    /**
+     * 系统里是否勾选启用了本服务——读 Secure 设置而不是看进程内实例：
+     * 设置页要在服务还没绑上（或刚被 force-stop 清掉）时也给对状态。
+     */
+    public static boolean isEnabled(Context c) {
+        try {
+            android.content.ContentResolver cr = c.getContentResolver();
+            if (android.provider.Settings.Secure.getInt(cr,
+                    android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0) != 1) {
+                return false;
+            }
+            String list = android.provider.Settings.Secure.getString(cr,
+                    android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (list == null || list.isEmpty()) {
+                return false;
+            }
+            ComponentName me = new ComponentName(c, A11yTextService.class);
+            for (String part : list.split(":")) {
+                if (me.equals(ComponentName.unflattenFromString(part))) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+            // 读设置失败按未启用处理（页面只作展示，不阻断任何流程）
+        }
+        return false;
     }
 
     /**

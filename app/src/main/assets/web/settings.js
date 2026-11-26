@@ -189,6 +189,30 @@
   // 原生回叫钩子（onResume 从扫码页回来、取消配对确认后都会 evaluateJavascript 到这）
   window.__pairRefresh = refreshSync;
 
+  // ---------- 读屏搜题卡 ----------
+  /** 系统里是否勾选 + 当前是否已绑定（开关只能由系统设置改，这里只展示与跳转） */
+  function refreshA11y() {
+    var info = bridge("a11yInfo");
+    if (typeof info === "string") {
+      try {
+        info = JSON.parse(info);
+      } catch (e) {
+        info = null;
+      }
+    }
+    info = info || {};
+    var on = !!info.enabled;
+    var el = $("a11yState");
+    if (!el) {
+      return;
+    }
+    el.textContent = on
+      ? (info.connected ? "已开启 · 运行中" : "已开启 · 点球时生效")
+      : "未开启 · 点此去系统无障碍开启";
+    el.classList.toggle("on", on);
+  }
+  window.__a11yRefresh = refreshA11y;
+
   /** 同步进行中就继续轮（事件通道没有——页内 600ms 拉一次状态） */
   function pollSync() {
     refreshSync();
@@ -224,6 +248,8 @@
     $("btnBack").addEventListener("click", function () { bridge("close"); });
     $("btnSave").addEventListener("click", save);
     $("btnLogs").addEventListener("click", function () { bridge("openLogs"); });
+    // 读屏搜题：只跳系统无障碍页（开关归系统管），回来 onResume 会重拉状态
+    $("btnA11y").addEventListener("click", function () { bridge("openA11y"); });
     // 所有说明文字：遇到中文分号就换行（用户口径：一个分号一行）
     Array.prototype.forEach.call(document.querySelectorAll(".hint, .sub"), function (el) {
       var txt = el.textContent || "";
@@ -237,6 +263,7 @@
     // ⚠️ 每颗按钮只能挂一次监听：这个块曾被整段复制成两份，点一次「扫码登录」起两个
     // 取景页——上面那个扫完关页时把下面那个的相机用例一起解绑，回来就是黑屏取景页。
     refreshSync();
+    refreshA11y();
     $("btnQr").addEventListener("click", function () {
       bridge("qrLogin");
     });

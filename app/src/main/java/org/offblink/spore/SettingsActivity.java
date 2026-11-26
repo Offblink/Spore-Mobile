@@ -81,7 +81,9 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        web.evaluateJavascript("window.__pairRefresh && window.__pairRefresh()", null);
+        web.evaluateJavascript(
+                "window.__pairRefresh && window.__pairRefresh();"
+                        + "window.__a11yRefresh && window.__a11yRefresh()", null);
     }
 
     /**
@@ -158,6 +160,35 @@ public class SettingsActivity extends AppCompatActivity {
         public void openLogs() {
             runOnUiThread(() -> startActivity(
                     new Intent(SettingsActivity.this, LogActivity.class)));
+        }
+
+        /**
+         * 「读屏搜题」卡状态帧：{enabled, connected}。
+         * enabled 读系统 Secure 设置（force-stop 后也会如实变 false），connected 是当前是否已绑定。
+         */
+        @JavascriptInterface
+        public String a11yInfo() {
+            JSONObject o = new JSONObject();
+            try {
+                o.put("enabled", A11yTextService.isEnabled(SettingsActivity.this));
+                o.put("connected", A11yTextService.isConnected());
+            } catch (JSONException ignored) {
+                // 字面量 key，不会发生
+            }
+            return o.toString();
+        }
+
+        /** 跳系统无障碍页（服务开关只能由系统设置改）；回来后 onResume 会让页面重拉状态 */
+        @JavascriptInterface
+        public void openA11y() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                } catch (Exception e) {
+                    // 个别 ROM 没有这个入口：退回应用详情页，用户自己找无障碍
+                    startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS));
+                }
+            });
         }
 
         /** 扫码登录页（相机权限在 QrLoginActivity 里要）。1s 内只放一次：两页叠着时，

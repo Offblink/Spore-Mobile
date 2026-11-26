@@ -144,6 +144,19 @@
         </div>
       </section>
 
+      <!-- 安全窗口读屏：开关只能由系统设置改，这里只显示状态 + 跳转 -->
+      <section class="card group">
+        <div class="group-title">读屏搜题</div>
+        <button type="button" class="nav-row" id="btnA11y">
+          <span class="nav-row-txt">
+            <span class="nav-row-t">Spore 读屏搜题</span>
+            <span class="nav-row-s" id="a11yState">未开启 · 点此去系统无障碍开启</span>
+          </span>
+          <span class="nav-row-arrow" aria-hidden="true">›</span>
+        </button>
+        <div class="hint">对方 App 禁止截屏时，改读当前界面的文字作答；只在本机解析，不上传界面内容；系统页里找不到就往下翻「已下载的应用 / Downloaded apps」</div>
+      </section>
+
       <!-- 运行日志：只留入口，正文与刷新/复制/清空在独立页（LogActivity + logs.html） -->
       <section class="card group log-entry">
         <button type="button" class="nav-row" id="btnLogs">

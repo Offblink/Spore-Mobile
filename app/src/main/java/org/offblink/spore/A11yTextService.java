@@ -34,8 +34,6 @@ public class A11yTextService extends AccessibilityService {
     private static final int LOG_CHARS = 160;
 
     private static volatile A11yTextService instance;
-    private static volatile String lastPackage = "";
-    private static volatile String lastText = "";
 
     private long lastReadAt;
     private String lastLogged;
@@ -45,27 +43,16 @@ public class A11yTextService extends AccessibilityService {
         return instance != null;
     }
 
-    /** 最近一次读到的文本（可能来自任意应用的最后一次窗口事件）。 */
-    public static String lastText() {
-        return lastText;
-    }
-
-    public static String lastPackage() {
-        return lastPackage;
-    }
-
     /**
      * 立即读一次当前活动窗口的文本；服务未连接或窗口不可读时返回空串。
-     * 后续搜题流水线从这里取文本，替代 OCR 那一段。
+     * 搜题流水线（{@code CaptureService.startScreenTextTurn}）从这里取文本。
      */
     public static String readNow() {
         A11yTextService svc = instance;
         if (svc == null) {
             return "";
         }
-        String text = svc.capture(svc.getRootInActiveWindow());
-        lastText = text;
-        return text;
+        return svc.capture(svc.getRootInActiveWindow());
     }
 
     @Override
@@ -115,8 +102,6 @@ public class A11yTextService extends AccessibilityService {
     private void captureAndLog(String pkg) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         String text = capture(root);
-        lastPackage = pkg;
-        lastText = text;
         if (text.isEmpty()) {
             // 读不到也要留痕：这是「假设被证伪」时唯一的一手证据（root 为 null / 无文本节点）。
             String why = root == null ? "root=null" : "text-empty";

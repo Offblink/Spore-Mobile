@@ -82,6 +82,10 @@
     <!-- 主页 -->
     <string name="btn_settings">设置</string>
 
+    <!-- 无障碍读屏（A11yTextService）：安全窗口下用节点树文本代替截屏 OCR -->
+    <string name="a11y_service_label">Spore 读屏搜题</string>
+    <string name="a11y_service_desc">当对方应用禁止截屏（安全窗口）时，读取当前界面的文字用于搜题。只在本机解析，不上传界面内容。</string>
+
     <!-- 扫码登录（QrLoginActivity） -->
     <string name="pair_title">扫码登录</string>
     <string name="pair_close_cd">关闭</string>

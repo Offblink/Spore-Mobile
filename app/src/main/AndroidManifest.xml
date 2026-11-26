@@ -86,6 +86,22 @@
                 android:value="spore_ball_overlay_and_screen_capture_consent_flow" />
         </service>
 
+        <!-- 无障碍读屏：FLAG_SECURE 只挡像素，节点树里仍是真文本（详见 A11yTextService）。
+             必须 exported=true + BIND_ACCESSIBILITY_SERVICE：系统绑定服务靠这个 intent-filter，
+             exported=false 会让它根本不出现在无障碍列表里。 -->
+        <service
+            android:name=".A11yTextService"
+            android:exported="true"
+            android:label="@string/a11y_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_text" />
+        </service>
+
     </application>
 
 </manifest>

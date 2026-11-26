@@ -108,6 +108,7 @@
 | 前台服务 + 通知 | 悬浮球常驻，被系统回收就再也截不了屏（`FGS` 类型 `mediaProjection`） |
 | 相册写入 | 「保存到相册」把截图存进 `Pictures/Spore` |
 | 相机 | 拍照搜题取景（首页「拍照搜题」）+ 扫码登录服务器（识别登录二维码） |
+| 无障碍服务（可选，「Spore 读屏搜题」） | 对方 App 禁止截屏时，改从节点树读当前界面文字（`A11yTextService`；不读像素、不碰按键） |
 
 API Key 只存在本机设置页（不进 git、不进日志）；会话、截图都留在应用私有目录里。
 
@@ -122,15 +123,15 @@ cd Spore-Mobile
 ```
 
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`。
-- 2026-11-23 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
+- 2026-11-26 实测：`clean lintDebug testDebugUnitTest assembleDebug` **BUILD SUCCESSFUL**，
   lint **Error 0**（149 条 warning），单测 **96/96 全绿**
   （FrameQuality 8 · Phases 8 · SyncEngine 11 · SyncIdempotencyProbe 6 ·
   SyncMobileBugProbe 9 · SporeLog 4 · SessionStore 14 · SubjectsStore 4 · LlmClient 3 ·
   LatexDelims 7 · UnreadDotState 17 · ShotPolicy 5），
-  APK **33,365,867 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
+  APK **33,367,631 B**（`clean` 口径：增量构建会混进旧件、别拿它记数——实测增量比
   clean 多 1.13MB）（含 CameraX + ML Kit 条码模型与离线 KaTeX 公式字体；
   中文文字识别的 ML Kit 模型已整体下线，包体从 76,599,037 B 降到 33,365,867 B；
-  拍照搜题复用已有的 CameraX，不新增依赖）。
+  拍照搜题复用已有的 CameraX，不新增依赖；无障碍读屏 `A11yTextService` 只多 +1,764 B）。
 - **`lintDebug` 是真门禁，别跳**：2026-10-10/11 真机连炸两次 `NoSuchMethodError`
   （`Matcher.appendTail(StringBuilder)` = API 34、`URLDecoder.decode(String,Charset)` = API 33），
   这类坑单测跑不出来（开发机 JDK 全有），只有 lint 按 `minSdk 26` 对一遍才拦得住；
@@ -139,10 +140,17 @@ cd Spore-Mobile
 
 ## 已知问题
 
-- **对方 App 开了 `FLAG_SECURE`（禁止截屏）时，点球只会取到整屏死黑**：App 判定为安全窗口、
-  作废这一帧（不再把黑图丢进框选），提示「对方应用禁止截屏…请改用『拍照搜题』」；
-  `files/diag/` 里留 `blocked_*` 样本。这类界面在 Android 内没有合法的取图通道，
-  拍照搜题走相机、不受影响。
+- **对方 App 开了 `FLAG_SECURE`（禁止截屏）时，像素通道取不到画面**：点球只会拿到整屏死黑，
+  App 判定为安全窗口、作废这一帧（不再把黑图丢进框选），提示「对方应用禁止截屏…请改用
+  『拍照搜题』」，`files/diag/` 里留 `blocked_*` 样本。Android 17 / API 37 模拟器实测
+  （2026-11-26）：安全窗口 `screencap` 均值 0.3、死黑采样 99.9%；关掉 flag 同一屏均值 83.4。
+- **安全窗口的文字走无障碍读（`A11yTextService`，可选启用）**：`FLAG_SECURE` 只约束合成后的
+  像素，不挡无障碍读节点树里的 `text` / `contentDescription`。同一台模拟器、同一组开关实测：
+  - 原生 `TextView`：flag ON 时读到 127 字全文，每 2s 的文本变化都被新一轮读取跟上；
+  - `WebView`（Chromium 虚拟节点）：flag ON 时读到 135 字全文，JS 动态改写的文本也能读到。
+  现阶段是最小闭环：读到的内容写 `spore.log`（设置 → 运行日志）+ logcat，正文只保留 160 字
+  前缀（不把整屏隐私整段抄进日志），`A11yTextService.readNow()` 留给后续搜题流水线取用。
+  启用：系统设置 → 无障碍 → 「Spore 读屏搜题」。题干带图时文本拿不到图，拍照搜题仍是兜底。
 - 非安全窗口的偶发**整屏偏黑**帧（`MediaProjection` 出帧侧问题）仍会自检并留
   `black_*` 诊断样本；AVD 上未复现，仍在排查。
 

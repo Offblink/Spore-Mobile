@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  无障碍读屏配置（对应 A11yTextService）。
+  - canRetrieveWindowContent = true 是硬前提：没有它 getRootInActiveWindow() 恒为 null。
+  - 事件只要窗口级变化：状态切换 / 内容变化 / 窗口列表变化；键盘、滚动、通知一概不接收，
+    省电也少噪声。
+  - notificationTimeout 150ms：内容变化类事件本来就密，服务侧还有一层 250ms 节流。
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/a11y_service_desc"
+    android:notificationTimeout="150" />

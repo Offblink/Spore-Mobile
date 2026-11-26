@@ -14,6 +14,9 @@ public interface Panel extends AgentEngine.Listener {
     /** 截图落盘后：开面板 + 起两阶段回合 */
     void openWithCapture(File crop);
 
+    /** 读屏回合：开面板 + 用无障碍读到的界面文字起两阶段回合（FLAG_SECURE 时的替代入口） */
+    void openWithText(String screenText);
+
     /** 球长按 = 面板开/关（第八轮拍板：长按只开面板，会话列表由面板内 💬 手动弹） */
     void toggle();
 

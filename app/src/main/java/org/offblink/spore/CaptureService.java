@@ -840,8 +840,11 @@ public class CaptureService extends Service {
                 return;
             }
             if (seen[0] != null) {
-                // 三轮只等到近黑帧（FLAG_SECURE / 取帧失败）→ 黑屏 toast + 留样本定罪
+                // 三轮只等到近黑帧（FLAG_SECURE / 取帧失败）→ 留样本定罪；能读屏就改走读屏
                 FrameDiag.save(this, seen[0], FrameQuality.of(seen[0]), 0, "black");
+                if (startScreenTextTurn()) {
+                    return;
+                }
                 toastRes(R.string.capture_black);
             } else {
                 toastRes(R.string.capture_timeout);
@@ -857,6 +860,9 @@ public class CaptureService extends Service {
             FrameDiag.save(this, frame, best, dup, "blocked");
             frame.recycle();
             SporeLog.i(this, "capture blocked by secure window: " + best.describe(","));
+            if (startScreenTextTurn()) {
+                return;
+            }
             toastRes(R.string.capture_black);
             return;
         }
@@ -890,7 +896,8 @@ public class CaptureService extends Service {
             // java.lang.SecurityException。旧代码只 toast 原始异常并**保留坏句柄** →
             // 之后每次点球都继续抛同样的 java-security，只能杀 App 才好。
             // 这里把句柄作废 + FGS 切回 specialUse，下次点球给出可执行的「重新授权」提示。
-            CrashLog.write(this, se, "capture security");
+            // 安全窗口/投影 token 失效是**可恢复的预期路径，不是崩溃**：只进操作日志，
+            // 绝不写 CrashLog——写了下次启动就弹「检测到上次异常终止」，用户实测报过这条。
             SporeLog.e(this, "capture SecurityException", se);
             invalidateProjection("security");
             toastRes(R.string.projection_missing);
@@ -990,6 +997,28 @@ public class CaptureService extends Service {
             bmp.copyPixelsFromBuffer(packed);
         }
         return bmp;
+    }
+
+    /**
+     * 整屏死黑 = 对方开了 FLAG_SECURE：像素这条路没有合法通道，但无障碍读的是节点树、
+     * 不受这个标志约束（见 {@link A11yTextService}）。读屏服务已启用且读到文字 → 直接按
+     * 文本起回合，面板照常出答案；返回 true = 已接管，调用方别再 toast。
+     * 线程：本方法跑在 bg（{@link #captureFrame} 的线程）；getRootInActiveWindow() 是跨进程
+     * 调用，不要求主线程；但开面板要回主线程（WindowManager.addView 非 UI 线程会崩）。
+     */
+    private boolean startScreenTextTurn() {
+        if (!A11yTextService.isConnected()) {
+            SporeLog.i(this, "secure window: a11y service off, fallback to toast");
+            return false;
+        }
+        String text = A11yTextService.readNow();
+        if (text == null || text.isEmpty()) {
+            SporeLog.i(this, "secure window: a11y read empty, fallback to toast");
+            return false;
+        }
+        SporeLog.i(this, "secure window: a11y text " + text.length() + " chars, text turn");
+        main.post(() -> panel.openWithText(text));
+        return true;
     }
 
     // ---------- 框选 ----------

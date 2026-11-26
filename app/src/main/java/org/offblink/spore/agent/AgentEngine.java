@@ -129,16 +129,34 @@ public final class AgentEngine {
      * 与在跑的那条各写各的。
      */
     public void newCaptureTurn(String imagePath, String supplement) {
+        final String text = supplement == null ? "" : supplement;
+        startCaptureSession(() -> runImageTurn(imagePath, text));
+    }
+
+    /**
+     * 读屏提问：题目来自无障碍文本（对方 App 开 FLAG_SECURE 时截屏只有死黑，
+     * 见 {@link org.offblink.spore.A11yTextService}）。与截图回合同一个会话/面板/核实流水线，
+     * 只是把「一张图」换成「一段界面文字」。
+     */
+    public void newScreenTextTurn(String screenText) {
+        final String text = screenText == null ? "" : screenText;
+        startCaptureSession(() -> runScreenTextTurn(text));
+    }
+
+    /**
+     * 截图/读屏两条入口共用的开场：换视图（当前会话空着就直接复用）+ 把上一段会话归档，
+     * 真正的回合丢到工作线程跑（主线程只背面板开合）。
+     */
+    private void startCaptureSession(Runnable turn) {
         Session prev = session;
         Session next = nextCaptureSession(); // 只定归属 + 换视图，不在主线程写盘
-        String text = supplement == null ? "" : supplement;
         submit(next, () -> {
             if (prev != next && !prev.messages.isEmpty()) {
                 // 旧会话归档（内容落盘、抬 updated → 它排到列表最前，因为**确实有新内容**）；
                 // 放工作线程做：主线路是面板开合，不背文件 IO
                 SessionStore.saveActive(app, prev);
             }
-            runImageTurn(imagePath, text);
+            turn.run();
         });
     }
 
@@ -399,6 +417,19 @@ public final class AgentEngine {
     // ================================================================ 阶段分支
 
     private void runImageTurn(String imagePath, String supplement) {
+        runAnswerTurn(imagePath, null, supplement);
+    }
+
+    /** 读屏回合：没有图，题目正文就是节点树读到的文字 */
+    private void runScreenTextTurn(String screenText) {
+        runAnswerTurn(null, screenText, "");
+    }
+
+    /**
+     * 两阶段作答的公用实现：{@code imagePath} 与 {@code screenText} 二选一。
+     * 其余（会话、事件、核实、落盘）两条入口完全一致。
+     */
+    private void runAnswerTurn(String imagePath, String screenText, String supplement) {
         final Session cur = curSession();
         SporeSettings s = SporeSettings.load(app);
         if (!s.isConfigured()) {
@@ -407,9 +438,9 @@ public final class AgentEngine {
         }
         Session.Msg user = new Session.Msg();
         user.role = "user";
-        user.hasImage = true;
+        user.hasImage = imagePath != null;
         user.imagePath = imagePath;
-        user.text = supplement;
+        user.text = screenText != null ? screenText : supplement;
         user.ts = System.currentTimeMillis();
         cur.messages.add(user);
 
@@ -425,13 +456,13 @@ public final class AgentEngine {
         emit("answer-start", "idx", idx);
 
         try {
-            String image = imageDataUrl(imagePath);
-            String extra = supplement.isEmpty() ? "" : "\n\n用户补充：" + supplement;
+            String image = imagePath == null ? null : imageDataUrl(imagePath);
+            String extra = supplement == null || supplement.isEmpty() ? "" : "\n\n用户补充：" + supplement;
 
             // ---- 阶段A：读题 + 初答（桌面注意：不带 system）----
             LlmClient.ChatRequest r = new LlmClient.ChatRequest();
             fillApi(r, s);
-            r.messages = phaseAMessages(image, extra);
+            r.messages = phaseAMessages(image, screenText, extra);
             r.noThink = s.fastNoThink;
             r.onDelta = (kind, chunk, acc) -> {
                 if ("reasoning".equals(kind)) {
@@ -494,7 +525,7 @@ public final class AgentEngine {
                 ans.verifyNote = "已关闭自动核实 · 点「核实一下」开始核实";
                 emitVerifyDone(idx, ans, false, false, true);
             } else {
-                verifyPhase(s, ans, idx, image, extra);
+                verifyPhase(s, ans, idx, image, screenText, extra);
             }
             cur.status = "done";
             emitTurnEnd(idx, false, null);
@@ -652,15 +683,19 @@ public final class AgentEngine {
             }
         }
         String image = null;
+        String screenText = null;
+        String extra = "";
         if (lastUser != null && lastUser.hasImage) {
             try {
                 image = imageDataUrl(lastUser.imagePath);
             } catch (IOException e) {
                 image = null; // 图丢了 → 下面统一按「截图缺失」报错
             }
+            extra = lastUser.text.isEmpty() ? "" : "\n\n用户补充：" + lastUser.text;
+        } else if (lastUser != null && !lastUser.text.isEmpty()) {
+            // 读屏回合：user.text 是题目正文本身，不是补充说明
+            screenText = lastUser.text;
         }
-        String extra = lastUser != null && !lastUser.text.isEmpty()
-                ? "\n\n用户补充：" + lastUser.text : "";
 
         ans.verifyPending = false; // 摘掉按钮
         ans.verifyRan = false;
@@ -668,10 +703,10 @@ public final class AgentEngine {
         emit("verify-delta", "idx", idx, "ran", false, "note", "", "pending", false);
         emit("status", "status", "verifying", "text", "核实中…");
         try {
-            if (image == null) {
-                throw new IOException("截图缺失，无法核实");
+            if (image == null && screenText == null) {
+                throw new IOException("题目缺失，无法核实");
             }
-            verifyPhase(s, ans, idx, image, extra);
+            verifyPhase(s, ans, idx, image, screenText, extra);
             cur.status = "done";
             emitTurnEnd(idx, false, null);
         } catch (AbortedTurn a) {
@@ -689,7 +724,7 @@ public final class AgentEngine {
     // ================================================================ 阶段B
 
     private void verifyPhase(SporeSettings s, Session.Msg ans, int idx,
-                             String image, String extra) throws Exception {
+                             String image, String screenText, String extra) throws Exception {
         final Session cur = curSession();
         int maxRounds = Math.max(0, s.maxToolRounds);
         if (maxRounds <= 0) {
@@ -699,7 +734,7 @@ public final class AgentEngine {
         cur.status = "verifying";
         emit("status", "status", "verifying", "text", "核实中…");
 
-        JSONArray msgs = verifyMessages(image, extra, ans, maxRounds);
+        JSONArray msgs = verifyMessages(image, screenText, extra, ans, maxRounds);
         Phases.PhaseB verify = null;
 
         for (int round = 0; round <= maxRounds; round++) {
@@ -813,21 +848,38 @@ public final class AgentEngine {
 
     // ================================================================ 消息构造
 
-    private JSONArray phaseAMessages(String image, String extra) {
+    /**
+     * 阶段A 的 user 消息：截图 → image_url（桌面同款）；读屏 → 纯文本。
+     * 两条路共用同一套五行协议，只有前言不同（见 {@link Prompts#PHASE_A_TEXT}）。
+     */
+    private JSONArray phaseAMessages(String image, String screenText, String extra) {
         JSONArray content = new JSONArray();
-        content.put(jo("type", "image_url", "image_url", jo("url", image)));
-        content.put(jo("type", "text", "text", Prompts.PHASE_A + extra));
+        String prompt;
+        if (image != null) {
+            content.put(jo("type", "image_url", "image_url", jo("url", image)));
+            prompt = Prompts.PHASE_A;
+        } else {
+            prompt = Prompts.PHASE_A_TEXT + "\n\n题目文字：\n" + screenText;
+        }
+        content.put(jo("type", "text", "text", prompt + extra));
         JSONArray msgs = new JSONArray();
         msgs.put(jo("role", "user", "content", content));
         return msgs;
     }
 
-    private JSONArray verifyMessages(String image, String extra, Session.Msg ans, int maxRounds) {
+    private JSONArray verifyMessages(String image, String screenText, String extra,
+                                     Session.Msg ans, int maxRounds) {
         JSONArray msgs = new JSONArray();
         msgs.put(jo("role", "system", "content", Prompts.SYSTEM));
         JSONArray content = new JSONArray();
-        content.put(jo("type", "image_url", "image_url", jo("url", image)));
-        content.put(jo("type", "text", "text", Prompts.PHASE_A + extra));
+        String prompt;
+        if (image != null) {
+            content.put(jo("type", "image_url", "image_url", jo("url", image)));
+            prompt = Prompts.PHASE_A;
+        } else {
+            prompt = Prompts.PHASE_A_TEXT + "\n\n题目文字：\n" + screenText;
+        }
+        content.put(jo("type", "text", "text", prompt + extra));
         msgs.put(jo("role", "user", "content", content));
         String no = ans.no.isEmpty() ? "无" : ans.no;
         msgs.put(jo("role", "assistant",

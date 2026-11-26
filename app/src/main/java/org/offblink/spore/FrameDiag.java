@@ -59,7 +59,9 @@ public final class FrameDiag {
             return; // 落盘失败只丢样本，主链路照走
         }
         Log.w(TAG, name + " dup" + dup);
-        if (q.suspect()) {
+        // 整屏死黑是 FLAG_SECURE 的**预期形态**（对方禁止截屏），不是「画面不完整」的故障：
+        // 不再写 pending → 主页开屏不弹「上次截屏取到的画面不完整」。样本 jpg 照留，取证不断。
+        if (q.suspect() && !q.blocked()) {
             writePending(ctx, f, q, dup);
         }
         prune(ctx);

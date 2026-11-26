@@ -81,6 +81,13 @@ public final class AnswerPanel implements Panel {
         engine.newCaptureTurn(crop.getAbsolutePath(), "");
     }
 
+    /** 读屏回合：开面板 + 用界面文字起两阶段回合（对方开 FLAG_SECURE 时的替代入口） */
+    @Override
+    public void openWithText(String screenText) {
+        show();
+        engine.newScreenTextTurn(screenText);
+    }
+
     /** 球长按 = 面板开/关（第八轮拍板：不再连带弹会话列表，列表由面板内 💬 手动开） */
     @Override
     public void toggle() {

@@ -17,8 +17,9 @@ public final class Prompts {
             + "- 中文作答；题目是英文则用英文。数学式子用 LaTeX（行内 $...$）。\n"
             + "- 拿不准就明说拿不准，绝不编造。";
 
-    public static final String PHASE_A =
-            "这是一道题目截图（图中可能已有用户预选的答案，忽略它，独立作答）。**直接给结论，不要写推理过程**。"
+    /** 阶段A 正文（两种输入共用，改它等于改协议：先对照桌面 tests/answer.test.mjs） */
+    private static final String PHASE_A_BODY =
+            "**直接给结论，不要写推理过程**。"
             + "严格只输出下面五行，"
             + "不要输出任何其它文字、序号或 markdown（WHY 写在 ANS 前面：先把解析想清楚，答案照着解析落）：\n"
             + "NO: <题号，直接写数字；图上没有题号就写 无>\n"
@@ -29,6 +30,18 @@ public final class Prompts {
             + "填空/解答直接给结论，≤40 字>\n"
             + "CERT: <你对本答案的把握：纯计算/教材常识、一步就能确认的，写 <<ok>>；"
             + "需要核对事实、年份、数据、术语或你没把握的，写 <<check>>>";
+
+    public static final String PHASE_A =
+            "这是一道题目截图（图中可能已有用户预选的答案，忽略它，独立作答）。" + PHASE_A_BODY;
+
+    /**
+     * 同一套五行协议的文本版：输入来自无障碍读屏而不是截图。要显式告诉模型
+     * 「没有图、文字里可能混着界面标签」，否则它会去找并不存在的图片。
+     */
+    public static final String PHASE_A_TEXT =
+            "这是一道题目的界面文字（由无障碍服务从对方应用读到，没有截图；文字里可能混有按钮、"
+            + "导航、状态栏等无关标签，只挑题目本身作答；若文字里出现用户已选的答案，忽略它，独立作答）。"
+            + PHASE_A_BODY;
 
     public static final String PHASE_B =
             "你刚才已给出初答，现在只需核实它（只输出结果，不要写推理草稿）。\n"
